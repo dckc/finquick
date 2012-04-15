@@ -1,0 +1,24 @@
+<!doctype html>
+<html xmlns:ng="http://angularjs.org">
+  <head>
+    <title>My GnuCash Accounts</title>
+    <meta charset="utf-8" />
+  </head>
+  <body ng:controller="AccountsCtrl">
+    <h1>Accounts</h1>
+
+    <ul>
+      <li ng:repeat="account in accounts">
+	{{account.name}}
+	<p>{{account.description}}</p>
+      </li>
+    </ul>
+
+    <script src="http://code.angularjs.org/angular-0.9.12.js" ng:autobind></script>
+    <script src="fin.js"></script>
+  </body>
+</html>
+<!--
+cribbed from
+http://docs.angularjs.org/#!/misc/downloading
+-->
