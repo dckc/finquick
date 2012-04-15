@@ -1,5 +1,5 @@
-finjax README
-==================
+finjax -- web app acccess to gnucash financial data
+===================================================
 
 Getting Started
 ---------------

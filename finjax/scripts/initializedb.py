@@ -22,6 +22,7 @@ def usage(argv):
     sys.exit(1)
 
 def main(argv=sys.argv):
+    raise NotImplemented  # We're using gnucash's database
     if len(argv) != 2:
         usage(argv)
     config_uri = argv[1]

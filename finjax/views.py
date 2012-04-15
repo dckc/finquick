@@ -1,20 +1,31 @@
 from pyramid.response import Response
-from pyramid.view import view_config
 
 from sqlalchemy.exc import DBAPIError
 
 from .models import (
-    DBSession,
-    MyModel,
+    Accounts,
     )
 
-@view_config(route_name='home', renderer='templates/mytemplate.pt')
-def my_view(request):
-    try:
-        one = DBSession.query(MyModel).filter(MyModel.name=='one').first()
-    except DBAPIError:
-        return Response(conn_err_msg, content_type='text/plain', status_int=500)
-    return {'one':one, 'project':'finjax'}
+
+class JSONView(object):
+    def config(self, config, route_name):
+        config.add_view(self, route_name=route_name, renderer='json')
+
+
+class AccountsView(JSONView):
+    def __init__(self, session):
+        self._session = session
+
+    def __call__(self, request):
+        try:
+            accounts = self._session.query(Accounts)
+        except DBAPIError:
+            return Response(conn_err_msg,
+                            content_type='text/plain', status_int=500)
+        cols = Accounts.__table__.columns
+        return [dict([(c.name, getattr(acct, c.name)) for c in cols])
+                for acct in accounts]
+
 
 conn_err_msg = """\
 Pyramid is having a problem using your SQL database.  The problem

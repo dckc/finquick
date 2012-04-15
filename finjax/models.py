@@ -1,7 +1,8 @@
 from sqlalchemy import (
     Column,
-    Integer,
     Text,
+    String,
+    Boolean,
     )
 
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,16 +14,23 @@ from sqlalchemy.orm import (
 
 from zope.sqlalchemy import ZopeTransactionExtension
 
-DBSession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
+SessionMaker = sessionmaker(extension=ZopeTransactionExtension())
 Base = declarative_base()
 
-class MyModel(Base):
-    __tablename__ = 'models'
-    id = Column(Integer, primary_key=True)
-    name = Column(Text, unique=True)
-    value = Column(Integer)
 
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
+def make_session():
+    return scoped_session(SessionMaker)
 
+
+class GuidMixin(object):
+    guid = Column(String, primary_key=True)
+
+
+class Accounts(Base, GuidMixin):
+    __tablename__ = 'accounts'
+    name = Column(String)
+    account_type = Column(String)  # should be Enumeration...
+    parent_guid = Column(String)
+    description = Column(Text)
+    hidden = Column(Boolean)
+    placeholder = Column(Boolean)
