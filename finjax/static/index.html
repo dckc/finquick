@@ -7,15 +7,16 @@
   <body ng:controller="AccountsCtrl">
     <h1>Accounts</h1>
 
-    <ul>
-      <li ng:repeat="account in accounts">
-	{{account.name}}
-	<p>{{account.description}}</p>
-      </li>
-    </ul>
+    <table>
+      <tr><th>Account Name</th><th>Type</th></tr>
+      <tr ng:repeat="account in
+		     children(root).$filter({'hidden': false}).$orderBy('name')">
+	<td>{{account.name}}</td><td>{{account.account_type}}</td>
+      </tr>
+    </table>
 
     <script src="http://code.angularjs.org/angular-0.9.12.js" ng:autobind></script>
-    <script src="fin.js"></script>
+    <script src="fin.js" type="text/javascript"></script>
   </body>
 </html>
 <!--
