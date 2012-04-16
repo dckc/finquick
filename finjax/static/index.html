@@ -26,14 +26,15 @@
       <p><input name="q"/>
       <button ng:click="search(q)">Search</button></p>
       <table>
-	<tr><th>Date</th><th>Description</th><th>Memo</th>
+	<tr><th>Date</th><th>Account</th><th>Description</th><th>Memo</th>
 	<th>Amount</th></tr>
 
-	<tr ng:repeat="m in matches">
-	  <td>{{m.tx.post_date}}</td>
-	  <td>{{m.tx.description}}</td>
-	  <td>{{m.split.memo}}</td>
-	  <td class="money">{{m.split.amount_num / m.split.amount_denom }}</td>
+	<tr ng:repeat="d in matches">
+	  <td>{{d.post_date}}</td>
+	  <td>{{d.account_name}}</td>
+	  <td>{{d.description}}</td>
+	  <td>{{d.memo}}</td>
+	  <td class="money">{{d.value_num / d.value_denom }}</td>
 	</tr>
 
       </table>

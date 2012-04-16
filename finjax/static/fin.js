@@ -44,8 +44,8 @@ AccountsCtrl.$inject = ['Account'];
 angular.service('Transaction', function($resource) {
     return $resource('../transaction/:guid', {}, {
 	// override the query method to make sure the trailing / is kept
-	query2: {method: 'GET', params: {guid: '-'},
-		 isArray: true, verifyCache: true}
+	query: {method: 'GET', params: {guid: '-'},
+		isArray: true, verifyCache: true}
     });
 });
 
@@ -53,16 +53,13 @@ angular.service('Transaction', function($resource) {
 function TransactionsCtrl(Transaction, $log) {
     var self = this;
 
-    self.matches = [{tx: {post_date: '2012-01-01',
-			  description: 'fun fun'},
-		     split: {memo: 'memo',
-			     amount_num: 200,
-			     amount_denom: 100}}];
+    self.matches = [{post_date: '2012-01-01',
+		     description: 'fun fun',
+		     memo: 'memo',
+		     amount_num: 200,
+		     amount_denom: 100}];
     self.search = function(qtxt) {
-	$log.info('search query text: ' + qtxt);
-	self.matches = Transaction.query2({q: qtxt}, function(res, hdrs) {
-	    $log.info('matches: ' + res.length);
-	});
+	self.matches = Transaction.query({q: qtxt});
     }
 }
 TransactionsCtrl.$inject = ['Transaction', '$log'];

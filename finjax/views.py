@@ -1,10 +1,9 @@
 from pyramid.response import Response
 
-from sqlalchemy import or_
 from sqlalchemy.exc import DBAPIError
 
 from .models import (
-    Account, Transaction, Split,
+    Account, Transaction,
     jrec
     )
 
@@ -36,21 +35,15 @@ class TransactionsQuery(JSONDBView):
             return Response('missing q param', content_type='text/plain',
                             status_int = 400)
 
+        dbq = Transaction.search_query(self._session, q)
         try:
-            qpattern = '%' + q + '%'
-            matches = self._session.query(Split).join(Transaction).filter(
-                or_(Split.memo.like(qpattern),
-                    Transaction.description.like(qpattern)))[:limit]
+            matches = dbq[:limit]
         except DBAPIError:
             return Response(conn_err_msg,
                             content_type='text/plain', status_int=500)
-        scols = Split.__table__.columns
-        tcols = Transaction.__table__.columns
 
         # todo: return all the splits of the relevant transactions
-        return [{'tx': jrec(split.transaction, tcols),
-                 'split': jrec(split, scols)}
-                  for split in matches]
+        return [jrec(m, dbq.column_descriptions) for m in matches]
 
 
 conn_err_msg = """\
