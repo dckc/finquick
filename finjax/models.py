@@ -47,10 +47,12 @@ class Transaction(Base, GuidMixin):
         pattern = '%' + txt + '%'
 
         detail = session.query(Transaction.post_date.label('post_date'),
+                               Transaction.description.label('description'),
                                Split.guid.label('split_guid'),
                                Split.tx_guid.label('tx_guid'),
                                Split.account_guid.label('account_guid'),
                                Account.name.label('account_name'),
+                               Account.account_type.label('account_type'),
                                Split.memo.label('memo'),
                                Split.value_num.label('value_num'),
                                Split.value_denom.label('value_denom')).filter(
@@ -63,7 +65,8 @@ class Transaction(Base, GuidMixin):
                        and_(Split.tx_guid == Transaction.guid,
                             Split.memo.like(pattern))
                        ).correlate(Transaction.__table__))
-            ).order_by(Transaction.post_date)
+            ).order_by(Transaction.post_date, Transaction.guid,
+                       Account.account_type, Split.guid)
 
 
 class Split(Base, GuidMixin):

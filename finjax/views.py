@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from pyramid.response import Response
 
 from sqlalchemy.exc import DBAPIError
@@ -42,8 +44,23 @@ class TransactionsQuery(JSONDBView):
             return Response(conn_err_msg,
                             content_type='text/plain', status_int=500)
 
-        # todo: return all the splits of the relevant transactions
-        return [jrec(m, dbq.column_descriptions) for m in matches]
+        def tx_obj(tx_guid, split_details):
+            return dict(tx_guid=tx_guid,
+                        post_date=split_details[0].post_date.isoformat(),
+                        description=split_details[0].description,
+                        splits=[
+                    dict(split_guid=d.split_guid,
+                         account_guid=d.account_guid,
+                         memo=d.memo,
+                         account_name=d.account_name,
+                         account_type=d.account_type,
+                         value_num=d.value_num,
+                         value_denom=d.value_denom)
+                    for d in split_details])
+
+        return [tx_obj(tx_guid, list(split_details))
+                for (tx_guid, split_details)
+                in groupby(matches, lambda m: m.tx_guid)]
 
 
 conn_err_msg = """\
