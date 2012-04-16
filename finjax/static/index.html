@@ -5,6 +5,12 @@
     <meta charset="utf-8" />
     <style type="text/css">
       .money { text-align: right }
+      .transactions th { border-bottom: 2px solid blue }
+      .transactions .search td { border-bottom: 1px solid blue }
+      .transactions .transaction tr:last-child td {
+        border-bottom: 1px solid grey }
+      }
+      .BANK { font-style: bold; color: red }
     </style>
   </head>
   <body>
@@ -33,13 +39,15 @@
 
     <div ng:controller="TransactionsCtrl">
       <h2>Transactions</h2>
-      <table>
+      <table class="transactions">
 	<thead>
-	<tr><th>Date</th><th>Description / Memo</th>
-	<th>Account</th>
-	<th>Amount</th></tr>
+	<tr>
+	  <th>Date</th><th>Description / Memo</th>
+	  <th>Account</th><th>Amount</th>
+	  <th> </th>
+	</tr>
 	</thead>
-	<tbody>
+	<tbody class="search">
 	  <form ng:submit="search(q)">
 	    <tr>
 	      <td> </td>
@@ -51,16 +59,16 @@
 	  </form>
 	</tbody>
 
-	<tbody ng:repeat="tx in matches">
-	  <tr>
-	    <td>{{tx.post_date}}</td>
+	<tbody ng:repeat="tx in matches" class="transaction">
+	  <tr class="transaction">
+	    <td>{{tx.post_date | date:'M/d/yyyy'}}</td>
 	    <td>{{tx.description}}</td>
 	  </tr>
 	  <tr ng:repeat="d in tx.splits">
 	    <td>&#160;</td>
 	    <td>{{d.memo}}</td>
-	    <td>{{d.account_name}}</td>
-	    <td class="money">{{d.value_num / d.value_denom }}</td>
+	    <td ng:class="d.account_type">{{d.account_name}}</td>
+	    <td class="money">{{d.value_num / d.value_denom | currency }}</td>
 	  </tr>
 	</tbody>
 
