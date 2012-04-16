@@ -1,19 +1,43 @@
 <!doctype html>
 <html xmlns:ng="http://angularjs.org">
   <head>
-    <title>My GnuCash Accounts</title>
+    <title>My GnuCash Data</title>
     <meta charset="utf-8" />
+    <style type="text/css">
+      .money { text-align: right }
+    </style>
   </head>
-  <body ng:controller="AccountsCtrl">
-    <h1>Accounts</h1>
+  <body>
+    <h1>Finance Fun</h1>
+    <div ng:controller="AccountsCtrl">
+      <h2>Accounts</h2>
 
-    <table>
-      <tr><th>Account Name</th><th>Type</th></tr>
-      <tr ng:repeat="account in
-		     children(root).$filter({'hidden': false}).$orderBy('name')">
-	<td>{{account.name}}</td><td>{{account.account_type}}</td>
-      </tr>
-    </table>
+      <table>
+	<tr><th>Account Name</th><th>Type</th></tr>
+	<tr ng:repeat="account in
+		       children(root).$filter({'hidden': false}).$orderBy('name')">
+	  <td>{{account.name}}</td><td>{{account.account_type}}</td>
+	</tr>
+      </table>
+    </div>
+
+    <div ng:controller="TransactionsCtrl">
+      <h2>Transactions</h2>
+      <p><input name="q"/>
+      <button ng:click="search(q)">Search</button></p>
+      <table>
+	<tr><th>Date</th><th>Description</th><th>Memo</th>
+	<th>Amount</th></tr>
+
+	<tr ng:repeat="m in matches">
+	  <td>{{m.tx.post_date}}</td>
+	  <td>{{m.tx.description}}</td>
+	  <td>{{m.split.memo}}</td>
+	  <td class="money">{{m.split.amount_num / m.split.amount_denom }}</td>
+	</tr>
+
+      </table>
+    </div>
 
     <script src="http://code.angularjs.org/angular-0.9.12.js" ng:autobind></script>
     <script src="fin.js" type="text/javascript"></script>
