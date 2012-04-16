@@ -65,7 +65,7 @@ class Transaction(Base, GuidMixin):
                        and_(Split.tx_guid == Transaction.guid,
                             Split.memo.like(pattern))
                        ).correlate(Transaction.__table__))
-            ).order_by(Transaction.post_date, Transaction.guid,
+            ).order_by(Transaction.post_date.desc(), Transaction.guid,
                        Account.account_type, Split.guid)
 
 
