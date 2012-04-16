@@ -55,9 +55,12 @@ function TransactionsCtrl(Transaction, $log) {
 
     self.matches = [{post_date: '2012-01-01',
 		     description: 'fun fun',
-		     memo: 'memo',
-		     amount_num: 200,
-		     amount_denom: 100}];
+		     splits: [{
+			 memo: 'memo',
+			 account_type: 'BANK',
+			 account_name: 'Friendly Bank',
+			 value_num: 200,
+			 value_denom: 100}]}];
     self.search = function(qtxt) {
 	self.matches = Transaction.query({q: qtxt});
     }
