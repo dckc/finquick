@@ -16,15 +16,6 @@
   <body>
     <h1>Finance Fun</h1>
 
-    <p>Brought to you by...</p>
-    <ul>
-      <li><a href="http://docs.angularjs.org/">AngularJS</a> 0.9.12</li>
-      <li><a href="http://pyramid.readthedocs.org/en/1.3-branch/index.html"
-	     >Pyramid 1.3</a></li>
-      <li><a href="http://docs.sqlalchemy.org/">SQLAlchemy</a> 0.7</li>
-      <li><a href="http://gnucash.org/">GnuCash</a> 2.4.10</li>
-    </ul>
-
     <div ng:controller="AccountsCtrl">
       <h2>Accounts</h2>
 
@@ -61,7 +52,7 @@
 
 	<tbody ng:repeat="tx in matches" class="transaction">
 	  <tr class="transaction">
-	    <td>{{tx.post_date | date:'M/d/yyyy'}}</td>
+	    <td>{{tx.post_date.substring(0, 10) | date:'M/d/yyyy'}}</td>
 	    <td>{{tx.description}}</td>
 	  </tr>
 	  <tr ng:repeat="d in tx.splits">
