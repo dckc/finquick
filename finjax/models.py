@@ -1,3 +1,9 @@
+'''models -- finjax database access
+'''
+
+import injector
+from injector import inject, provides, singleton
+import sqlalchemy
 from sqlalchemy import (
     Column, ForeignKey,
     Integer, String, Boolean,
@@ -11,11 +17,22 @@ from sqlalchemy.sql import exists
 from zope.sqlalchemy import ZopeTransactionExtension
 
 SessionMaker = sessionmaker(extension=ZopeTransactionExtension())
+KSessionMaker = injector.Key('SessionMaker')
 Base = declarative_base()
 
 
-def make_session():
-    return scoped_session(SessionMaker)
+class DBConfig(injector.Module):
+    @singleton
+    @provides(KSessionMaker)
+    @inject(engine=sqlalchemy.engine.Engine)
+    def session_maker(self, engine):
+        sm = scoped_session(SessionMaker)
+        sm.configure(bind=engine)
+        return sm
+
+    @classmethod
+    def mods(cls):
+        return [cls()]
 
 
 class GuidMixin(object):

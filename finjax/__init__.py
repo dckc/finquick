@@ -2,17 +2,18 @@
 
 '''
 
-
 # dependencies from pypi; ../README.rst and ../setup.py
+import injector
+from injector import provides, singleton
 from pyramid.config import Configurator
-from sqlalchemy import engine_from_config
+import sqlalchemy
 
-from .models import make_session
-from .views import AccountsList, TransactionsQuery
+from .models import DBConfig
+from .views import FinjaxAPI
 
 
 def main(global_config, **settings):
-    """ This function returns a Pyramid WSGI application.
+    """Build finjax Pyramid WSGI application.
 
     @see: `paste.app_factory`__
     __ http://pythonpaste.org/deploy/#paste-app-factory
@@ -22,19 +23,43 @@ def main(global_config, **settings):
     @param settings: settings for this application
     @return: a WSGI application.
     """
-    engine = engine_from_config(settings, 'sqlalchemy.')
-    session = make_session()
-    session.configure(bind=engine)
-
-    config = Configurator(settings=settings)
-    config.add_static_view('static', 'static', cache_max_age=3600)
-
-    config.add_route('account', '/account/{guid}')
-    av = AccountsList(session)
-    av.config(config, 'account')
-
-    config.add_route('transaction', '/transaction/{guid}')
-    tv = TransactionsQuery(session)
-    tv.config(config, 'transaction')
-
+    finjax, config = RunTime.make(settings, [FinjaxAPI, Configurator])
+    finjax.add_rest_api()
     return config.make_wsgi_app()
+
+
+class RunTime(injector.Module):
+    '''Use runtime config settings to bootstrap dependency injection.
+    '''
+
+    def __init__(self, settings):
+        '''
+        @param settings: as per `paste.app_factory`
+        '''
+        self._settings = settings
+
+    @singleton
+    @provides(Configurator)
+    def app_settings(self):
+        config = Configurator(settings=self._settings)
+        # hmm... hardcoded 'static' literal...
+        config.add_static_view('static', 'static', cache_max_age=3600)
+        return config
+
+    @singleton
+    @provides(sqlalchemy.engine.Engine)
+    def db(self, section='sqlalchemy.'):
+        return sqlalchemy.engine_from_config(self._settings, section)
+
+    @classmethod
+    def make(cls, settings, what):
+        '''Given app settings, instantiate classes with dependency injection.
+
+        @param settings: as per `paste.app_factory`
+        @param what: list of classes to instantiate;
+                     use None as list item to get the whole Injector depgraph.
+        '''
+        mods = [cls(settings), DBConfig()]
+        depgraph = injector.Injector(mods)
+        return [depgraph.get(it) if it else depgraph
+                for it in what]

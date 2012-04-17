@@ -1,6 +1,6 @@
 '''setup -- package dependencies for finjax
 
-per `The Hitchhiker’s Guide to Packaging`__ and PasteDeploy__.
+per `The Hitchhiker's Guide to Packaging`__ and PasteDeploy__.
 
 __ http://guide.python-distribute.org/
 __ http://pythonpaste.org/deploy/
@@ -14,6 +14,7 @@ README = open(os.path.join(here, 'README.rst')).read()
 CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
 
 requires = [
+    'injector',
     'pyramid',
     'SQLAlchemy',
     'transaction',
