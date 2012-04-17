@@ -152,8 +152,8 @@ class FinjaxAPI(object):
     .. todo:: Relax paths. As is, `/account` and `/account/` give 404;
               some text matching {guid} is required, e.g. `/account/-` .
     '''
-    account_route = dict(name='account', path='/account/{guid}')
-    transaction_route = dict(name='transaction', path='/transaction/{guid}')
+    account_route = dotdict(name='account', path='/account/{guid}')
+    transaction_route = dotdict(name='transaction', path='/transaction/{guid}')
 
     @inject(config=Configurator,
             av=AccountsList,
@@ -167,5 +167,5 @@ class FinjaxAPI(object):
         for (rt, view) in (
             (self.account_route, self._account_view),
             (self.transaction_route, self._transaction_view)):
-            self._config.add_route(rt['name'], rt['path'])
-            view.config(self._config, rt['name'])
+            self._config.add_route(rt.name, rt.path)
+            view.config(self._config, rt.name)
