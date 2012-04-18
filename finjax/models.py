@@ -257,16 +257,19 @@ class Mock(injector.Module):
         return [depgraph.get(it) if it else depgraph
                 for it in what]
 
+    @singleton
     @provides(engine.Engine)
     def engine_with_mock_data(self, url='sqlite:///'):
         engine = create_engine(url)
+        self.bootstrap(engine)
+        return engine
+
+    def bootstrap(self, engine):
         Base.metadata.create_all(engine)
         engine.execute(Account.__table__.insert(),
                        self.mock_accounts())
         engine.execute(Transaction.__table__.insert(), self.transactions)
         engine.execute(Split.__table__.insert(), self.splits)
-
-        return engine
 
     def mock_accounts(self):
         return [dict(name=acct.name,

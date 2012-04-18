@@ -11,14 +11,14 @@ from sqlalchemy.exc import DBAPIError
 from dotdict import dotdict
 from models import (
     Account, Transaction,
-    KSessionMaker
+    KSession
     )
 
 
 class JSONDBView(object):
     '''View to access DB and render to JSON.
     '''
-    @inject(session=KSessionMaker)
+    @inject(session=KSession)
     def __init__(self, session):
         self._session = session
 

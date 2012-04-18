@@ -8,8 +8,8 @@ from injector import provides, singleton
 from pyramid.config import Configurator
 import sqlalchemy
 
-from .models import DBConfig
-from .views import FinjaxAPI
+import models
+import views
 
 
 def main(global_config, **settings):
@@ -23,7 +23,7 @@ def main(global_config, **settings):
     @param settings: settings for this application
     @return: a WSGI application.
     """
-    finjax, config = RunTime.make(settings, [FinjaxAPI, Configurator])
+    finjax, config = RunTime.make(settings, [views.FinjaxAPI, Configurator])
     finjax.add_rest_api()
     return config.make_wsgi_app()
 
@@ -49,7 +49,10 @@ class RunTime(injector.Module):
     @singleton
     @provides(sqlalchemy.engine.Engine)
     def db(self, section='sqlalchemy.'):
-        return sqlalchemy.engine_from_config(self._settings, section)
+        e = sqlalchemy.engine_from_config(self._settings, section)
+        if 'bootstrap_db' in self._settings:
+            models.Mock().bootstrap(e)
+        return e
 
     @classmethod
     def make(cls, settings, what):
@@ -59,7 +62,7 @@ class RunTime(injector.Module):
         @param what: list of classes to instantiate;
                      use None as list item to get the whole Injector depgraph.
         '''
-        mods = [cls(settings), DBConfig()]
+        mods = [cls(settings), models.DBConfig()]
         depgraph = injector.Injector(mods)
         return [depgraph.get(it) if it else depgraph
                 for it in what]
