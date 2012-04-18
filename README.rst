@@ -35,3 +35,9 @@ Getting Started
 
 - `$venv/bin/pserve development.ini` to start the server;
   it prints a web address at start-up; point your browser there.
+
+**Note Well** I recommend using `--no-site-packages` when you
+set up a virual environment for finjax development, because
+zope.sqlalchemy seems to interact poorly with something otherwise,
+leading to the dreaded `ImportError: No module named sqlalchemy`.
+

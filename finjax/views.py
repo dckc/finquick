@@ -8,6 +8,7 @@ from pyramid.config import Configurator
 from pyramid.response import Response
 from sqlalchemy.exc import DBAPIError
 
+from dotdict import dotdict
 from models import (
     Account, Transaction,
     KSessionMaker
@@ -113,17 +114,6 @@ def split_denorm(tx_guid, split_details):
                  value_num=d.value_num,
                  value_denom=d.value_denom)
             for d in split_details])
-
-
-class dotdict(dict):
-    '''
-    ack: Darugar Oct 2008
-    http://parand.com/say/index.php/2008/10/24/python-dot-notation-dictionary-access/
-    '''
-    def __getattr__(self, attr):
-        return self.get(attr, None)
-    __setattr__= dict.__setitem__
-    __delattr__= dict.__delitem__
 
 
 conn_err_msg = """\
