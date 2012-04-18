@@ -15,7 +15,7 @@ Our mock data has one top-level bank:
 
 >>> banks = session.query(Account).filter(Account.account_type == 'BANK').all()
 >>> banks
-... #doctest: +NORMALIZE_WHITESPACE 
+... #doctest: +NORMALIZE_WHITESPACE
 [Account(guid=u'a35af99599ef5adbb8e1904b86ae1f26',
  name=u'Bank X', account_type=u'BANK',
  description=u'', hidden=False, placeholder=False,
@@ -27,6 +27,7 @@ True
 '''
 
 import uuid
+import datetime
 
 import injector
 from injector import inject, provides, singleton
@@ -86,7 +87,6 @@ class GuidMixin(object):
         '''
         return str(u).replace('-', '')
 
-
     def __repr__(self):
         '''Represent orm objects as useful, deterministic strings.
 
@@ -102,6 +102,7 @@ class GuidMixin(object):
         return '%s(%s)' % (self.__class__.__name__,
                            ', '.join(['%s=%s' % (n, repr(v))
                                      for n, v in vals]))
+
 
 def _n2g(name):
     ns = uuid.NAMESPACE_OID  # a bit of a kludge
@@ -138,6 +139,37 @@ class Transaction(Base, GuidMixin):
 
     @classmethod
     def search_query(cls, session, txt):
+        '''Find transactions by text search in description/memo.
+
+        Given our mock session, with mock data...
+
+        >>> (session, ) = Mock.make([KSession])
+
+        A search query returns the following columns:
+
+        >>> q = Transaction.search_query(session, 'Electric')
+        >>> [d['name'] for d in q.column_descriptions]
+        ... # doctest: +NORMALIZE_WHITESPACE
+        ['post_date', 'description', 'split_guid', 'tx_guid',
+         'account_guid', 'account_name', 'account_type', 'memo',
+         'value_num', 'value_denom']
+
+        Our test data has one transaction with `Electric` in the description:
+
+        >>> rows = q.all()
+        >>> [(r.account_name, r.value_num / r.value_denom) for r in rows]
+        [(u'Bank X', -250), (u'Utilities', 250)]
+        >>> len(set([row.tx_guid for row in rows]))
+        1
+
+        We can find the same transaction by matching a split memo:
+        >>> split_matches = Transaction.search_query(session, 'killowatt')
+        >>> split_matches[0].tx_guid == rows[0].tx_guid
+        True
+
+        .. todo:: search by date, account, and amount as well.
+        '''
+
         pattern = '%' + txt + '%'
 
         detail = session.query(Transaction.post_date.label('post_date'),
@@ -152,7 +184,7 @@ class Transaction(Base, GuidMixin):
                                Split.value_denom.label('value_denom')).filter(
             and_(Split.tx_guid == Transaction.guid,
                  Split.account_guid == Account.guid))
-                               
+
         return detail.filter(
             or_(Transaction.description.like(pattern),
                 sql.exists([Split.guid],
@@ -170,15 +202,15 @@ class Split(Base, GuidMixin):
     account_guid = Column(String, ForeignKey('accounts.guid'))
     account = orm.relationship('Account')
     memo = Column(String)
-    action = Column(String)
-    reconcile_state = Column(String)
-    reconcile_date = Column(Date)
+    #action = Column(String)
+    #reconcile_state = Column(String)
+    #reconcile_date = Column(Date)
     value_num = Column(Integer)
     value_denom = Column(Integer)
     # TODO: derive value, a decimal
-    quantity_num = Column(Integer)
-    quantity_denom = Column(Integer)
-    lot_guid = Column(String)
+    #quantity_num = Column(Integer)
+    #quantity_denom = Column(Integer)
+    #lot_guid = Column(String)
 
 
 def _fix_date(col, x):
@@ -187,16 +219,36 @@ def _fix_date(col, x):
     else:
         return x
 
+
 def jrec(rec, col_descs):
     return dict([(c['name'], _fix_date(c, getattr(rec, c['name'])))
                  for c in col_descs])
 
 
 class Mock(injector.Module):
+    # TODO: use GnuCash to make a small data set and use CSV files.
     accounts = (dotdict(name='Root Account', account_type='ROOT', parent=None),
                 dotdict(name='Bank X', account_type='BANK',
+                        parent='Root Account'),
+                dotdict(name='Utilities', account_type='EXPENSE',
                         parent='Root Account'))
 
+    transactions = [dotdict(post_date=datetime.datetime(2001, 01, 01, 1, 2, 3),
+                            description='Electric company',
+                            guid=_n2g('Electric company'))]
+
+    splits = [dotdict(tx_guid=_n2g('Electric company'),
+                      account_guid=_n2g('Bank X'),
+                      memo='',
+                      guid=_n2g(''),
+                      value_num=-25000,
+                      value_denom=100),
+              dotdict(tx_guid=_n2g('Electric company'),
+                      account_guid=_n2g('Utilities'),
+                      memo='lots o killowatt hours',
+                      guid=_n2g('lots o killowatt hours'),
+                      value_num=25000,
+                      value_denom=100)]
 
     @classmethod
     def make(cls, what):
@@ -211,6 +263,9 @@ class Mock(injector.Module):
         Base.metadata.create_all(engine)
         engine.execute(Account.__table__.insert(),
                        self.mock_accounts())
+        engine.execute(Transaction.__table__.insert(), self.transactions)
+        engine.execute(Split.__table__.insert(), self.splits)
+
         return engine
 
     def mock_accounts(self):
