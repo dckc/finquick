@@ -2,7 +2,7 @@
 
 After we mock up a database session with test data...
 
->>> (session, ) = Mock.make([KSessionMaker])
+>>> (session, ) = Mock.make([KSession])
 
 ... we can query for accounts as per the usual sqlalchemy orm API.
 
@@ -42,28 +42,50 @@ from zope.sqlalchemy import ZopeTransactionExtension
 
 from dotdict import dotdict
 
-SessionMaker = orm.sessionmaker(extension=ZopeTransactionExtension())
-KSessionMaker = injector.Key('SessionMaker')
+KSession = injector.Key('Session')
 Base = declarative_base()
 
 
 class DBConfig(injector.Module):
+    '''Provide a transactional session, given an Engine.
+    '''
     @singleton
-    @provides(KSessionMaker)
+    @provides(KSession)
     @inject(engine=engine.Engine)
-    def session_maker(self, engine):
-        sm = orm.scoped_session(SessionMaker)
-        sm.configure(bind=engine)
-        return sm
+    def session(self, engine):
+        sm = orm.sessionmaker(extension=ZopeTransactionExtension())
+        s = orm.scoped_session(sm)
+        s.configure(bind=engine)
+        return s
 
     @classmethod
     def mods(cls):
+        '''Instantiate this module and its dependencies.
+        '''
         return [cls()]
 
 
 class GuidMixin(object):
-    # todo: should have limited length
-    guid = Column(String, primary_key=True)
+    '''Provide guid primary key as used by many tables in GnuCash.
+    '''
+    T = String(32)
+    guid = Column(T, primary_key=True)
+
+    @classmethod
+    def fmt(cls, u):
+        '''Compute GnuCash string form from python uuid.
+
+        >>> u = uuid.uuid5(uuid.NAMESPACE_DNS, 'example.org')
+        >>> s = GuidMixin.fmt(u)
+        >>> '-' in s
+        False
+        >>> len(s)
+        32
+        >>> len(s) == GuidMixin.T.length
+        True
+        '''
+        return str(u).replace('-', '')
+
 
     def __repr__(self):
         '''Represent orm objects as useful, deterministic strings.
@@ -83,7 +105,7 @@ class GuidMixin(object):
 
 def _n2g(name):
     ns = uuid.NAMESPACE_OID  # a bit of a kludge
-    return str(uuid.uuid5(ns, name)).replace('-', '')
+    return GuidMixin.fmt(uuid.uuid5(ns, name))
 
 
 class Account(Base, GuidMixin):
@@ -184,7 +206,7 @@ class Mock(injector.Module):
                 for it in what]
 
     @provides(engine.Engine)
-    def engine(self, url='sqlite:///'):
+    def engine_with_mock_data(self, url='sqlite:///'):
         engine = create_engine(url)
         Base.metadata.create_all(engine)
         engine.execute(Account.__table__.insert(),
