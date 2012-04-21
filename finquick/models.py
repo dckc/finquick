@@ -213,18 +213,6 @@ class Split(Base, GuidMixin):
     #lot_guid = Column(String)
 
 
-def _fix_date(col, x):
-    if x and col['type'].__class__ == Date:
-        return x.isoformat()
-    else:
-        return x
-
-
-def jrec(rec, col_descs):
-    return dict([(c['name'], _fix_date(c, getattr(rec, c['name'])))
-                 for c in col_descs])
-
-
 class Mock(injector.Module):
     # TODO: use GnuCash to make a small data set and use CSV files.
     accounts = (dotdict(name='Root Account', account_type='ROOT', parent=None),

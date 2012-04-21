@@ -22,22 +22,4 @@ with AngularJS__, a JavaScript framework with two-way databinding,
 __ http://docs.angularjs.org/
 
 
-Getting Started
----------------
-
-- cd <directory containing this file>
-
-- `$venv/bin/python setup.py develop` to install dependencies
-  in your development environment.
-
-- `$venv/bin/populate_finquick development.ini` to initialize
-  the database. *I think this is not quite right.*
-
-- `$venv/bin/pserve development.ini` to start the server;
-  it prints a web address at start-up; point your browser there.
-
-**Note Well** I recommend using `--no-site-packages` when you
-set up a virual environment for finquick development, because
-zope.sqlalchemy seems to interact poorly with something otherwise,
-leading to the dreaded `ImportError: No module named sqlalchemy`.
-
+See `setup.py` for installation and getting started.

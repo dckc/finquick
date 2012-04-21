@@ -1,9 +1,50 @@
-'''setup -- package dependencies for finquick
+'''setup -- installation and getting started with finquick
 
-per `The Hitchhiker's Guide to Packaging`__ and PasteDeploy__.
+For now, we assume some familiarity with virtualenv,
+`The Hitchhiker's Guide to Packaging`__, and PasteDeploy__.
 
 __ http://guide.python-distribute.org/
 __ http://pythonpaste.org/deploy/
+
+**Note Well** I recommend using `--no-site-packages` when you
+set up a virual environment for finquick development, because
+zope.sqlalchemy seems to interact poorly with something otherwise,
+leading to the dreaded `ImportError: No module named sqlalchemy`.
+
+
+Getting Started
+---------------
+
+- cd <directory containing this file>
+
+- `$venv/bin/python setup.py develop` to install dependencies
+  in your development environment.
+
+- `$venv/bin/pserve development.ini` to start the server;
+  it prints a web address at start-up; point your browser there.
+
+
+Testing
+-------
+
+The pyramid `alchemy` scaffold came with unit testing infrastructure,
+but I much prefer doctests right with the code.
+
+I haven't mastered the `test_requires` packaging stuff, so just do:
+
+  $ pip install nose
+  $ pip install cover
+
+Then you can run the tests with the `nose doctest plugin`__:
+
+  $ nosetests --with-doctest
+
+__ http://readthedocs.org/docs/nose/en/latest/plugins/doctests.html
+
+For a nice HTML report:
+
+  $ nosetests --with-doctest --cover-html
+
 '''
 import os
 

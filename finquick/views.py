@@ -32,8 +32,23 @@ class JSONDBView(object):
         '''
         raise NotImplemented
 
+    @classmethod
+    def _test_view(cls, **params):
+        import models
+        from pyramid import testing
+        s, _ = models.Mock.make([KSession, None])
+        req = testing.DummyRequest(params=params)
+        view = cls(s)
+        return view(req)
+
 
 class AccountsList(JSONDBView):
+    '''
+    Our test data has a ROOT, a BANK, and an EXPENSE:
+    >>> obj = AccountsList._test_view()
+    >>> [o['account_type'] for o in obj]
+    [u'ROOT', u'BANK', u'EXPENSE']
+    '''
     def __call__(self, request):
         try:
             accounts = self._session.query(Account)
@@ -47,6 +62,14 @@ class AccountsList(JSONDBView):
 class TransactionsQuery(JSONDBView):
     '''
     .. todo:: query by date, account, amount as well as description/memo
+
+    >>> obj = TransactionsQuery._test_view(q='Electric')
+    >>> [o['description'] for o in obj]
+    [u'Electric company']
+
+    >>> reply = TransactionsQuery._test_view()
+    >>> reply.status_int
+    400
     '''
     description_memo_query_param = 'q'
 

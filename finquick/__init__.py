@@ -21,7 +21,16 @@ def main(global_config, **settings):
     @param global_config: DEFAULT settings;
                           see file:`development.ini`, `production.ini`
     @param settings: settings for this application
-    @return: a WSGI application.
+    @return: a WSGI application, i.e. a (env, start_response) callable.
+
+    >>> app = main({}, **dict({RunTime.db_section + 'url': 'sqlite:///',
+    ...                        RunTime.db_bootstrap_flag: 'true'}))
+
+    Calling with too few args gives a TypeError:
+    >>> app()
+    Traceback (most recent call last):
+      ...
+    TypeError: __call__() takes exactly 3 arguments (1 given)
     """
     finquick, config = RunTime.make(settings, [views.FinquickAPI, Configurator])
     finquick.add_rest_api()
@@ -32,6 +41,8 @@ class RunTime(injector.Module):
     '''Use runtime config settings to bootstrap dependency injection.
     '''
 
+    db_section = 'sqlalchemy.'
+    db_bootstrap_flag = 'bootstrap_db'
     def __init__(self, settings):
         '''
         @param settings: as per `paste.app_factory`
@@ -48,9 +59,9 @@ class RunTime(injector.Module):
 
     @singleton
     @provides(sqlalchemy.engine.Engine)
-    def db(self, section='sqlalchemy.'):
-        e = sqlalchemy.engine_from_config(self._settings, section)
-        if 'bootstrap_db' in self._settings:
+    def db(self):
+        e = sqlalchemy.engine_from_config(self._settings, self.db_section)
+        if self.db_bootstrap_flag in self._settings:
             models.Mock().bootstrap(e)
         return e
 
