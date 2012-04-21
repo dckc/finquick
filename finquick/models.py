@@ -138,7 +138,7 @@ class Transaction(Base, GuidMixin):
     splits = orm.relationship('Split')
 
     @classmethod
-    def search_query(cls, session, txt):
+    def search_query(cls, session, txt=None, account=None, amount=None):
         '''Find transactions by text search in description/memo.
 
         Given our mock session, with mock data...
@@ -167,10 +167,25 @@ class Transaction(Base, GuidMixin):
         >>> split_matches[0].tx_guid == rows[0].tx_guid
         True
 
-        .. todo:: search by date, account, and amount as well.
-        '''
+        Or by amount:
+        >>> amt_q = Transaction.search_query(session, amount=250)
+        >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
+        [(u'Bank X', -250), (u'Utilities', 250)]
 
-        pattern = '%' + txt + '%'
+
+        Or by account:
+        >>> amt_q = Transaction.search_query(session, account='Utilities')
+        >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
+        [(u'Bank X', -250), (u'Utilities', 250)]
+
+        Or by all of the above:
+        >>> amt_q = Transaction.search_query(session,
+        ...                                  txt='Electric',
+        ...                                  amount=250,
+        ...                                  account='Utilities')
+        >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
+        [(u'Bank X', -250), (u'Utilities', 250)]
+        '''
 
         detail = session.query(Transaction.post_date.label('post_date'),
                                Transaction.description.label('description'),
@@ -185,14 +200,34 @@ class Transaction(Base, GuidMixin):
             and_(Split.tx_guid == Transaction.guid,
                  Split.account_guid == Account.guid))
 
-        return detail.filter(
-            or_(Transaction.description.like(pattern),
+        tx_crit = []  # any of these
+        split_crit = []  # all of these
+        
+        if txt:
+            pattern = '%' + txt + '%'
+            tx_crit.append(Transaction.description.like(pattern))
+            split_crit.append(Split.memo.like(pattern))
+
+        if amount:
+            split_crit.append(Split.value_num == amount * Split.value_denom)
+
+        if account:
+            split_crit.append(sql.exists(
+                [Account.guid],
+                and_(Split.account_guid == Account.guid,
+                     Account.name == account)))
+
+        if split_crit:
+            tx_crit.append(
                 sql.exists([Split.guid],
-                           and_(Split.tx_guid == Transaction.guid,
-                                Split.memo.like(pattern))
-                           ).correlate(Transaction.__table__))
-            ).order_by(Transaction.post_date.desc(), Transaction.guid,
-                       Account.account_type, Split.guid)
+                           and_(*([Split.tx_guid == Transaction.guid] +
+                                  split_crit)
+                                )).correlate(Transaction.__table__))
+        if tx_crit:
+            detail = detail.filter(or_(*tx_crit))
+            
+        return detail.order_by(Transaction.post_date.desc(), Transaction.guid,
+                               Account.account_type, Split.guid)
 
 
 class Split(Base, GuidMixin):

@@ -61,8 +61,9 @@ function TransactionsCtrl(Transaction, $log) {
 			 account_name: 'Friendly Bank',
 			 value_num: 200,
 			 value_denom: 100}]}];
-    self.search = function(qtxt) {
-	self.matches = Transaction.query({q: qtxt});
+    self.search = function(qtxt, account, amount) {
+	self.matches = Transaction.query({q: qtxt, account: account,
+					  amount: amount});
     }
 }
 TransactionsCtrl.$inject = ['Transaction', '$log'];

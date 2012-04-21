@@ -64,22 +64,39 @@ class TransactionsQuery(JSONDBView):
     .. todo:: query by date, account, amount as well as description/memo
 
     >>> obj = TransactionsQuery._test_view(q='Electric')
-    >>> [o['description'] for o in obj]
+    >>> [tx['description'] for tx in obj]
     [u'Electric company']
+
+    >>> obj = TransactionsQuery._test_view(amount='250')
+    >>> [split['value_num'] for tx in obj for split in tx['splits']]
+    [-25000, 25000]
 
     >>> reply = TransactionsQuery._test_view()
     >>> reply.status_int
     400
     '''
-    description_memo_query_param = 'q'
+    txt_param = 'q'
+    account_param = 'account'
+    amount_param = 'amount'
 
     def __call__(self, request, limit=200):
-        q = request.params.get(self.description_memo_query_param, None)
-        if q is None:
-            return Response('missing q param', content_type='text/plain',
-                            status_int = 400)
+        q, account, amount_ = [
+            request.params.get(p, '').strip() or None
+            for p in [self.txt_param, self.account_param, self.amount_param]]
 
-        dbq = Transaction.search_query(self._session, q)
+        if not (q or account or amount_):
+            return Response('no q/account/amount param',
+                            content_type='text/plain',
+                            status_int = 400)
+        try:
+            amount = float(amount_) if amount_ else None
+        except ValueError:
+            return Response('bad amount',
+                            content_type='text/plain',
+                            status_int = 400)
+            
+        dbq = Transaction.search_query(self._session,
+                                       txt=q, account=account, amount=amount)
         try:
             matches = dbq[:limit]
         except DBAPIError:
