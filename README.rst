@@ -1,5 +1,5 @@
 finquick -- web app access to gnucash financial data
-===================================================
+====================================================
 
 Support for SQL storage in GnuCash__ 2.4.10 allows reuse of the data
 using Web technologies, without extensive study of the GnuCash source
