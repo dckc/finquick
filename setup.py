@@ -1,4 +1,4 @@
-'''setup -- package dependencies for finjax
+'''setup -- package dependencies for finquick
 
 per `The Hitchhiker's Guide to Packaging`__ and PasteDeploy__.
 
@@ -24,9 +24,9 @@ requires = [
     'MySQL-python'
     ]
 
-setup(name='finjax',
+setup(name='finquick',
       version='0.1',
-      description='finjax',
+      description='finquick',
       long_description=README + '\n\n' +  CHANGES,
       classifiers=[
         "Programming Language :: Python",
@@ -47,13 +47,13 @@ setup(name='finjax',
       packages=find_packages(),
       include_package_data=True,
       zip_safe=False,
-      test_suite='finjax',
+      test_suite='finquick',
       install_requires=requires,
       entry_points="""\
       [paste.app_factory]
-      main = finjax:main
+      main = finquick:main
       [console_scripts]
-      initialize_finjax_db = finjax.scripts.initializedb:main
+      initialize_finquick_db = finquick.scripts.initializedb:main
       """,
       )
 

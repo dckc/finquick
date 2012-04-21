@@ -1,4 +1,4 @@
-'''__init__ -- finjax package init: build Pyramid WSGI application
+'''__init__ -- finquick package init: build Pyramid WSGI application
 
 '''
 
@@ -13,7 +13,7 @@ import views
 
 
 def main(global_config, **settings):
-    """Build finjax Pyramid WSGI application.
+    """Build finquick Pyramid WSGI application.
 
     @see: `paste.app_factory`__
     __ http://pythonpaste.org/deploy/#paste-app-factory
@@ -23,8 +23,8 @@ def main(global_config, **settings):
     @param settings: settings for this application
     @return: a WSGI application.
     """
-    finjax, config = RunTime.make(settings, [views.FinjaxAPI, Configurator])
-    finjax.add_rest_api()
+    finquick, config = RunTime.make(settings, [views.FinquickAPI, Configurator])
+    finquick.add_rest_api()
     return config.make_wsgi_app()
 
 

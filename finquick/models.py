@@ -1,4 +1,4 @@
-'''models -- finjax database access
+'''models -- finquick database access
 
 After we mock up a database session with test data...
 

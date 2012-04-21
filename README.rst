@@ -1,4 +1,4 @@
-finjax -- web app access to gnucash financial data
+finquick -- web app access to gnucash financial data
 ===================================================
 
 Support for SQL storage in GnuCash__ 2.4.10 allows reuse of the data
@@ -30,14 +30,14 @@ Getting Started
 - `$venv/bin/python setup.py develop` to install dependencies
   in your development environment.
 
-- `$venv/bin/populate_finjax development.ini` to initialize
+- `$venv/bin/populate_finquick development.ini` to initialize
   the database. *I think this is not quite right.*
 
 - `$venv/bin/pserve development.ini` to start the server;
   it prints a web address at start-up; point your browser there.
 
 **Note Well** I recommend using `--no-site-packages` when you
-set up a virual environment for finjax development, because
+set up a virual environment for finquick development, because
 zope.sqlalchemy seems to interact poorly with something otherwise,
 leading to the dreaded `ImportError: No module named sqlalchemy`.
 

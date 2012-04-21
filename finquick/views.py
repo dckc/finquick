@@ -1,4 +1,4 @@
-'''views -- finjax REST API
+'''views -- finquick REST API
 '''
 
 from itertools import groupby
@@ -120,7 +120,7 @@ conn_err_msg = """\
 Pyramid is having a problem using your SQL database.  The problem
 might be caused by one of the following things:
 
-1.  You may need to run the "initialize_finjax_db" script
+1.  You may need to run the "initialize_finquick_db" script
     to initialize your database tables.  Check your virtual 
     environment's "bin" directory for this script and try to run it.
 
@@ -136,8 +136,8 @@ DBFailHint = Response(conn_err_msg,
                       content_type='text/plain', status_int=500)
 
 
-class FinjaxAPI(object):
-    '''Finjax REST/JSON API configuration.
+class FinquickAPI(object):
+    '''Finquick REST/JSON API configuration.
 
     .. todo:: Relax paths. As is, `/account` and `/account/` give 404;
               some text matching {guid} is required, e.g. `/account/-` .
