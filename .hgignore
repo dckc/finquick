@@ -1,0 +1,9 @@
+cover/
+.coverage
+
+lib/
+man/
+include/
+bin/
+finquick.egg-info
+local
