@@ -10,8 +10,6 @@ from pyramid.paster import (
     )
 
 from ..models import (
-    DBSession,
-    MyModel,
     Base,
     )
 
