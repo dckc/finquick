@@ -140,27 +140,42 @@ class Account(Base, GuidMixin):
         >>> q = Account.summary(session)
         >>> [d['name'] for d in q.column_descriptions]
         ... # doctest: +NORMALIZE_WHITESPACE
-        ['name', 'account_type', 'placeholder', 'description', 'hidden',
+        ['guid', 'name', 'account_type', 'description',
+         'hidden', 'placeholder', 'parent_guid',
          'balance', 'reconciled_balance', 'last_reconcile_date',
          'total_period']
-        >>> q.all()
+
+        >>> [(a.name, a.balance, a.reconciled_balance) for a in q.all()]
         ... # doctest: +NORMALIZE_WHITESPACE
-        [(u'Utilities', u'EXPENSE', False, u'', False, 250, 250, None, 250),
-         (u'Bank X', u'BANK', False, u'', False, -250, -250, None, -250)]
+        [(u'Utilities', 250, None),
+         (u'Root Account', None, None),
+         (u'Bank X', -250, None)]
         '''
-        sq = session.query(Account.name.label('name'),
+
+        reconciled = orm.aliased(Split)
+        in_period = orm.aliased(Split)
+        sq = session.query(Account.guid.label('guid'),
+                           Account.name.label('name'),
                            Account.account_type.label('account_type'),
-                           Account.placeholder.label('placeholder'),
                            Account.description.label('description'),
                            Account.hidden.label('hidden'),
-        func.sum(Split.value_num / Split.value_denom).label('balance'),
-        #@@
-        func.sum(Split.value_num / Split.value_denom).label('reconciled_balance'),
-        func.max(Split.reconcile_date).label('last_reconcile_date'),
-        #@@
-        func.sum(Split.value_num / Split.value_denom).label('total_period'),
-        ).filter(Split.account_guid == Account.guid
-                 ).group_by(Split.account_guid)
+                           Account.placeholder.label('placeholder'),
+                           Account.parent_guid.label('parent_guid'),
+                           func.sum(Split.value_num / Split.value_denom).label('balance'),
+                           func.sum(reconciled.value_num / reconciled.value_denom).label('reconciled_balance'),
+                           func.max(reconciled.reconcile_date).label('last_reconcile_date'),
+                           func.sum(in_period.value_num / in_period.value_denom).label('total_period'),
+                           ).\
+            outerjoin(Split).\
+            outerjoin(reconciled,
+                      and_(reconciled.account_guid == Account.guid,
+                           reconciled.reconcile_state == 'y')).\
+            outerjoin(in_period).\
+            outerjoin(Transaction,
+                      and_(in_period.tx_guid == Transaction.guid,
+                           #@@ TODO: real accounting period
+                           func.now() - Transaction.post_date < 90)).\
+            group_by(Account.guid)
         return sq
 
 class Transaction(Base, GuidMixin):
