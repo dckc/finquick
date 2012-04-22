@@ -20,6 +20,7 @@ def main(argv):
     engine_url, dest_dir = argv[1:3]
     engine = sqlalchemy.create_engine(engine_url)
     meta = sqlalchemy.MetaData()
+    patch_sqlite()
     meta.reflect(bind=engine)
     log.debug("tables in %s: %s", engine_url, meta.tables.keys())
 
@@ -27,6 +28,13 @@ def main(argv):
         fn = os.path.join(dest_dir, name) + '.txt'
         log.info('dumping %s to %s', name, fn)
         table_dump(open(fn, 'w'), engine, tbl)
+
+
+def patch_sqlite():
+    from sqlalchemy.dialects.sqlite.base import SQLiteDialect
+    from sqlalchemy.types import BigInteger, Float
+    SQLiteDialect.ischema_names['BIGINT'] = BigInteger
+    SQLiteDialect.ischema_names['FLOAT8'] = Float
 
 
 def table_dump(fp, engine, tbl):
@@ -37,11 +45,12 @@ def table_dump(fp, engine, tbl):
 
     # chunking for really large tables?
     o.writerows([
-        dict([(k, str(v)) for k, v in row.items()])
+        dict([(k, r'\N' if v is None else str(v))
+              for k, v in row.items()])
         for row in engine.execute(tbl.select())])
 
 
 if __name__ == '__main__':
     import sys
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     main(sys.argv)
