@@ -37,7 +37,7 @@ from sqlalchemy import (
     Date, Text,
     and_, or_
     )
-from sqlalchemy import orm, sql, engine, create_engine
+from sqlalchemy import orm, sql, engine, func, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from zope.sqlalchemy import ZopeTransactionExtension
 
@@ -127,6 +127,41 @@ class Account(Base, GuidMixin):
     # mapper initialization time."
     parent = orm.relationship('Account', remote_side=lambda: Account.guid)
 
+    @classmethod
+    def summary(cls, session):
+        '''Summarize accounts as well as their balances etc.
+
+        Given our mock session, with mock data...
+
+        >>> (session, ) = Mock.make([KSession])
+
+        A summary query returns the following columns:
+
+        >>> q = Account.summary(session)
+        >>> [d['name'] for d in q.column_descriptions]
+        ... # doctest: +NORMALIZE_WHITESPACE
+        ['name', 'account_type', 'placeholder', 'description', 'hidden',
+         'balance', 'reconciled_balance', 'last_reconcile_date',
+         'total_period']
+        >>> q.all()
+        ... # doctest: +NORMALIZE_WHITESPACE
+        [(u'Utilities', u'EXPENSE', False, u'', False, 250, 250, None, 250),
+         (u'Bank X', u'BANK', False, u'', False, -250, -250, None, -250)]
+        '''
+        sq = session.query(Account.name.label('name'),
+                           Account.account_type.label('account_type'),
+                           Account.placeholder.label('placeholder'),
+                           Account.description.label('description'),
+                           Account.hidden.label('hidden'),
+        func.sum(Split.value_num / Split.value_denom).label('balance'),
+        #@@
+        func.sum(Split.value_num / Split.value_denom).label('reconciled_balance'),
+        func.max(Split.reconcile_date).label('last_reconcile_date'),
+        #@@
+        func.sum(Split.value_num / Split.value_denom).label('total_period'),
+        ).filter(Split.account_guid == Account.guid
+                 ).group_by(Split.account_guid)
+        return sq
 
 class Transaction(Base, GuidMixin):
     __tablename__ = 'transactions'
@@ -238,8 +273,8 @@ class Split(Base, GuidMixin):
     account = orm.relationship('Account')
     memo = Column(String)
     #action = Column(String)
-    #reconcile_state = Column(String)
-    #reconcile_date = Column(Date)
+    reconcile_state = Column(String)
+    reconcile_date = Column(Date)
     value_num = Column(Integer)
     value_denom = Column(Integer)
     # TODO: derive value, a decimal
