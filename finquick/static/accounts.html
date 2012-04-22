@@ -1,0 +1,43 @@
+<!doctype html>
+<html xmlns:ng="http://angularjs.org">
+  <head>
+    <title>Accounts - FinQuick</title>
+    <meta charset="utf-8" />
+    <style type="text/css">
+      .money { text-align: right }
+      .transactions th { border-bottom: 2px solid blue }
+      .transactions .search td { border-bottom: 1px solid blue }
+      .transactions .transaction tr:last-child td {
+        border-bottom: 1px solid grey }
+      }
+      .BANK { font-style: bold; color: red }
+    </style>
+  </head>
+  <body  ng:controller="AccountsCtrl">
+    <div><a href="transactions">Transactions</a></div>
+
+    <h1>Accounts</h1>
+
+    <table>
+      <tr><th>Account Name</th><th>Type</th></tr>
+      <tr ng:repeat="account in
+		     children(root).$filter({'hidden': false}).$orderBy('name')">
+	<td>{{account.name}}</td><td>{{account.account_type}}</td>
+      </tr>
+    </table>
+
+    <hr />
+    <address>
+      <a href="https://bitbucket.org/DanC/finquick">FinQuick</a><br />
+      copyright (c) 2012 <a href="http://www.madmode.com/p/about.html"
+			    >Dan Connolly</a>, some rights reserved
+    </address>
+
+    <script src="http://code.angularjs.org/angular-0.9.12.js" ng:autobind></script>
+    <script src="static/fin.js" type="text/javascript"></script>
+  </body>
+</html>
+<!--
+cribbed from
+http://docs.angularjs.org/#!/misc/downloading
+-->

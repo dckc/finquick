@@ -10,6 +10,7 @@ import sqlalchemy
 
 import models
 import views
+import pages
 
 
 def main(global_config, **settings):
@@ -53,8 +54,18 @@ class RunTime(injector.Module):
     @provides(Configurator)
     def app_settings(self):
         config = Configurator(settings=self._settings)
-        # hmm... hardcoded 'static' literal...
+
+        config.add_route('accounts', '')
+        config.add_view(pages.accounts, route_name='accounts')
+
+        config.add_route('transactions', 'transactions')
+        config.add_view(pages.transactions, route_name='transactions')
+
+        config.add_route('favicon', 'favicon.ico')
+        config.add_view(pages.favicon, route_name='favicon')
+
         config.add_static_view('static', 'static', cache_max_age=3600)
+
         return config
 
     @singleton

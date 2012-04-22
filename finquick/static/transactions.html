@@ -1,0 +1,68 @@
+<!doctype html>
+<html xmlns:ng="http://angularjs.org">
+  <head>
+    <title>Transactions - FinQuick</title>
+    <meta charset="utf-8" />
+    <style type="text/css">
+      .money { text-align: right }
+      .transactions th { border-bottom: 2px solid blue }
+      .transactions .search td { border-bottom: 1px solid blue }
+      .transactions .transaction tr:last-child td {
+        border-bottom: 1px solid grey }
+      }
+      .BANK { font-style: bold; color: red }
+    </style>
+  </head>
+  <body ng:controller="TransactionsCtrl">
+    <div><a href="accounts">Accounts</a></div>
+    <h1>Transactions</h1>
+    <table class="transactions">
+      <thead>
+	<tr>
+	  <th>Date</th><th>Description / Memo</th>
+	  <th>Account</th><th>Amount</th>
+	  <th> </th>
+	</tr>
+      </thead>
+      <tbody class="search">
+	<form ng:submit="search(q, account, amount)">
+	  <tr>
+	    <td> </td>
+	    <td><input name="q"/></td>
+	    <td><input name="account"/></td>
+	    <td><input name="amount"/></td>
+	    <td><input type='submit' value='Search' /></td>
+	  </tr>
+	</form>
+      </tbody>
+      
+      <tbody ng:repeat="tx in matches" class="transaction">
+	<tr class="transaction">
+	  <td>{{tx.post_date.substring(0, 10) | date:'M/d/yyyy'}}</td>
+	  <td>{{tx.description}}</td>
+	</tr>
+	<tr ng:repeat="d in tx.splits">
+	  <td>&#160;</td>
+	  <td>{{d.memo}}</td>
+	  <td ng:class="d.account_type">{{d.account_name}}</td>
+	  <td class="money">{{d.value_num / d.value_denom | currency }}</td>
+	</tr>
+      </tbody>
+      
+    </table>
+
+    <hr />
+    <address>
+      <a href="https://bitbucket.org/DanC/finquick">FinQuick</a><br />
+      copyright (c) 2012 <a href="http://www.madmode.com/p/about.html"
+			    >Dan Connolly</a>, some rights reserved
+    </address>
+
+    <script src="http://code.angularjs.org/angular-0.9.12.js" ng:autobind></script>
+    <script src="static/fin.js" type="text/javascript"></script>
+  </body>
+</html>
+<!--
+cribbed from
+http://docs.angularjs.org/#!/misc/downloading
+-->
