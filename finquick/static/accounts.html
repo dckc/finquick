@@ -19,10 +19,19 @@
     <h1>Accounts</h1>
 
     <table>
-      <tr><th>Account Name</th><th>Type</th></tr>
-      <tr ng:repeat="account in
-		     children(root).$filter({'hidden': false}).$orderBy('name')">
+      <tr>
+	<th>Account Name</th><th>Type</th><th>P</th><th>Description</th>
+	<th>Balance</th><th>Reconciled</th><th>Last Reconciled Date</th>
+	<th>Total (Period)</th>
+      </tr>
+      <tr ng:repeat="account in summary">
 	<td>{{account.name}}</td><td>{{account.account_type}}</td>
+	<td><checkbox ng:checked="{account.placeholder}"/></td>
+	<td>{{account.description}}</td>
+	<td>{{account.balance}}</td>
+	<td>{{account.reconciled_balance}}</td>
+	<td>{{account.last_reconciled_date}}</td>
+	<td>{{account.total_period}}</td>
       </tr>
     </table>
 

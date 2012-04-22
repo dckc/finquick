@@ -7,9 +7,16 @@ angular.service('Account', function($resource) {
 });
 
 
+angular.service('AccountSummary', function($resource) {
+    return $resource('../accountSummary');
+});
+
+
 // todo: consider whether global controllers are fine.
-function AccountsCtrl(Account) {
+function AccountsCtrl(Account, AccountSummary) {
     var self = this;
+
+    self.summary = AccountSummary.query();
 
     self.accounts = Account.query({}, function(accounts) {
 	var a;
@@ -36,9 +43,12 @@ function AccountsCtrl(Account) {
 		    return ch.parent_guid == pacct.guid;
 		});
 	};
+
+	self.selected = children(root).$filter({'hidden': false}
+					      ).$orderBy('name');
     });
 }
-AccountsCtrl.$inject = ['Account'];
+AccountsCtrl.$inject = ['Account', 'AccountSummary'];
 
 
 angular.service('Transaction', function($resource) {
