@@ -162,6 +162,32 @@ class Account(Base, GuidMixin):
         [(u'Utilities', 250, None),
          (u'Root Account', None, None),
          (u'Bank X', -250, None)]
+
+@@@
+
+SELECT accounts.guid AS guid, accounts.name AS name,
+ accounts.account_type AS account_type, accounts.description AS description,
+ accounts.hidden AS hidden, accounts.placeholder AS placeholder,
+ accounts.parent_guid AS parent_guid, balance, reconciled_balance, last_reconcile_date, total_period
+ FROM accounts
+ LEFT OUTER JOIN
+(select account_guid, sum(splits.value_num / splits.value_denom) AS balance
+ from splits group by account_guid)
+ splits ON accounts.guid = splits.account_guid
+ LEFT OUTER JOIN
+(select account_guid,
+        sum(splits.value_num / splits.value_denom) AS reconciled_balance,
+	max(splits.reconcile_date) as last_reconcile_date
+ from splits where reconcile_state = 'y' group by account_guid)
+ splits_1 ON accounts.guid = splits_1.account_guid
+ LEFT OUTER JOIN
+ (select account_guid, sum(splits.value_num / splits.value_denom) AS total_period 
+  from splits JOIN transactions
+  ON transactions.guid = splits.tx_guid AND (current_timestamp - transactions.post_date)/ (60*60*24) < 120
+  group by account_guid) splits_2
+ ON accounts.guid = splits_2.account_guid
+;
+
         '''
 
         reconciled = orm.aliased(Split)

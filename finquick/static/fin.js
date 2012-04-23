@@ -44,8 +44,10 @@ function AccountsCtrl(Account, AccountSummary) {
 		});
 	};
 
-	self.selected = children(root).$filter({'hidden': false}
-					      ).$orderBy('name');
+	var aa = angular.Array;
+	self.selected = aa.orderBy(aa.filter(self.children(self.root),
+					     {'hidden': false}
+					    ), 'name');
     });
 }
 AccountsCtrl.$inject = ['Account', 'AccountSummary'];

@@ -13,11 +13,14 @@
       .BANK { font-style: bold; color: red }
     </style>
   </head>
-  <body  ng:controller="AccountsCtrl">
+  <body ng:controller="AccountsCtrl">
     <div><a href="transactions">Transactions</a></div>
 
     <h1>Accounts</h1>
 
+    <pre>
+      {{summary}}
+    </pre>
     <table>
       <tr>
 	<th>Account Name</th><th>Type</th><th>P</th><th>Description</th>
@@ -26,7 +29,7 @@
       </tr>
       <tr ng:repeat="account in summary">
 	<td>{{account.name}}</td><td>{{account.account_type}}</td>
-	<td><checkbox ng:checked="{account.placeholder}"/></td>
+	<td><input type='checkbox' ng:checked="{account.placeholder}"/></td>
 	<td>{{account.description}}</td>
 	<td>{{account.balance}}</td>
 	<td>{{account.reconciled_balance}}</td>

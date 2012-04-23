@@ -201,19 +201,23 @@ class FinquickAPI(object):
               some text matching {guid} is required, e.g. `/account/-` .
     '''
     account_route = dotdict(name='account', path='/account/{guid}')
+    summary_route = dotdict(name='summary', path='/accountSummary')
     transaction_route = dotdict(name='transaction', path='/transaction/{guid}')
 
     @inject(config=Configurator,
             av=AccountsList,
+            sv=AccountSummary,
             tqv=TransactionsQuery)
-    def __init__(self, config, av, tqv):
+    def __init__(self, config, av, sv, tqv):
         self._config = config
         self._account_view = av
+        self._summary_view = sv
         self._transaction_view = tqv
 
     def add_rest_api(self):
         for (rt, view) in (
             (self.account_route, self._account_view),
+            (self.summary_route, self._summary_view),
             (self.transaction_route, self._transaction_view)):
             self._config.add_route(rt.name, rt.path)
             view.config(self._config, rt.name)
