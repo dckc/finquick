@@ -109,6 +109,18 @@ def _n2g(name):
     return GuidMixin.fmt(uuid.uuid5(ns, name))
 
 
+def _fix_date(col, x):
+    if x and col['type'].__class__ == Date:
+        return x.isoformat()
+    else:
+        return x
+
+
+def jrec(rec, col_descs):
+    return dict([(c['name'], _fix_date(c, getattr(rec, c['name'])))
+                 for c in col_descs])
+
+
 class Account(Base, GuidMixin):
     __tablename__ = 'accounts'
     name = Column(String)
@@ -177,6 +189,7 @@ class Account(Base, GuidMixin):
                            func.now() - Transaction.post_date < 90)).\
             group_by(Account.guid)
         return sq
+
 
 class Transaction(Base, GuidMixin):
     __tablename__ = 'transactions'

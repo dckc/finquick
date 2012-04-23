@@ -11,7 +11,8 @@ from sqlalchemy.exc import DBAPIError
 from dotdict import dotdict
 from models import (
     Account, Transaction,
-    KSession
+    KSession,
+    jrec,
     )
 
 
@@ -55,8 +56,25 @@ class AccountsList(JSONDBView):
         except DBAPIError:
             return DBFailHint
         cols = Account.__table__.columns
+        # TODO: consider overlap with jrec
         return [dict([(c.name, getattr(acct, c.name)) for c in cols])
                 for acct in accounts]
+
+
+class AccountSummary(JSONDBView):
+    '''
+    Our test data has a ROOT, a BANK, and an EXPENSE:
+    >>> obj = AccountSummary._test_view()
+    >>> [(o['account_type'], o['balance']) for o in sorted(obj)]
+    [(u'BANK', -250), (u'EXPENSE', 250), (u'ROOT', None)]
+    '''
+    def __call__(self, request):
+        try:
+            q = Account.summary(self._session)
+        except DBAPIError:
+            return DBFailHint
+        cols = q.column_descriptions
+        return [jrec(acct, cols) for acct in q.all()]
 
 
 class TransactionsQuery(JSONDBView):
