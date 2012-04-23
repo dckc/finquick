@@ -17,38 +17,19 @@ function AccountsCtrl(Account, AccountSummary) {
     var self = this;
 
     self.summary = AccountSummary.query();
+    self.accounts = Account.query();
 
-    self.accounts = Account.query({}, function(accounts) {
-	var a;
-	var parents = {};
-	var account_index = {}; // by guid
-	var acct;
-
-	roots = angular.Array.filter(accounts,
-				     function(a) {
-					 return a.account_type == 'ROOT'
-				     });
-	self.root = roots[0];  // TODO: what if there is none?
-
-	for (a = 0; a < accounts.length; a++) {
-	    acct = accounts[a];
-	    account_index[acct.guid] = acct;
+    self.children = function(pacct, tree) {
+	if (!tree || !pacct) {
+	    return [];
 	}
-	self.account_index = account_index;
+	return angular.Array.filter(tree, {parent_guid: pacct.guid});
+    };
 
-	self.children = function(pacct) {
-	    return angular.Array.filter(
-		accounts,
-		function(ch) {
-		    return ch.parent_guid == pacct.guid;
-		});
-	};
-
-	var aa = angular.Array;
-	self.selected = aa.orderBy(aa.filter(self.children(self.root),
-					     {'hidden': false}
-					    ), 'name');
-    });
+    self.root = function() {
+	roots = angular.Array.filter(self.accounts, {account_type: 'ROOT'});
+	return roots[0];  // TODO: what if there is none?
+    };
 }
 AccountsCtrl.$inject = ['Account', 'AccountSummary'];
 

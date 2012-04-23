@@ -5,12 +5,10 @@
     <meta charset="utf-8" />
     <style type="text/css">
       .money { text-align: right }
-      .transactions th { border-bottom: 2px solid blue }
-      .transactions .search td { border-bottom: 1px solid blue }
-      .transactions .transaction tr:last-child td {
+      th { border-bottom: 2px solid blue }
+      td {
         border-bottom: 1px solid grey }
       }
-      .BANK { font-style: bold; color: red }
     </style>
   </head>
   <body ng:controller="AccountsCtrl">
@@ -18,24 +16,29 @@
 
     <h1>Accounts</h1>
 
-    <pre>
-      {{summary}}
-    </pre>
     <table>
+      <thead>
       <tr>
 	<th>Account Name</th><th>Type</th><th>P</th><th>Description</th>
-	<th>Balance</th><th>Reconciled</th><th>Last Reconciled Date</th>
+	<th>Balance</th><th>Reconciled</th>
 	<th>Total (Period)</th>
       </tr>
-      <tr ng:repeat="account in summary">
+      </thead>
+      <tbody>
+	<!--todo: start with children(root(), summary)
+            and expand. -->
+      <tr ng:repeat="account in summary"
+          ng:hide="account.hidden">
 	<td>{{account.name}}</td><td>{{account.account_type}}</td>
-	<td><input type='checkbox' ng:checked="{account.placeholder}"/></td>
+	<!-- angular docs suggestion ng:checked,
+	     but that doesn't seem to work. -->
+	<td><input type='checkbox' checked="{{account.placeholder}}"/></td>
 	<td>{{account.description}}</td>
-	<td>{{account.balance}}</td>
-	<td>{{account.reconciled_balance}}</td>
-	<td>{{account.last_reconciled_date}}</td>
-	<td>{{account.total_period}}</td>
+	<td class="money">{{account.balance | currency}}</td>
+	<td class="money">{{account.reconciled_balance | currency}}</td>
+	<td class="money">{{account.total_period | currency}}</td>
       </tr>
+      </tbody>
     </table>
 
     <hr />

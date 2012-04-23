@@ -28,15 +28,17 @@ True
 
 import uuid
 import datetime
+import re
 
 import injector
 from injector import inject, provides, singleton
 from sqlalchemy import (
     Column, ForeignKey,
     Integer, String, Boolean,
-    Date, Text,
+    Text, DECIMAL, DATETIME,
     and_, or_
     )
+from sqlalchemy.dialects import sqlite
 from sqlalchemy import orm, sql, engine, func, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from zope.sqlalchemy import ZopeTransactionExtension
@@ -109,15 +111,23 @@ def _n2g(name):
     return GuidMixin.fmt(uuid.uuid5(ns, name))
 
 
-def _fix_date(col, x):
-    if x and col['type'].__class__ == Date:
-        return x.isoformat()
-    else:
+def _json_val(col, x):
+    if x is None:
         return x
+
+    cls = col['type'].__class__
+    if cls in (String, Text, Integer, Boolean):
+        return x
+    if cls == DATETIME:
+        return x.isoformat()
+    elif cls == DECIMAL:
+        return str(x)
+    else:
+        raise NotImplementedError('_json_val? %s / %s' % (x, cls))
 
 
 def jrec(rec, col_descs):
-    return dict([(c['name'], _fix_date(c, getattr(rec, c['name'])))
+    return dict([(c['name'], _json_val(c, getattr(rec, c['name'])))
                  for c in col_descs])
 
 
@@ -150,48 +160,47 @@ class Account(Base, GuidMixin):
         A summary query returns the following columns:
 
         >>> q = Account.summary(session)
-        >>> [d['name'] for d in q.column_descriptions]
+        >>> [str(d['name']) for d in q.column_descriptions]
         ... # doctest: +NORMALIZE_WHITESPACE
         ['guid', 'name', 'account_type', 'description',
          'hidden', 'placeholder', 'parent_guid',
-         'balance', 'reconciled_balance', 'last_reconcile_date',
+         'balance', 'reconciled_balance',
          'total_period']
 
-        >>> [(a.name, a.balance, a.reconciled_balance) for a in q.all()]
+        >>> [(a.name, a.balance, a.reconciled_balance)
+        ...  for a in q.order_by(Account.name).all()]
         ... # doctest: +NORMALIZE_WHITESPACE
-        [(u'Utilities', 250, None),
+        [(u'Bank X', Decimal('-250.0000000000'), None),
          (u'Root Account', None, None),
-         (u'Bank X', -250, None)]
-
-@@@
-
-SELECT accounts.guid AS guid, accounts.name AS name,
- accounts.account_type AS account_type, accounts.description AS description,
- accounts.hidden AS hidden, accounts.placeholder AS placeholder,
- accounts.parent_guid AS parent_guid, balance, reconciled_balance, last_reconcile_date, total_period
- FROM accounts
- LEFT OUTER JOIN
-(select account_guid, sum(splits.value_num / splits.value_denom) AS balance
- from splits group by account_guid)
- splits ON accounts.guid = splits.account_guid
- LEFT OUTER JOIN
-(select account_guid,
-        sum(splits.value_num / splits.value_denom) AS reconciled_balance,
-	max(splits.reconcile_date) as last_reconcile_date
- from splits where reconcile_state = 'y' group by account_guid)
- splits_1 ON accounts.guid = splits_1.account_guid
- LEFT OUTER JOIN
- (select account_guid, sum(splits.value_num / splits.value_denom) AS total_period 
-  from splits JOIN transactions
-  ON transactions.guid = splits.tx_guid AND (current_timestamp - transactions.post_date)/ (60*60*24) < 120
-  group by account_guid) splits_2
- ON accounts.guid = splits_2.account_guid
-;
-
+         (u'Utilities', Decimal('250.0000000000'), None)]
         '''
 
-        reconciled = orm.aliased(Split)
-        in_period = orm.aliased(Split)
+        sum_value = func.sum(Split.value_num / Split.value_denom,
+                             type_=DECIMAL)
+        def by_acct(q):
+            return q.group_by(Split.account_guid).subquery()
+
+        balance = by_acct(session.query(
+            Split.account_guid,
+            sum_value.label('balance')))
+
+        reconciled = by_acct(session.query(
+            Split.account_guid,
+            sum_value.label('reconciled_balance'),
+            #func.max(Split.reconcile_date, type_=GNC_DateTime).\
+            #label('last_reconcile_date')
+            ).\
+            filter(Split.reconcile_state == 'y'))
+
+        #@@ TODO: real accounting period
+        period_start = datetime.datetime(2010, 1, 1)
+        in_period = by_acct(session.query(
+            Split.account_guid,
+            sum_value.label('total_period')).\
+            join(Transaction).\
+            filter(and_(Split.tx_guid == Transaction.guid,
+                        Transaction.post_date > period_start)))
+
         sq = session.query(Account.guid.label('guid'),
                            Account.name.label('name'),
                            Account.account_type.label('account_type'),
@@ -199,30 +208,40 @@ SELECT accounts.guid AS guid, accounts.name AS name,
                            Account.hidden.label('hidden'),
                            Account.placeholder.label('placeholder'),
                            Account.parent_guid.label('parent_guid'),
-                           func.sum(Split.value_num / Split.value_denom).label('balance'),
-                           func.sum(reconciled.value_num / reconciled.value_denom).label('reconciled_balance'),
-                           func.max(reconciled.reconcile_date).label('last_reconcile_date'),
-                           func.sum(in_period.value_num / in_period.value_denom).label('total_period'),
+                           balance.c.balance,
+                           reconciled.c.reconciled_balance,
+                           #reconciled.c.last_reconcile_date,
+                           in_period.c.total_period
                            ).\
-            outerjoin(Split).\
-            outerjoin(reconciled,
-                      and_(reconciled.account_guid == Account.guid,
-                           reconciled.reconcile_state == 'y')).\
-            outerjoin(in_period).\
-            outerjoin(Transaction,
-                      and_(in_period.tx_guid == Transaction.guid,
-                           #@@ TODO: real accounting period
-                           func.now() - Transaction.post_date < 90)).\
-            group_by(Account.guid)
+            outerjoin(balance, Account.guid == balance.c.account_guid).\
+            outerjoin(reconciled, Account.guid == reconciled.c.account_guid).\
+            outerjoin(in_period, Account.guid == in_period.c.account_guid)
+
         return sq
+
+GNC_DATETIME_RE = re.compile("(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})")
+GNC_DateTime = DATETIME().with_variant(
+    sqlite.DATETIME(
+        storage_format='%04d%02d%02d%02d%02d%02d%0d',
+        regexp=GNC_DATETIME_RE
+        ), 'sqlite')
+
+
+def _test_gnc_datetime():
+    '''
+    >>> m = GNC_DATETIME_RE.match(u'20110501045959')
+    >>> datetime.datetime(*map(int, m.groups(0)))
+    datetime.datetime(2011, 5, 1, 4, 59, 59)
+    '''
+    pass
 
 
 class Transaction(Base, GuidMixin):
     __tablename__ = 'transactions'
     currency_guid = Column(String)
     num = Column(String)
-    post_date = Column(Date)
-    enter_date = Column(Date)
+    post_date = Column(GNC_DateTime)
+    enter_date = Column(GNC_DateTime)
     description = Column(String)
     splits = orm.relationship('Split')
 
@@ -328,7 +347,7 @@ class Split(Base, GuidMixin):
     memo = Column(String)
     #action = Column(String)
     reconcile_state = Column(String)
-    reconcile_date = Column(Date)
+    reconcile_date = Column(GNC_DateTime)
     value_num = Column(Integer)
     value_denom = Column(Integer)
     # TODO: derive value, a decimal
