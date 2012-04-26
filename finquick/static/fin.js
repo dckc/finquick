@@ -13,25 +13,91 @@ angular.service('AccountSummary', function($resource) {
 
 
 // todo: consider whether global controllers are fine.
-function AccountsCtrl(Account, AccountSummary) {
+function AccountsCtrl(Account, AccountSummary, $log) {
     var self = this;
+    var account_index = {}; // by guid
+    var root;
+    var children = {}; // guid -> [account]
 
-    self.summary = AccountSummary.query();
-    self.accounts = Account.query();
+    $log.info('AccountsCtrl');
 
-    self.children = function(pacct, tree) {
-	if (!tree || !pacct) {
-	    return [];
+    var walk = function(acct, f) {
+	var recur = function(acct, ancestors) {
+	    f(acct, ancestors);
+	    nextgen = children[acct.guid];
+	    if (nextgen) {
+		$log.info('children of: ' + acct.name + ': ' + nextgen.length);
+		angular.forEach(nextgen, function(a) {
+		    recur(a, ancestors.concat([a]))
+		});
+	    }
+	};
+	recur(acct, []);
+    };
+
+    self.summary = AccountSummary.query({}, function(accts) {
+	$log.info('summary query results in. self.summary:' + self.summary.length);
+
+	root = null;
+	account_index = {};
+	children = {};
+
+	$log.info('indexing ' + accts.length + ' accounts by guid.');
+	angular.forEach(accts, function(a) {
+	    var siblings = children[a.parent_guid];
+	    account_index[a.guid] = a;
+
+	    if (!siblings) {
+		children[a.parent_guid] = siblings = [];
+	    }
+	    siblings.push(a);
+
+	    // Actually, we need the server to tell us which is
+	    // the root of the book, since there is an account root
+	    // and a template root.
+
+	    if (!a.parent_guid) {
+		if (root) {
+		    $log.warn('already saw root:' + root.guid);
+		} else {
+		    root = a;
+		}
+	    }
+	});
+
+	$log.info('walking tree of accounts, starting at ' + root.guid);
+	var inorder = [];
+	walk(root, function (a, ancestors) {
+	    inorder.push(a);
+	    a.level = ancestors.length;
+	});
+	self.summary = inorder;
+
+	self.toggle(root, true);
+    });
+
+    self.toggle = function(parent, expanded) {
+	if (expanded === undefined) {
+	    expanded = parent.expanded ? false : true;
 	}
-	return angular.Array.filter(tree, {parent_guid: pacct.guid});
+	parent.expanded = expanded;
     };
 
-    self.root = function() {
-	roots = angular.Array.filter(self.accounts, {account_type: 'ROOT'});
-	return roots[0];  // TODO: what if there is none?
+    self.visible = function(acct) {
+	return !acct.hidden &&
+	    acct.parent_guid &&
+	    account_index[acct.parent_guid].expanded;
     };
+
+    angular.filter('indent', function(n, chr) {
+	var i, s = '';
+	for (i = 0; i < n; i++) {
+	    s = s + chr;
+	}
+	return s;
+    });
 }
-AccountsCtrl.$inject = ['Account', 'AccountSummary'];
+AccountsCtrl.$inject = ['Account', 'AccountSummary', '$log'];
 
 
 angular.service('Transaction', function($resource) {
@@ -58,6 +124,52 @@ function TransactionsCtrl(Transaction, $log) {
 	self.matches = Transaction.query({q: qtxt, account: account,
 					  amount: amount});
     }
+
+    var simpleTx = function(tx) {
+	if ('simple' in tx) {
+	    return tx.simple;
+	}
+
+	if (tx.splits.length != 2) {
+	    return tx.simple = false;
+	}
+
+	var isPrimary = function(s) {
+	    return ['BANK', 'CASH', 'CREDIT'].indexOf(s.account_type) >= 0;
+	}
+
+	if (isPrimary(tx.splits[0])) {
+	    tx.primaryIndex = 0;
+	} else if (isPrimary(tx.splits[1])) {
+	    tx.primaryIndex = 1;
+	} else {
+	    return tx.simple = false;
+	}
+
+	var pmt = tx.payment = tx.splits[tx.primaryIndex];
+	var tfr = tx.transfer = tx.splits[1 - tx.primaryIndex];
+
+	return tx.simple = true;
+    };
+
+    self.primaryAccount = function(tx) {
+	return simpleTx(tx) ? tx.payment.account_name : null;
+    };
+    self.primaryTransfer = function(tx) {
+	return simpleTx(tx) ? tx.transfer.account_name : null;
+    };
+    var splitAmount = function(s, sign) {
+	var amount = sign * (s.value_num / s.value_denom);
+	return amount > 0 ? amount : NaN;
+    };
+    self.splitAmount = splitAmount;
+
+    self.primaryAmount = function(tx, sign) {
+	return simpleTx(tx) ? splitAmount(tx.payment, sign) : NaN;
+    };
+    self.details = function(tx) {
+	return simpleTx(tx) ? [] : tx.splits;
+    };
 }
 TransactionsCtrl.$inject = ['Transaction', '$log'];
 

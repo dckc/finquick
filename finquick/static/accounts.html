@@ -28,11 +28,28 @@
 	<!--todo: start with children(root(), summary)
             and expand. -->
       <tr ng:repeat="account in summary"
-          ng:hide="account.hidden">
-	<td>{{account.name}}</td><td>{{account.account_type}}</td>
+          ng:show="visible(account)">
+	<td ng:click="toggle(account)">
+	  {{ account.level - 1 | indent:'&#160;&#160;' }}
+	  <!-- TODO: disable if there are no children -->
+	  <ng:switch on="account.expanded">
+	    <span ng:switch-when="true">
+	      &#x25BE; <!-- BLACK DOWN-POINTING SMALL TRIANGLE -->
+	    </span>
+	    <span ng:switch-default>
+	      &#x25B8; <!-- BLACK RIGHT-POINTING SMALL TRIANGLE -->
+	    </span>
+	  </ng:switch>
+	  {{account.name}}
+	</td>
+	<td>{{account.account_type}}</td>
 	<!-- angular docs suggestion ng:checked,
 	     but that doesn't seem to work. -->
-	<td><input type='checkbox' checked="{{account.placeholder}}"/></td>
+	<td>
+	  <!-- TODO: make this editable -->
+	  <input type='checkbox' checked="{{account.placeholder}}"
+		 disabled='disabled'/>
+	</td>
 	<td>{{account.description}}</td>
 	<td class="money">{{account.balance | currency}}</td>
 	<td class="money">{{account.reconciled_balance | currency}}</td>
