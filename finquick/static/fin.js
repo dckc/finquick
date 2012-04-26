@@ -70,23 +70,32 @@ function AccountsCtrl(Account, AccountSummary, $log) {
 	walk(root, function (a, ancestors) {
 	    inorder.push(a);
 	    a.level = ancestors.length;
+	    a.children = children[a.guid];
+	    a.parent = account_index[a.parent_guid];
 	});
 	self.summary = inorder;
 
-	self.toggle(root, true);
+	self.toggle(root, 1);
     });
 
     self.toggle = function(parent, expanded) {
 	if (expanded === undefined) {
-	    expanded = parent.expanded ? false : true;
+	    expanded = !parent.expanded ? true : false;
 	}
 	parent.expanded = expanded;
+	$log.info('toggle: ' + parent.name + ' to: ' + expanded);
     };
 
-    self.visible = function(acct) {
-	return !acct.hidden &&
+    self.visibility = function(acct) {
+	// todo: option to show hidden accounts
+	var v = (!acct.hidden) &&
 	    acct.parent_guid &&
-	    account_index[acct.parent_guid].expanded;
+	    acct.parent.expanded &&
+	    (acct.level <= 1 || self.visibility(acct.parent) > 0);
+	return v ? (
+	    acct.children ? (
+		acct.expanded ? 3 : 2 )
+	    : 1) : 0;
     };
 
     angular.filter('indent', function(n, chr) {
