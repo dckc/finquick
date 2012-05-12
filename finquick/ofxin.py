@@ -33,16 +33,6 @@
 ...  for t in [dotelt(e) for e in p.root.findall('.//stmttrn')]]
 [('2-6', '60.00', '20110117212742'), ('2-9', '60.00', '20110117221215')]
 
-I see a lot of
-VERSION:102
-
-so...
-
-Download OFX Version 1.0.2:
-
-Spec w/ DTD  OFX1.0.2.zip (369K)
-http://www.ofx.net/DownloadPage/Downloads.aspx
-http://www.ofx.net/DownloadPage/Files/ofx102spec.zip
 '''
 
 import logging
