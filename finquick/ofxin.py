@@ -24,11 +24,6 @@
 ['trntype', 'dtposted', 'trnamt', 'fitid', 'name',
  'checknum', 'payeeid', 'memo']
 
->>> class dotelt(object):
-...     def __init__(self, e):
-...         self.e = e
-...     def __getattr__(self, n):
-...         return self.e.find(n).text
 >>> [(t.fitid, t.trnamt, t.dtposted)
 ...  for t in [dotelt(e) for e in p.root.findall('.//stmttrn')]]
 [('2-6', '60.00', '20110117212742'), ('2-9', '60.00', '20110117221215')]
@@ -37,12 +32,21 @@
 ### from xml.etree.ElementTree import tostring
 ### print tostring(p.root)
 
+    >>> import pprint
+    >>> pprint.pprint(p.summary())
+    {'acctid': '123456789',
+     'bankid': '123456789',
+     'dtserver': datetime.datetime(2011, 1, 17, 22, 12, 51),
+     'fid': None,
+     'org': 'Bank of America'}
 
 '''
 
-import logging
-import sgmllib  # Note: deprecated
 from xml.etree.ElementTree import Element
+import datetime
+import logging
+import re
+import sgmllib  # Note: deprecated
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +94,90 @@ class OFXParser(sgmllib.SGMLParser):
 
     def handle_data(self, data):
         self._data.append(data)
+
+    def summary(self):
+        root = self.root
+        assert(root is not None)  # ugh... hardly functional
+
+        status = dotelt(self.root.find('.//status'))
+        if status.code != '0':
+            raise ValueError((status.code, status.severity))
+
+        fi = dotelt(self.root.find('.//fi'))
+
+        acct = dotelt(_or(self.root.find('.//bankacctfrom'),
+                          self.root.find('.//ccacctfrom')))
+        return dict(dtserver=self.parse_date(root.find('.//dtserver').text),
+                    org=fi.org,
+                    fid=fi.fid,
+                    acctid=acct.acctid,
+                    bankid=acct.get('bankid', None))
+
+    @classmethod
+    def parse_date(cls, txt):
+        '''
+        >>> OFXParser.parse_date('20120423201548.648[-4:EDT]')
+        datetime.datetime(2012, 4, 23, 20, 15, 48, 648000, tzinfo=[-4:EDT])
+        '''
+        m = re.match(r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
+                     r'(?P<hour>\d{2})(?P<minute>\d{2})(?P<second>\d{2})'
+                     r'(?:\.(?P<frac>\d+))?'
+                     r'(?:\[(?P<tzoff>-?\d+):(?P<tzname>\w+)\])?',
+                     txt)
+        if not m:
+            raise ValueError(txt)
+        year, month, day, hour, minute, second = [
+            int(m.group(part)) for part in
+            'year month day hour minute second'.split()]
+
+        fractxt = m.group('frac')
+        frac = int(fractxt) * 10 ** (6 - len(fractxt)) if fractxt else 0
+        tzofftxt = m.group('tzoff')
+        if tzofftxt:
+            tz = FixedOffset(int(tzofftxt), m.group('tzname'))
+        else:
+            tz = None
+        return datetime.datetime(year, month, day, hour, minute, second,
+                                 frac, tz)
+
+
+def _or(e1, e2):
+    return e1 if e1 is not None else e2
+
+class FixedOffset(datetime.tzinfo):
+# ack: http://docs.python.org/library/datetime.html#tzinfo-objects
+    """Fixed offset in hours east from UTC."""
+
+    def __init__(self, offset, name):
+        self._hrs = offset
+        self.__offset = datetime.timedelta(minutes = offset * 60)
+        self.__name = name
+
+    def __repr__(self):
+        return '[%d:%s]' % (self._hrs, self.__name)
+
+    def utcoffset(self, dt):
+        return self.__offset
+
+    def tzname(self, dt):
+        return self.__name
+
+    def dst(self, dt):
+        return ZERO
+
+ZERO = datetime.timedelta(0)
+
+
+class dotelt(object):
+    def __init__(self, e):
+        self.e = e
+
+    def __getattr__(self, n):
+        return self.e.find(n).text
+
+    def get(self, n, default):
+        ch = self.e.find(n)
+        return ch.text if ch is not None else default
 
 
 if __name__ == '__main__':
