@@ -10,6 +10,8 @@
  ('CHARSET', '1252'), ('COMPRESSION', 'NONE'),
  ('OLDFILEUID', 'NONE'), ('NEWFILEUID', 'NONE')]
 
+.. todo:: decode according to charset
+
 ### logging.basicConfig(level=logging.DEBUG)
 >>> body = ''.join([line for line in ofxin])
 >>> p.feed(body)
@@ -40,18 +42,72 @@
      'fid': None,
      'org': 'Bank of America'}
 
+    >>> pprint.pprint(list(p.transactions()))
+    [{'checknum': '2-6',
+      'dtposted': datetime.datetime(2011, 1, 17, 21, 27, 42),
+      'fitid': '2-6',
+      'memo': None,
+      'name': 'Jared Fetter',
+      'payeeid': '2',
+      'trnamt': Decimal('60.00'),
+      'trntype': 'CREDIT'},
+     {'checknum': '2-9',
+      'dtposted': datetime.datetime(2011, 1, 17, 22, 12, 15),
+      'fitid': '2-9',
+      'memo': None,
+      'name': 'Jared Fetter',
+      'payeeid': '2',
+      'trnamt': Decimal('60.00'),
+      'trntype': 'CREDIT'}]
 '''
 
 from xml.etree.ElementTree import Element
+from decimal import Decimal
 import datetime
 import logging
 import re
 import sgmllib  # Note: deprecated
 
+from sqlalchemy import Column
+from sqlalchemy.types import String, DECIMAL, DATETIME
+
+import models
+
 log = logging.getLogger(__name__)
 
 
+class StmtTrn(models.Base):
+    '''Temporary table for OFX import.
+    '''
+    fitid = Column(String(80, primary_key=True))
+    checknum = Column(String(80))
+    dtposted = Column(DATETIME)
+    memo = Column(String(80))
+    name = Column(String(80))
+    payeeid = Column(String(80))
+    trnamt = Column(DECIMAL(precision=8, scale=2))
+    trntype = Column(String(80))  # todo: enum 'CREDIT', ...
+    
+
+class Importer(object):
+    def __init__(self, datasource):
+        self._ds = datasource
+
+    def run(self, summary, transactions, acct, txfr):
+        '''
+        .. todo:: do something with the summary
+        '''
+        session = self._ds()
+        for tx in transactions:
+            session.add(StmtTrn(**tx))
+
+
 class OFXParser(sgmllib.SGMLParser):
+    '''
+    .. todo:: parser to take a list of tags that should be collected,
+              with corredponding callbacks. (also: look into monads
+              vs callbacks). yield tablename, record
+    '''
 
     @classmethod
     def header(self, lines):
@@ -111,7 +167,21 @@ class OFXParser(sgmllib.SGMLParser):
                     org=fi.org,
                     fid=fi.fid,
                     acctid=acct.acctid,
-                    bankid=acct.get('bankid', None))
+                    bankid=acct.get('bankid'))
+
+    def transactions(self):
+        root = self.root
+        assert(root is not None)  # ugh... hardly functional
+        for e in root.findall('.//stmttrn'):
+            tx = dotelt(e)
+            yield dict(fitid=tx.fitid,
+                       dtposted=self.parse_date(tx.dtposted),
+                       checknum=tx.get('checknum'),
+                       trntype=tx.trntype,
+                       trnamt=Decimal(tx.trnamt),
+                       name=tx.name,
+                       payeeid=tx.get('payeeid'),
+                       memo=tx.get('memo'))
 
     @classmethod
     def parse_date(cls, txt):
@@ -173,9 +243,12 @@ class dotelt(object):
         self.e = e
 
     def __getattr__(self, n):
-        return self.e.find(n).text
+        ch = self.e.find(n)
+        if ch is None:
+            raise AttributeError(n)
+        return ch.text
 
-    def get(self, n, default):
+    def get(self, n, default=None):
         ch = self.e.find(n)
         return ch.text if ch is not None else default
 

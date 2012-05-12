@@ -356,6 +356,25 @@ class Split(Base, GuidMixin):
     #lot_guid = Column(String)
 
 
+class Slot(Base):
+    __tablename__ = 'slots'
+    id = Column(Integer, primary_key=True)
+    obj_guid = Column(String(32))
+    name = Column(String(4096))
+    slot_type = Column(Integer)
+    __mapper_args__ = {'polymorphic_on': slot_type}
+
+
+class TextSlot(Slot):
+    __mapper_args__ = {'polymorphic_identity': 4}
+    string_val = Column(String(4096))
+
+
+class GuidSlot(Slot):
+    __mapper_args__ = {'polymorphic_identity': 9}
+    guid_val = Column(String(32))
+
+
 class Mock(injector.Module):
     # TODO: use GnuCash to make a small data set and use CSV files.
     accounts = (dotdict(name='Root Account', account_type='ROOT', parent=None),
