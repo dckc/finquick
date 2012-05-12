@@ -16,8 +16,22 @@
 >>> p.root.tag
 'ofx'
 
->>> from xml.etree.ElementTree import tostring
->>> print tostring(p.root)
+>>> len(p.root.findall('.//stmttrn'))
+2
+
+>>> [field.tag for field in p.root.find('.//stmttrn')]
+... #doctest: +NORMALIZE_WHITESPACE
+['trntype', 'dtposted', 'trnamt', 'fitid', 'name',
+ 'checknum', 'payeeid', 'memo', 'stmttrn', 'ledgerbal']
+
+>>> class dotelt(object):
+...     def __init__(self, e):
+...         self.e = e
+...     def __getattr__(self, n):
+...         return self.e.find(n).text
+>>> [(t.fitid, t.trnamt, t.dtposted)
+...  for t in [dotelt(e) for e in p.root.findall('.//stmttrn')]]
+[('2-6', '60.00', '20110117212742'), ('2-9', '60.00', '20110117221215')]
 
 I see a lot of
 VERSION:102
