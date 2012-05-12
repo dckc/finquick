@@ -1,6 +1,6 @@
 '''
 >>> import pkg_resources
->>> ofxin = pkg_resources.resource_stream(__name__, 'test_ofx.ofx')
+>>> ofxin = pkg_resources.resource_stream(__name__, 'test/test_ofx.ofx')
 
 >>> p = OFXParser()
 >>> list(p.header(ofxin))
