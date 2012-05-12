@@ -52,9 +52,6 @@ class OFXParser(sgmllib.SGMLParser):
             n, v = line.strip().split(':', 1)
             yield n, v
 
-    #empty= ('code', 'severity', 'dtserver', 'language',
-    #        'org', 'fid')
-
     def __init__(self):
         sgmllib.SGMLParser.__init__(self)
         self._data = []
