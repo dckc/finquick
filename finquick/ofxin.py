@@ -22,7 +22,7 @@
 >>> [field.tag for field in p.root.find('.//stmttrn')]
 ... #doctest: +NORMALIZE_WHITESPACE
 ['trntype', 'dtposted', 'trnamt', 'fitid', 'name',
- 'checknum', 'payeeid', 'memo', 'stmttrn', 'ledgerbal']
+ 'checknum', 'payeeid', 'memo']
 
 >>> class dotelt(object):
 ...     def __init__(self, e):
@@ -32,6 +32,11 @@
 >>> [(t.fitid, t.trnamt, t.dtposted)
 ...  for t in [dotelt(e) for e in p.root.findall('.//stmttrn')]]
 [('2-6', '60.00', '20110117212742'), ('2-9', '60.00', '20110117221215')]
+
+
+### from xml.etree.ElementTree import tostring
+### print tostring(p.root)
+
 
 '''
 
@@ -81,9 +86,7 @@ class OFXParser(sgmllib.SGMLParser):
         self._ancestors.append(start)
 
     def unknown_endtag(self, tag):
-        e = self._ancestors.pop()
-        e.text = ''.join(self._data).strip()
-        self._data = []
+        self._ancestors.pop()
 
     def handle_data(self, data):
         self._data.append(data)
