@@ -12,7 +12,6 @@
 
 .. todo:: decode according to charset
 
-### logging.basicConfig(level=logging.DEBUG)
 >>> body = ''.join([line for line in ofxin])
 >>> p.feed(body)
 >>> p.root.tag
@@ -59,6 +58,14 @@
       'payeeid': '2',
       'trnamt': Decimal('60.00'),
       'trntype': 'CREDIT'}]
+
+>>> logging.basicConfig(level=logging.DEBUG)
+>>> logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+>>> (session, i) = models.Mock.make([models.KSession, Importer])
+>>> from models import Account
+>>> bank = session.query(Account).filter(Account.name == 'Bank X').one()
+>>> i.run(p.summary(), p.transactions(), bank, '@@')
+
 '''
 
 from xml.etree.ElementTree import Element
@@ -68,7 +75,8 @@ import logging
 import re
 import sgmllib  # Note: deprecated
 
-from sqlalchemy import Column
+from injector import inject
+from sqlalchemy import Column, and_
 from sqlalchemy.types import String, DECIMAL, DATETIME
 
 import models
@@ -76,10 +84,40 @@ import models
 log = logging.getLogger(__name__)
 
 
+class Importer(object):
+    @inject(datasource=models.KSession)
+    def __init__(self, datasource):
+        self._ds = datasource
+
+    def run(self, summary, transactions, acct, txfr):
+        '''
+        .. todo:: do something with the summary
+        '''
+        session = self._ds()  # hmm... instantiate this?
+        tst = StmtTrn.__table__
+        session.execute(tst.insert(),
+                        list(transactions))
+        ta = models.Account.__table__
+        ts = models.Split.__table__
+        tsl = models.TextSlot.__table__
+
+        log.debug('acct guid: %s / %s', acct.guid, type(acct.guid))
+        online_ids = ts.join(ta).\
+            join(tsl, tsl.c.obj_guid == ts.c.guid).\
+            select().\
+            where(and_(tsl.c.name == 'online_id',
+                       ta.c.guid == acct.guid))
+        novel = tst.outerjoin(online_ids, tst.c.fitid == tsl.c.string_val).\
+            select().with_only_columns(tst.columns).\
+            where(tsl.c.string_val == None)
+        session.execute(novel)
+
+
 class StmtTrn(models.Base):
     '''Temporary table for OFX import.
     '''
-    fitid = Column(String(80, primary_key=True))
+    __tablename__ = 'ofx_stmttrn'
+    fitid = Column(String(80), primary_key=True)
     checknum = Column(String(80))
     dtposted = Column(DATETIME)
     memo = Column(String(80))
@@ -88,19 +126,6 @@ class StmtTrn(models.Base):
     trnamt = Column(DECIMAL(precision=8, scale=2))
     trntype = Column(String(80))  # todo: enum 'CREDIT', ...
     
-
-class Importer(object):
-    def __init__(self, datasource):
-        self._ds = datasource
-
-    def run(self, summary, transactions, acct, txfr):
-        '''
-        .. todo:: do something with the summary
-        '''
-        session = self._ds()
-        for tx in transactions:
-            session.add(StmtTrn(**tx))
-
 
 class OFXParser(sgmllib.SGMLParser):
     '''
