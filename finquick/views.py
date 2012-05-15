@@ -45,10 +45,13 @@ class JSONDBView(object):
 
 class AccountsList(JSONDBView):
     '''
-    Our test data has a ROOT, a BANK, and an EXPENSE:
+    The GnuCash Simple Checking Account suite has accounts of various types:
     >>> obj = AccountsList._test_view()
     >>> [o['account_type'] for o in obj]
-    [u'ROOT', u'BANK', u'EXPENSE']
+    ... #doctest: +NORMALIZE_WHITESPACE
+    [u'ROOT', u'ASSET', u'ASSET', u'BANK',
+     u'INCOME', u'EXPENSE',
+     u'EQUITY', u'EQUITY', u'ROOT']
     '''
     def __call__(self, request):
         try:
@@ -65,8 +68,8 @@ class AccountSummary(JSONDBView):
     '''
     Our test data has a ROOT, a BANK, and an EXPENSE:
     >>> obj = AccountSummary._test_view()
-    >>> [(o['account_type'], o['balance']) for o in sorted(obj)]
-    [(u'BANK', -250), (u'EXPENSE', 250), (u'ROOT', None)]
+    >>> [(o['account_type'], o['balance']) for o in sorted(obj) if o['balance']]
+    [(u'BANK', '-370.0000000000'), (u'EXPENSE', '370.0000000000')]
     '''
     def __call__(self, request):
         try:

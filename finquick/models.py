@@ -6,22 +6,23 @@ After we mock up a database session with test data...
 
 ... we can query for accounts as per the usual sqlalchemy orm API.
 
-There is always exactly one root account in a GnuCash book.
-.. todo:: cite GnuCash spec that says so.
+Find the root account of the first book::
+>>> (rg, ) = session.execute('select root_account_guid from books').fetchone()
+>>> rg
+u'4b1541673b2df412263bf6888043a6f8'
+>>> root = session.query(Account).filter(Account.guid == rg).one()
 
->>> root = session.query(Account).filter(Account.account_type == 'ROOT').one()
-
-Our mock data has one top-level bank:
+Our mock data has one bank, under Current Assets, under Assets:
 
 >>> banks = session.query(Account).filter(Account.account_type == 'BANK').all()
 >>> banks
 ... #doctest: +NORMALIZE_WHITESPACE
-[Account(guid=u'a35af99599ef5adbb8e1904b86ae1f26',
- name=u'Bank X', account_type=u'BANK',
- description=u'', hidden=False, placeholder=False,
- parent_guid=u'934e3c4f6aa55a8faedf160686214cc4')]
+[Account(guid=u'b49249296b4e626e15e3e9dc26e134ee',
+ name=u'Checking Account', account_type=u'BANK',
+ description=u'Checking Account', hidden=False,
+ placeholder=False, parent_guid=u'8e14dd0122d7603d321cbdc27ad1a61e')]
 
->>> banks[0].parent is root
+>>> banks[0].parent.parent.parent is root
 True
 
 '''
@@ -46,6 +47,7 @@ from zope.sqlalchemy import ZopeTransactionExtension
 from dotdict import dotdict
 
 KSession = injector.Key('Session')
+KUUIDGen = injector.Key('UUIDGen')
 Base = declarative_base()
 
 
@@ -60,6 +62,11 @@ class DBConfig(injector.Module):
         s = orm.scoped_session(sm)
         s.configure(bind=engine)
         return s
+
+    @singleton
+    @provides(KUUIDGen)
+    def uuidgen(self):
+        return uuid.uuid4
 
     @classmethod
     def mods(cls):
@@ -170,9 +177,16 @@ class Account(Base, GuidMixin):
         >>> [(a.name, a.balance, a.reconciled_balance)
         ...  for a in q.order_by(Account.name).all()]
         ... # doctest: +NORMALIZE_WHITESPACE
-        [(u'Bank X', Decimal('-250.0000000000'), None),
+        [(u'Assets', None, None),
+         (u'Checking Account', Decimal('-370.0000000000'), None),
+         (u'Current Assets', None, None),
+         (u'Equity', None, None),
+         (u'Expenses', Decimal('370.0000000000'), None),
+         (u'Income', None, None),
+         (u'Opening Balances', None, None),
          (u'Root Account', None, None),
-         (u'Utilities', Decimal('250.0000000000'), None)]
+         (u'Template Root', None, None)]
+
         '''
 
         sum_value = func.sum(Split.value_num / Split.value_denom,
@@ -219,12 +233,19 @@ class Account(Base, GuidMixin):
 
         return sq
 
-GNC_DATETIME_RE = re.compile("(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})")
-GNC_DateTime = DATETIME().with_variant(
-    sqlite.DATETIME(
-        storage_format='%04d%02d%02d%02d%02d%02d%0d',
-        regexp=GNC_DATETIME_RE
-        ), 'sqlite')
+GNC_DATETIME_RE = re.compile(r"(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})")
+#GNC_DateTime = sqlite.DATETIME(
+#        storage_format='%04d%02d%02d%02d%02d%02d%0d',
+#        regexp=GNC_DATETIME_RE
+#        )
+_SDT = sqlite.DATETIME(
+    storage_format='%04d%02d%02d%02d%02d%02d%0d',
+    regexp=GNC_DATETIME_RE
+    )
+# KLUDGE! adapt() seems to rely on attribute names
+_SDT.regexp = GNC_DATETIME_RE
+_SDT.storage_format = '%04d%02d%02d%02d%02d%02d%0d'
+GNC_DateTime = DATETIME().with_variant(_SDT, 'sqlite')
 
 
 def _test_gnc_datetime():
@@ -266,7 +287,7 @@ class Transaction(Base, GuidMixin):
 
         >>> rows = q.all()
         >>> [(r.account_name, r.value_num / r.value_denom) for r in rows]
-        [(u'Bank X', -250), (u'Utilities', 250)]
+        [(u'Checking Account', -250), (u'Expenses', 250)]
         >>> len(set([row.tx_guid for row in rows]))
         1
 
@@ -278,21 +299,24 @@ class Transaction(Base, GuidMixin):
         Or by amount:
         >>> amt_q = Transaction.search_query(session, amount=250)
         >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
-        [(u'Bank X', -250), (u'Utilities', 250)]
+        [(u'Checking Account', -250), (u'Expenses', 250)]
 
 
         Or by account:
-        >>> amt_q = Transaction.search_query(session, account='Utilities')
+        >>> amt_q = Transaction.search_query(session, account='Expenses')
         >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
-        [(u'Bank X', -250), (u'Utilities', 250)]
+        ... #doctest: +NORMALIZE_WHITESPACE
+        [(u'Checking Account', -60), (u'Expenses', 60),
+         (u'Checking Account', -60), (u'Expenses', 60),
+         (u'Checking Account', -250), (u'Expenses', 250)]
 
         Or by all of the above:
         >>> amt_q = Transaction.search_query(session,
         ...                                  txt='Electric',
         ...                                  amount=250,
-        ...                                  account='Utilities')
+        ...                                  account='Expenses')
         >>> [(r.account_name, r.value_num / r.value_denom) for r in amt_q.all()]
-        [(u'Bank X', -250), (u'Utilities', 250)]
+        [(u'Checking Account', -250), (u'Expenses', 250)]
         '''
 
         detail = session.query(Transaction.post_date.label('post_date'),
@@ -345,14 +369,14 @@ class Split(Base, GuidMixin):
     account_guid = Column(String, ForeignKey('accounts.guid'))
     account = orm.relationship('Account')
     memo = Column(String)
-    #action = Column(String)
+    action = Column(String)
     reconcile_state = Column(String)
     reconcile_date = Column(GNC_DateTime)
     value_num = Column(Integer)
     value_denom = Column(Integer)
     # TODO: derive value, a decimal
-    #quantity_num = Column(Integer)
-    #quantity_denom = Column(Integer)
+    quantity_num = Column(Integer)
+    quantity_denom = Column(Integer)
     #lot_guid = Column(String)
 
 
@@ -376,30 +400,6 @@ class GuidSlot(Slot):
 
 
 class Mock(injector.Module):
-    # TODO: use GnuCash to make a small data set and use CSV files.
-    accounts = (dotdict(name='Root Account', account_type='ROOT', parent=None),
-                dotdict(name='Bank X', account_type='BANK',
-                        parent='Root Account'),
-                dotdict(name='Utilities', account_type='EXPENSE',
-                        parent='Root Account'))
-
-    transactions = [dotdict(post_date=datetime.datetime(2001, 01, 01, 1, 2, 3),
-                            description='Electric company',
-                            guid=_n2g('Electric company'))]
-
-    splits = [dotdict(tx_guid=_n2g('Electric company'),
-                      account_guid=_n2g('Bank X'),
-                      memo='',
-                      guid=_n2g(''),
-                      value_num=-25000,
-                      value_denom=100),
-              dotdict(tx_guid=_n2g('Electric company'),
-                      account_guid=_n2g('Utilities'),
-                      memo='lots o killowatt hours',
-                      guid=_n2g('lots o killowatt hours'),
-                      value_num=25000,
-                      value_denom=100)]
-
     @classmethod
     def make(cls, what):
         mods = [cls()] + DBConfig.mods()
@@ -414,19 +414,11 @@ class Mock(injector.Module):
         self.bootstrap(engine)
         return engine
 
+    sql='test/fin1.sql'
     def bootstrap(self, engine):
-        Base.metadata.create_all(engine)
-        engine.execute(Account.__table__.insert(),
-                       self.mock_accounts())
-        engine.execute(Transaction.__table__.insert(), self.transactions)
-        engine.execute(Split.__table__.insert(), self.splits)
-
-    def mock_accounts(self):
-        return [dict(name=acct.name,
-                     guid=_n2g(acct.name),
-                     account_type=acct.account_type,
-                     parent_guid=_n2g(acct.parent) if acct.parent else None,
-                     description='',
-                     placeholder=False,
-                     hidden=False)
-                for acct in self.accounts]
+        import pkg_resources
+        for line in pkg_resources.resource_stream(__name__, self.sql):
+            stmt = line.strip().strip(';')
+            if stmt == 'COMMIT':
+                continue  # avoid 'no transaction is active'
+            engine.execute(stmt)

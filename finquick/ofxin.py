@@ -29,17 +29,18 @@ class Importer(object):
     >>> transactions = list(transactions_g)
 
     Choose the destination account; note splits before import:
+    >>> models.Mock.sql='test/fin1_init.sql'
     >>> (session, i) = models.Mock.make([models.KSession, Importer])
     >>> from models import Account, Split
     >>> bank = session.query(Account).\
-    ...        filter(Account.name == 'Bank X').one()
+    ...        filter(Account.name == 'Checking Account').one()
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
-    [-25000]
+    []
 
     This simple import uses one transfer account for all new transactions:
     >>> exp = session.query(Account).\
-    ...        filter(Account.name == 'Utilities').one()
+    ...        filter(Account.name == 'Expenses').one()
 
     Insert the transactions into a temporary table and match them
     against existing splits/transactions:
@@ -51,14 +52,14 @@ class Importer(object):
     >>> i.run(bank, exp, 'currency_guid@@')
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
-    [-25000, 6000, 6000]
+    [-6000, -6000]
 
     Import is idempotent; doing it again has no effect:
     >>> i.prepare(summary, transactions, bank)
     >>> i.run(bank, exp, 'currency_guid@@')
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
-    [-25000, 6000, 6000]
+    [-6000, -6000]
 
     '''
     @inject(datasource=models.KSession,
@@ -73,7 +74,8 @@ class Importer(object):
         '''
         session = self._ds()  # hmm... instantiate this?
         tst = StmtTrn.__table__
-        session.execute(tst.delete())
+        tst.drop(bind=session.bind, checkfirst=True)
+        tst.create(bind=session.bind)
         session.execute(tst.insert(),
                         list(transactions))
         ta = models.Account.__table__
@@ -107,16 +109,23 @@ class Importer(object):
                               tx_guid=tx.guid,
                               account_guid=acct.guid,
                               memo=ofxtx.memo,
-                              reconcile_state='n',
-                              value_num=ofxtx.trnamt,
-                              value_denom=100)
+                              action='',
+                              reconcile_state='c',
+                              value_num=-ofxtx.trnamt,  # depends on tx type?
+                              value_denom=100,
+                              quantity_num=-ofxtx.trnamt,  # depends on tx type?
+                              quantity_denom=100)
 
             s2 = models.Split(guid=fmt(self._uuidgen()),
                               tx_guid=tx.guid,
                               account_guid=txfr.guid,
+                              memo='',
+                              action='',
                               reconcile_state='n',
-                              value_num=-ofxtx.trnamt,
-                              value_denom=100)
+                              value_num=ofxtx.trnamt,
+                              value_denom=100,
+                              quantity_num=ofxtx.trnamt,
+                              quantity_denom=100)
             online_id = models.TextSlot(obj_guid=s1.guid,
                                         name='online_id',
                                         string_val=ofxtx.fitid)
@@ -200,7 +209,7 @@ class OFXParser(sgmllib.SGMLParser):
             yield n, v
 
     @classmethod
-    def whitebox(cls):
+    def _whitebox(cls):
         '''
         >>> import pkg_resources
         >>> ofxin = pkg_resources.resource_stream(__name__, 'test/test_ofx.ofx')
