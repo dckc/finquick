@@ -49,14 +49,14 @@ class Importer(object):
     >>> i.prepare(summary, transactions, bank)
 
     Then import the unmatched transactions and note the results:
-    >>> i.run(bank, exp, 'currency_guid@@')
+    >>> i.execute(bank, exp, 'USD')
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
 
     Import is idempotent; doing it again has no effect:
     >>> i.prepare(summary, transactions, bank)
-    >>> i.run(bank, exp, 'currency_guid@@')
+    >>> i.execute(bank, exp, 'USD')
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
@@ -94,9 +94,12 @@ class Importer(object):
             session.execute(tst.update().values(match_guid=obj_guid).\
                                 where(tst.c.fitid == fitid))
 
-
-    def run(self, acct, txfr, currency_guid):
+    def execute(self, acct, txfr, currency):
         session = self._ds()  # hmm... instantiate this?
+        currency_guid = session.execute('''
+            select guid from commodities
+            where namespace='CURRENCY' and mnemonic = :currency''',
+                                        dict(currency=currency)).fetchone()[0]
         for ofxtx in session.query(StmtTrn).\
                 filter(StmtTrn.match_guid == None).all():
             fmt = models.GuidMixin.fmt
