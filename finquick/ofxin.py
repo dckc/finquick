@@ -49,14 +49,14 @@ class Importer(object):
     >>> i.prepare(summary, transactions, bank)
 
     Then import the unmatched transactions and note the results:
-    >>> i.execute(bank, exp, 'USD')
+    >>> i.execute(bank, exp, summary['curdef'])
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
 
     Import is idempotent; doing it again has no effect:
     >>> i.prepare(summary, transactions, bank)
-    >>> i.execute(bank, exp, 'USD')
+    >>> i.execute(bank, exp, summary['curdef'])
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
@@ -166,6 +166,7 @@ class OFXParser(sgmllib.SGMLParser):
     {'acctid': '123456789',
      'balamt': '120.00',
      'bankid': '123456789',
+     'curdef': 'USD',
      'dtasof': '20110117221251',
      'dtserver': datetime.datetime(2011, 1, 17, 22, 12, 51),
      'fid': '5959',
@@ -297,13 +298,13 @@ class OFXParser(sgmllib.SGMLParser):
             raise ValueError((status.code, status.severity))
 
         fi = dotelt(self.root.find('.//fi'))
-
         acct = dotelt(_or(self.root.find('.//bankacctfrom'),
                           self.root.find('.//ccacctfrom')))
         ledgerbal = dotelt(self.root.find('.//ledgerbal'))
         return dict(dtserver=self.parse_date(root.find('.//dtserver').text),
                     org=fi.org,
                     fid=fi.fid,
+                    curdef=root.find('.//curdef').text,
                     acctid=acct.acctid,
                     bankid=acct.get('bankid'),
                     balamt=ledgerbal.balamt,
