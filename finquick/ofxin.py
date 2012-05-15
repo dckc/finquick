@@ -32,6 +32,9 @@ class Importer(object):
     >>> models.Mock.sql='test/fin1_init.sql'
     >>> (session, i) = models.Mock.make([models.KSession, Importer])
     >>> from models import Account, Split
+
+    .. todo:: find account based on online_id
+
     >>> bank = session.query(Account).\
     ...        filter(Account.name == 'Checking Account').one()
     >>> [split.value_num
@@ -49,7 +52,8 @@ class Importer(object):
     >>> i.prepare(summary, transactions, bank)
 
     Then import the unmatched transactions and note the results:
-    >>> i.execute(bank, exp, summary['curdef'])
+    >>> [tx.fitid for tx in  i.execute(bank, exp, summary['curdef'])]
+    [u'2-6', u'2-9']
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
@@ -57,6 +61,7 @@ class Importer(object):
     Import is idempotent; doing it again has no effect:
     >>> i.prepare(summary, transactions, bank)
     >>> i.execute(bank, exp, summary['curdef'])
+    []
     >>> [split.value_num
     ...  for split in session.query(Split).filter(Split.account == bank)]
     [-6000, -6000]
@@ -88,11 +93,13 @@ class Importer(object):
             select().\
             where(and_(tsl.c.name == 'online_id',
                        ta.c.guid == acct.guid))
-        matches = tst.join(online_ids, tst.c.fitid == tsl.c.string_val).\
+        match_q = tst.join(online_ids, tst.c.fitid == tsl.c.string_val).\
             select().with_only_columns([tst.c.fitid, tsl.c.obj_guid])
-        for fitid, obj_guid in session.execute(matches).fetchall():
+        matches = session.execute(match_q).fetchall()
+        for fitid, obj_guid in matches:
             session.execute(tst.update().values(match_guid=obj_guid).\
                                 where(tst.c.fitid == fitid))
+        return matches
 
     def execute(self, acct, txfr, currency):
         session = self._ds()  # hmm... instantiate this?
@@ -100,8 +107,9 @@ class Importer(object):
             select guid from commodities
             where namespace='CURRENCY' and mnemonic = :currency''',
                                         dict(currency=currency)).fetchone()[0]
-        for ofxtx in session.query(StmtTrn).\
-                filter(StmtTrn.match_guid == None).all():
+        novel = session.query(StmtTrn).\
+                filter(StmtTrn.match_guid == None).all()
+        for ofxtx in novel:
             fmt = models.GuidMixin.fmt
             tx = models.Transaction(guid=fmt(self._uuidgen()),
                                     currency_guid=currency_guid,
@@ -137,10 +145,13 @@ class Importer(object):
             session.add(online_id)
             session.add(s2)
         session.flush()
+        return novel
 
 
-class StmtTrn(models.Base):
+class StmtTrn(models.Base, models.ReprMixin):
     '''Temporary table for OFX import.
+
+    .. todo:: detect lost updates by using dtserver or some such.
     '''
     __tablename__ = 'ofx_stmttrn'
     fitid = Column(String(80), primary_key=True)

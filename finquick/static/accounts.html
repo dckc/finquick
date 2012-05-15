@@ -62,6 +62,22 @@
       </tbody>
     </table>
 
+    <div><h2>OFX Upload</h2>
+    <select name="account_guid">
+      <option id="selected_account" value="{{selected_account.guid}}"
+	      >{{selected_account.name}}</option>
+    </select>
+    <p><label>OFX file:
+
+    <ng:chooser choice="ofx_file" update="note_ofx_file(ofx_file)" />
+    <input type="file" name="ofx_file" />
+    </label></p>
+    <button ng:click='prepare()' ng-disabled='{{! ofx_file}}'
+	    >Prepare</button>
+    <button ng:click='execute()' ng-disabled='{{true}}'
+	    >Execute</button>
+    </div>
+
     <hr />
     <address>
       <a href="https://bitbucket.org/DanC/finquick">FinQuick</a><br />

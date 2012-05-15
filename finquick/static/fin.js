@@ -84,6 +84,7 @@ function AccountsCtrl(Account, AccountSummary, $log) {
 	}
 	parent.expanded = expanded;
 	$log.info('toggle: ' + parent.name + ' to: ' + expanded);
+	self.selected_account = parent;  // for file upload. kludge?
     };
 
     self.visibility = function(acct) {
@@ -105,9 +106,49 @@ function AccountsCtrl(Account, AccountSummary, $log) {
 	}
 	return s;
     });
+
+    self.selected_account = null;
+    self.ofx_file = null;
+    self.ofx_summary = null;
+    self.note_ofx_file = function(elt) {
+	alert(elt.value);
+    }
+    self.prepare = function() {
+	// http://www.w3.org/TR/FileAPI/
+	var reader = new FileReader();
+	reader.readAsText(self.ofx_file, 'utf-8'); // blob? win 1252?
+	reader.onerror = function() {
+	    alert('LOSE! @@');
+	};
+	reader.onload = function(evt) {
+	    var content = evt.target.result;
+	    alert('WIN!: ' + content.substr(1, 20));
+	    // @@... call prepare...
+	};
+    }
 }
 AccountsCtrl.$inject = ['Account', 'AccountSummary', '$log'];
 
+/* based on
+File upload - how to / examples?
+Oct 2011
+https://groups.google.com/group/angular/browse_thread/thread/334a155cbc886c92/bcb5b998f0fac10f?lnk=gst&q=file+upload#bcb5b998f0fac10f
+http://jsfiddle.net/vojtajina/epCyK/a
+*/
+angular.widget('ng:chooser', function(elm) {
+    var choice = elm.attr('choice'), update=elm.attr('update');
+
+    console.log(choice);
+    return function() {
+	var scope = this;
+	this.$watch(choice, function(newV) {
+	    console.log(newV);
+	    if (newV != Math.NaN) {
+		scope.$eval(update);
+	    }
+	});
+    };
+});
 
 angular.service('Transaction', function($resource) {
     return $resource('../transaction/:guid', {}, {

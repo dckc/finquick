@@ -75,7 +75,25 @@ class DBConfig(injector.Module):
         return [cls()]
 
 
-class GuidMixin(object):
+class ReprMixin(object):
+    def __repr__(self):
+        '''Represent orm objects as useful, deterministic strings.
+
+        >>> class T(Base, GuidMixin):
+        ...     __tablename__ = 'person'
+        ...     name = Column(String)
+        >>> T(guid=_n2g('Bob'), name='Bob')
+        T(guid='8b415c81c3255b6b975a40e0b5cdb699', name='Bob')
+        '''
+        cols = self.__class__.__table__.columns
+        vals = [(c.name, getattr(self, c.name))
+                for c in cols]
+        return '%s(%s)' % (self.__class__.__name__,
+                           ', '.join(['%s=%s' % (n, repr(v))
+                                     for n, v in vals]))
+
+
+class GuidMixin(ReprMixin):
     '''Provide guid primary key as used by many tables in GnuCash.
     '''
     T = String(32)
@@ -95,22 +113,6 @@ class GuidMixin(object):
         True
         '''
         return str(u).replace('-', '')
-
-    def __repr__(self):
-        '''Represent orm objects as useful, deterministic strings.
-
-        >>> class T(Base, GuidMixin):
-        ...     __tablename__ = 'person'
-        ...     name = Column(String)
-        >>> T(guid=_n2g('Bob'), name='Bob')
-        T(guid='8b415c81c3255b6b975a40e0b5cdb699', name='Bob')
-        '''
-        cols = self.__class__.__table__.columns
-        vals = [(c.name, getattr(self, c.name))
-                for c in cols]
-        return '%s(%s)' % (self.__class__.__name__,
-                           ', '.join(['%s=%s' % (n, repr(v))
-                                     for n, v in vals]))
 
 
 def _n2g(name):

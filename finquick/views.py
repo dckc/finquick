@@ -2,12 +2,14 @@
 '''
 
 from itertools import groupby
+import json
 
 from injector import inject
 from pyramid.config import Configurator
 from pyramid.response import Response
 from sqlalchemy.exc import DBAPIError
 
+import ofxin
 from dotdict import dotdict
 from models import (
     Account, Transaction,
@@ -197,6 +199,54 @@ DBFailHint = Response(conn_err_msg,
                       content_type='text/plain', status_int=500)
 
 
+class OFXUpload(object):
+    template = ''
+
+    @inject(importer=ofxin.Importer, session=KSession)
+    def __init__(self, importer, session):
+        self._importer = importer
+        self._session = session
+
+    def config(self, config, route_name):
+        config.add_view(self, route_name=route_name, renderer='json')
+
+    def __call__(self, request):
+        data = json.load(request.body_file)  # TODO: catch errors
+        if ('ofx_data' in data
+            and 'account_guid' in data):
+            return self.prepare(data['ofx_data'],
+                         data['account_guid'])
+        elif ('account_guid' in data
+              and 'transfer_guid' in data):
+            return self.execute(data['account_guid'],
+                                data['transfer_guid'])
+        else:
+            return Response('ofx_data file, account_guid required to prepare'
+                            '; account_guid, transfer_guid required to execute',
+                            content_type='text/plain',
+                            status_int = 400)
+
+    def prepare(self, ofxin, account_guid):
+        summary, transactions = ofxin.OFXParser.ofx_data(ofxin)
+        account = self._session.query(Account).\
+            filter(Account.guid == account_guid).one()
+        matches = self._importer.prepare(summary, transactions, account)
+        alltx = self._session.query(ofxin.StmtTrn).all()
+        return dict(summary=summary,
+                    transactions=alltx,
+                    matches=matches)
+
+    def execute(self, account_guid, transfer_guid, currency):
+        account = self._session.query(Account).\
+            filter(Account.guid == account_guid).one()
+        transfer = self._session.query(Account).\
+            filter(Account.guid == transfer_guid).one()
+        novel = self._importer.execute(account, transfer, currency)
+        return dict(account=account,
+                    transfer=transfer,
+                    transactions=novel)
+
+
 class FinquickAPI(object):
     '''Finquick REST/JSON API configuration.
 
@@ -206,21 +256,25 @@ class FinquickAPI(object):
     account_route = dotdict(name='account', path='/account/{guid}')
     summary_route = dotdict(name='summary', path='/accountSummary')
     transaction_route = dotdict(name='transaction', path='/transaction/{guid}')
+    ofx_route = dotdict(name='ofx_import', path='/ofx_import')
 
     @inject(config=Configurator,
             av=AccountsList,
             sv=AccountSummary,
+            ofxv=OFXUpload,
             tqv=TransactionsQuery)
-    def __init__(self, config, av, sv, tqv):
+    def __init__(self, config, av, sv, ofxv, tqv):
         self._config = config
         self._account_view = av
         self._summary_view = sv
+        self._ofx_view = ofxv
         self._transaction_view = tqv
 
     def add_rest_api(self):
         for (rt, view) in (
             (self.account_route, self._account_view),
             (self.summary_route, self._summary_view),
+            (self.ofx_route, self._ofx_view),
             (self.transaction_route, self._transaction_view)):
             self._config.add_route(rt.name, rt.path)
             view.config(self._config, rt.name)
