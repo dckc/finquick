@@ -75,10 +75,13 @@
     <input type="file" fin-file="ofx_file" />
 
     </label></p>
-    <button ng-click='prepare()' ng-disabled='ofx_file == null'
-	    >Prepare</button> {{ofx_file.name}}
+    <button ng-click='prepare()'
+	    ng-enabled='ofx_file &amp;&amp; select_account'
+	    >Prepare</button> {{ofx_file.name}} {{selected_account.name}}
     <button ng-click='execute()' ng-disabled='true'
 	    >Execute</button>
+
+    <pre>{{prepare_out}}</pre>
     </div>
 
     <hr />

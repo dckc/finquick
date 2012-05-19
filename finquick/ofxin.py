@@ -49,7 +49,9 @@ class Importer(object):
     against existing splits/transactions:
     ### logging.basicConfig(level=logging.INFO)
     ### logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
-    >>> i.prepare(summary, transactions, bank)
+    >>> _q, matches = i.prepare(summary, transactions, bank)
+    >>> len(matches)
+    0
 
     Then import the unmatched transactions and note the results:
     >>> [tx.fitid for tx in  i.execute(bank, exp, summary['curdef'])]
@@ -59,7 +61,9 @@ class Importer(object):
     [-6000, -6000]
 
     Import is idempotent; doing it again has no effect:
-    >>> i.prepare(summary, transactions, bank)
+    >>> _q, matches = i.prepare(summary, transactions, bank)
+    >>> len(matches)
+    4
     >>> i.execute(bank, exp, summary['curdef'])
     []
     >>> [split.value_num
@@ -99,7 +103,7 @@ class Importer(object):
         for fitid, obj_guid in matches:
             session.execute(tst.update().values(match_guid=obj_guid).\
                                 where(tst.c.fitid == fitid))
-        return matches
+        return match_q, matches
 
     def execute(self, acct, txfr, currency):
         session = self._ds()  # hmm... instantiate this?
@@ -178,7 +182,7 @@ class OFXParser(sgmllib.SGMLParser):
      'balamt': '120.00',
      'bankid': '123456789',
      'curdef': 'USD',
-     'dtasof': '20110117221251',
+     'dtasof': datetime.datetime(2011, 1, 17, 22, 12, 51),
      'dtserver': datetime.datetime(2011, 1, 17, 22, 12, 51),
      'fid': '5959',
      'org': 'Bank of America'}
@@ -312,14 +316,15 @@ class OFXParser(sgmllib.SGMLParser):
         acct = dotelt(_or(self.root.find('.//bankacctfrom'),
                           self.root.find('.//ccacctfrom')))
         ledgerbal = dotelt(self.root.find('.//ledgerbal'))
-        return dict(dtserver=self.parse_date(root.find('.//dtserver').text),
+        _dt = self.parse_date
+        return dict(dtserver=_dt(root.find('.//dtserver').text),
                     org=fi.org,
                     fid=fi.fid,
                     curdef=root.find('.//curdef').text,
                     acctid=acct.acctid,
                     bankid=acct.get('bankid'),
                     balamt=ledgerbal.balamt,
-                    dtasof=ledgerbal.dtasof)
+                    dtasof=_dt(ledgerbal.dtasof))
 
     def transactions(self):
         root = self.root
@@ -340,14 +345,24 @@ class OFXParser(sgmllib.SGMLParser):
         '''
         >>> OFXParser.parse_date('20120423201548.648[-4:EDT]')
         datetime.datetime(2012, 4, 23, 20, 15, 48, 648000, tzinfo=[-4:EDT])
+
+        >>> OFXParser.parse_date('20070315')
+        datetime.date(2007, 3, 15)
         '''
         m = re.match(r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
-                     r'(?P<hour>\d{2})(?P<minute>\d{2})(?P<second>\d{2})'
+                     r'(?:(?P<hour>\d{2})(?P<minute>\d{2})(?P<second>\d{2})'
                      r'(?:\.(?P<frac>\d+))?'
-                     r'(?:\[(?P<tzoff>-?\d+):(?P<tzname>\w+)\])?',
+                     r'(?:\[(?P<tzoff>-?\d+):(?P<tzname>\w+)\])?)?',
                      txt)
         if not m:
             raise ValueError(txt)
+
+        if not m.group('hour'):
+            year, month, day = [
+                int(m.group(part)) for part in
+                'year month day'.split()]
+            return datetime.date(year, month, day)
+
         year, month, day, hour, minute, second = [
             int(m.group(part)) for part in
             'year month day hour minute second'.split()]

@@ -30,6 +30,7 @@ True
 import uuid
 import datetime
 import re
+from decimal import Decimal
 
 import injector
 from injector import inject, provides, singleton
@@ -43,8 +44,6 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy import orm, sql, engine, func, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from zope.sqlalchemy import ZopeTransactionExtension
-
-from dotdict import dotdict
 
 KSession = injector.Key('Session')
 KUUIDGen = injector.Key('UUIDGen')
@@ -120,24 +119,49 @@ def _n2g(name):
     return GuidMixin.fmt(uuid.uuid5(ns, name))
 
 
-def _json_val(col, x):
+def _json_val(x):
+    '''
+    >>> _json_val(datetime.datetime(2012, 5, 10, 12, 5, 6, 804699))
+    [2012, 5, 10, 12, 5, 6, 804699]
+    >>> _json_val(datetime.timedelta(0, 64, 130006))
+    64130
+    '''
     if x is None:
         return x
 
-    cls = col['type'].__class__
-    if cls in (String, Text, Integer, Boolean):
+    t = type(x)
+    if t in (type(''), type(u''), type(1), type(True)):
         return x
-    if cls == DATETIME:
-        return x.isoformat()
-    elif cls == DECIMAL:
+    elif t is datetime.date:
+        return [getattr(x, f) for f in ('year', 'month', 'day')]
+    elif t is datetime.datetime:
+        return [getattr(x, f) for f in ('year', 'month', 'day',
+                                        'hour', 'minute', 'second',
+                                        'microsecond')]
+    elif t is datetime.timedelta:
+        return x.microseconds / 1000 + (1000 * x.seconds)
+    elif t is Decimal:
         return str(x)
     else:
-        raise NotImplementedError('_json_val? %s / %s' % (x, cls))
+        raise NotImplementedError('_json_val? %s' % (t))
 
 
-def jrec(rec, col_descs):
-    return dict([(c['name'], _json_val(c, getattr(rec, c['name'])))
-                 for c in col_descs])
+
+def to_json(query=None, stmt=None, results=None, record=None):
+    if record is not None:
+        return dict([(k, _json_val(v)) for k, v in record.iteritems()])
+
+    if stmt is not None:
+        cols = [col.name for col in stmt.c]
+    else:
+        cols = [d['name'] for d in query.column_descriptions]
+
+    if results is None:
+        results = ([getattr(obj, col) for col in cols]
+                   for obj in query)
+
+    return [dict(zip(cols, [_json_val(v) for v in r]))
+            for r in results]
 
 
 class Account(Base, GuidMixin):

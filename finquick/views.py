@@ -14,7 +14,7 @@ from dotdict import dotdict
 from models import (
     Account, Transaction,
     KSession,
-    jrec,
+    to_json
     )
 
 
@@ -60,10 +60,8 @@ class AccountsList(JSONDBView):
             accounts = self._session.query(Account)
         except DBAPIError:
             return DBFailHint
-        cols = Account.__table__.columns
-        # TODO: consider overlap with jrec
-        return [dict([(c.name, getattr(acct, c.name)) for c in cols])
-                for acct in accounts]
+
+        return to_json(query=accounts, stmt=Account.__table__)
 
 
 class AccountSummary(JSONDBView):
@@ -78,8 +76,8 @@ class AccountSummary(JSONDBView):
             q = Account.summary(self._session)
         except DBAPIError:
             return DBFailHint
-        cols = q.column_descriptions
-        return [jrec(acct, cols) for acct in q.all()]
+
+        return to_json(query=q, results=q.all())
 
 
 class TransactionsQuery(JSONDBView):
@@ -226,15 +224,16 @@ class OFXUpload(object):
                             content_type='text/plain',
                             status_int = 400)
 
-    def prepare(self, ofxin, account_guid):
-        summary, transactions = ofxin.OFXParser.ofx_data(ofxin)
+    def prepare(self, ofx_data, account_guid):
+        summary, transactions = ofxin.OFXParser.ofx_data(ofx_data)
         account = self._session.query(Account).\
             filter(Account.guid == account_guid).one()
-        matches = self._importer.prepare(summary, transactions, account)
-        alltx = self._session.query(ofxin.StmtTrn).all()
-        return dict(summary=summary,
-                    transactions=alltx,
-                    matches=matches)
+        mq, matches = self._importer.prepare(summary, transactions, account)
+        alltx = self._session.query(ofxin.StmtTrn)
+        return dict(summary=to_json(record=summary),
+                    transactions=to_json(query=alltx,
+                                         stmt=ofxin.StmtTrn.__table__),
+                    matches=to_json(stmt=mq, results=matches))
 
     def execute(self, account_guid, transfer_guid, currency):
         account = self._session.query(Account).\

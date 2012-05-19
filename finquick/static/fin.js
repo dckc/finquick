@@ -5,8 +5,16 @@ FinModule.factory('AccountSummary', function($resource) {
     return $resource('../accountSummary');
 });
 
+FinModule.factory('OFXImport', function($resource) {
+    return $resource('../ofx_import', {}, {
+	prepare: {method: 'POST'},
+	/* TODO: execute should take a cap from prepare. */
+	execute: {method: 'POST'},
+    });
+});
+
 // todo: consider whether global controllers are fine.
-function AccountsCtrl(AccountSummary, $scope, $log) {
+function AccountsCtrl(AccountSummary, OFXImport, $scope, $log) {
     var account_index = {}; // by guid
     var root;
     var children = {}; // guid -> [account]
@@ -108,12 +116,21 @@ function AccountsCtrl(AccountSummary, $scope, $log) {
 	};
 	reader.onload = function(evt) {
 	    var content = evt.target.result;
+	    var body = JSON.stringify({
+		account_guid: $scope.selected_account.guid,
+		ofx_data: content});
 	    console.log('WIN!: ' + content.substr(1, 20));
-	    // @@... call prepare...
+
+	    OFXImport.prepare({}, body, function (x) {
+		console.log('prepare POST success.');
+		$scope.prepare_out = x;
+	    }, function (x) {
+		console.log('prepare POST failure.');
+	    });
 	};
     }
 }
-AccountsCtrl.$inject = ['AccountSummary', '$scope', '$log'];
+AccountsCtrl.$inject = ['AccountSummary', 'OFXImport', '$scope', '$log'];
 
 FinModule.filter('indent', function () {
     return function(n, chr) {
