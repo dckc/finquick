@@ -106,6 +106,8 @@ function AccountsCtrl(AccountSummary, OFXImport, $scope, $log) {
 	alert(elt.value);
     }
 
+    $scope.mkdate = function(x) { return new Date(x) };
+
     $scope.prepare = function() {
 	console.log('in prepare() scope.ofx_file:' + $scope.ofx_file);
 	// http://www.w3.org/TR/FileAPI/

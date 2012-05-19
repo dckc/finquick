@@ -121,11 +121,20 @@ def _n2g(name):
 
 def _json_val(x):
     '''
+    Suitable for use with JavaScript Date(x)
+
+    .. todo:: make tests work in any timezone.
+
     >>> _json_val(datetime.datetime(2012, 5, 10, 12, 5, 6, 804699))
-    [2012, 5, 10, 12, 5, 6, 804699]
+    1336651506804
+    >>> _json_val(datetime.datetime(2010, 2, 12, 9, 50, 55))
+    1265968255000
+    >>> _json_val(datetime.datetime(2010, 2, 16))
+    1266278400000
     >>> _json_val(datetime.timedelta(0, 64, 130006))
     64130
     '''
+
     if x is None:
         return x
 
@@ -133,13 +142,12 @@ def _json_val(x):
     if t in (type(''), type(u''), type(1), type(True)):
         return x
     elif t is datetime.date:
-        return [getattr(x, f) for f in ('year', 'month', 'day')]
+        return _json_val(x - _epochD)
     elif t is datetime.datetime:
-        return [getattr(x, f) for f in ('year', 'month', 'day',
-                                        'hour', 'minute', 'second',
-                                        'microsecond')]
+        return _json_val(x - (_epochZ if x.tzinfo else _epochLT))
     elif t is datetime.timedelta:
-        return x.microseconds / 1000 + (1000 * x.seconds)
+        return x.microseconds / 1000 + (1000 * (x.seconds +
+                                                (24 * 60 * 60) * x.days))
     elif t is Decimal:
         return str(x)
     else:
@@ -162,6 +170,33 @@ def to_json(query=None, stmt=None, results=None, record=None):
 
     return [dict(zip(cols, [_json_val(v) for v in r]))
             for r in results]
+
+
+class FixedOffset(datetime.tzinfo):
+# ack: http://docs.python.org/library/datetime.html#tzinfo-objects
+    """Fixed offset in hours east from UTC."""
+
+    def __init__(self, offset, name):
+        self._hrs = offset
+        self.__offset = datetime.timedelta(minutes = offset * 60)
+        self.__name = name
+
+    def __repr__(self):
+        return '[%d:%s]' % (self._hrs, self.__name)
+
+    def utcoffset(self, dt):
+        return self.__offset
+
+    def tzname(self, dt):
+        return self.__name
+
+    def dst(self, dt):
+        return ZERO
+
+ZERO = datetime.timedelta(0)
+_epochZ = datetime.datetime(1970, 1, 1, 0, 0, 0, 0, FixedOffset(0, 'UTC'))
+_epochLT = _epochZ.replace(tzinfo=None)
+_epochD = _epochLT.date()
 
 
 class Account(Base, GuidMixin):

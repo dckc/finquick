@@ -83,10 +83,12 @@
 
     <table><caption>OFX Import</caption>
       <tr>
-	<th>Financial Institution</th><td>{{ofx_prep.summary.org}}</td>
+	<th>Financial Institution</th>
+	<th>Server Date</th>
       </tr>
       <tr>
-	<th>Server Date</th><td>{{ofx_prep.summary.dtserver}}</td>
+	<td>{{ofx_prep.summary.org}}</td>
+	<td>{{mkdate(ofx_prep.summary.dtserver) | date}}</td>
       </tr>
     </table>
     <table>
@@ -95,7 +97,7 @@
     </thead>
     <tbody>
       <tr ng-repeat="tx in ofx_prep.transactions">
-	<td>{{tx.dtposted}}</td>
+	<td>{{mkdate(tx.dtposted) | date}}</td>
 	<td>{{tx.name}}</td>
 	<td>{{tx.trnamt / 100 | currency }}</td>
       </tr>

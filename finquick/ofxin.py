@@ -13,6 +13,7 @@ from sqlalchemy import Column, and_
 from sqlalchemy.types import String, Integer, DATETIME
 
 import models
+from models import FixedOffset
 
 log = logging.getLogger(__name__)
 
@@ -346,6 +347,9 @@ class OFXParser(sgmllib.SGMLParser):
         >>> OFXParser.parse_date('20120423201548.648[-4:EDT]')
         datetime.datetime(2012, 4, 23, 20, 15, 48, 648000, tzinfo=[-4:EDT])
 
+        >>> models._json_val(OFXParser.parse_date('20120423201548.648[-4:EDT]'))
+        1335226548648
+
         >>> OFXParser.parse_date('20070315')
         datetime.date(2007, 3, 15)
         '''
@@ -380,29 +384,6 @@ class OFXParser(sgmllib.SGMLParser):
 
 def _or(e1, e2):
     return e1 if e1 is not None else e2
-
-class FixedOffset(datetime.tzinfo):
-# ack: http://docs.python.org/library/datetime.html#tzinfo-objects
-    """Fixed offset in hours east from UTC."""
-
-    def __init__(self, offset, name):
-        self._hrs = offset
-        self.__offset = datetime.timedelta(minutes = offset * 60)
-        self.__name = name
-
-    def __repr__(self):
-        return '[%d:%s]' % (self._hrs, self.__name)
-
-    def utcoffset(self, dt):
-        return self.__offset
-
-    def tzname(self, dt):
-        return self.__name
-
-    def dst(self, dt):
-        return ZERO
-
-ZERO = datetime.timedelta(0)
 
 
 class dotelt(object):
