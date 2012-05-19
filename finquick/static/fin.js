@@ -116,14 +116,19 @@ function AccountsCtrl(AccountSummary, OFXImport, $scope, $log) {
 	};
 	reader.onload = function(evt) {
 	    var content = evt.target.result;
-	    var body = JSON.stringify({
+	    var body = angular.toJson({
 		account_guid: $scope.selected_account.guid,
 		ofx_data: content});
 	    console.log('WIN!: ' + content.substr(1, 20));
 
-	    OFXImport.prepare({}, body, function (x) {
+	    OFXImport.prepare({}, body, function (response_body) {
 		console.log('prepare POST success.');
-		$scope.prepare_out = x;
+		var data = angular.fromJson(response_body);
+		console.log('JSON decode:' + Object.keys(data));
+		$scope.$evalAsync(function(s) {
+		    console.log('import prepare evalAsync');
+		    s.ofx_prep = data;
+		});
 	    }, function (x) {
 		console.log('prepare POST failure.');
 	    });

@@ -81,7 +81,26 @@
     <button ng-click='execute()' ng-disabled='true'
 	    >Execute</button>
 
-    <pre>{{prepare_out}}</pre>
+    <table><caption>OFX Import</caption>
+      <tr>
+	<th>Financial Institution</th><td>{{ofx_prep.summary.org}}</td>
+      </tr>
+      <tr>
+	<th>Server Date</th><td>{{ofx_prep.summary.dtserver}}</td>
+      </tr>
+    </table>
+    <table>
+    <thead>
+      <tr><th>Date Posted</th><th>Description</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr ng-repeat="tx in ofx_prep.transactions">
+	<td>{{tx.dtposted}}</td>
+	<td>{{tx.name}}</td>
+	<td>{{tx.trnamt / 100 | currency }}</td>
+      </tr>
+    </tbody>
+    </table>
     </div>
 
     <hr />
