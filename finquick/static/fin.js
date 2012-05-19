@@ -1,20 +1,12 @@
 // cribbed from http://docs.angularjs.org/#!/tutorial/step_05
 
-angular.service('Account', function($resource) {
-    return $resource('../account/:guid', {}, {
-	query: {method: 'GET', params: {guid: '-'}, isArray: true}
-    });
-});
-
-
-angular.service('AccountSummary', function($resource) {
+var FinModule = angular.module('FinModule', ['ngResource']);
+FinModule.factory('AccountSummary', function($resource) {
     return $resource('../accountSummary');
 });
 
-
 // todo: consider whether global controllers are fine.
-function AccountsCtrl(Account, AccountSummary, $log) {
-    var self = this;
+function AccountsCtrl(AccountSummary, $scope, $log) {
     var account_index = {}; // by guid
     var root;
     var children = {}; // guid -> [account]
@@ -35,8 +27,8 @@ function AccountsCtrl(Account, AccountSummary, $log) {
 	recur(acct, []);
     };
 
-    self.summary = AccountSummary.query({}, function(accts) {
-	$log.info('summary query results in. self.summary:' + self.summary.length);
+    $scope.summary = AccountSummary.query({}, function(accts) {
+	$log.info('summary query results in. self.summary:' + $scope.summary.length);
 
 	root = null;
 	account_index = {};
@@ -73,84 +65,98 @@ function AccountsCtrl(Account, AccountSummary, $log) {
 	    a.children = children[a.guid];
 	    a.parent = account_index[a.parent_guid];
 	});
-	self.summary = inorder;
+	$scope.summary = inorder;
 
-	self.toggle(root, 1);
+	$scope.toggle(root, 1);
     });
 
-    self.toggle = function(parent, expanded) {
+    $scope.toggle = function(parent, expanded) {
 	if (expanded === undefined) {
 	    expanded = !parent.expanded ? true : false;
 	}
 	parent.expanded = expanded;
 	$log.info('toggle: ' + parent.name + ' to: ' + expanded);
-	self.selected_account = parent;  // for file upload. kludge?
+	$scope.selected_account = parent;  // for file upload. kludge?
     };
 
-    self.visibility = function(acct) {
+    $scope.visibility = function(acct) {
 	// todo: option to show hidden accounts
 	var v = (!acct.hidden) &&
 	    acct.parent_guid &&
 	    acct.parent.expanded &&
-	    (acct.level <= 1 || self.visibility(acct.parent) > 0);
+	    (acct.level <= 1 || $scope.visibility(acct.parent) > 0);
 	return v ? (
 	    acct.children ? (
 		acct.expanded ? 3 : 2 )
 	    : 1) : 0;
     };
 
-    angular.filter('indent', function(n, chr) {
+    $scope.selected_account = null;
+    $scope.ofx_file = null;
+    $scope.ofx_summary = null;
+    $scope.note_ofx_file = function(elt) {
+	alert(elt.value);
+    }
+
+    $scope.prepare = function() {
+	console.log('in prepare() scope.ofx_file:' + $scope.ofx_file);
+	// http://www.w3.org/TR/FileAPI/
+	var reader = new FileReader();
+	reader.readAsText($scope.ofx_file, 'utf-8'); // blob? win 1252?
+	reader.onerror = function() {
+	    console.log('reader LOSE! @@');
+	};
+	reader.onload = function(evt) {
+	    var content = evt.target.result;
+	    console.log('WIN!: ' + content.substr(1, 20));
+	    // @@... call prepare...
+	};
+    }
+}
+AccountsCtrl.$inject = ['AccountSummary', '$scope', '$log'];
+
+FinModule.filter('indent', function () {
+    return function(n, chr) {
 	var i, s = '';
 	for (i = 0; i < n; i++) {
 	    s = s + chr;
 	}
 	return s;
-    });
+    };
+});
 
-    self.selected_account = null;
-    self.ofx_file = null;
-    self.ofx_summary = null;
-    self.note_ofx_file = function(elt) {
-	alert(elt.value);
-    }
-    self.prepare = function() {
-	// http://www.w3.org/TR/FileAPI/
-	var reader = new FileReader();
-	reader.readAsText(self.ofx_file, 'utf-8'); // blob? win 1252?
-	reader.onerror = function() {
-	    alert('LOSE! @@');
-	};
-	reader.onload = function(evt) {
-	    var content = evt.target.result;
-	    alert('WIN!: ' + content.substr(1, 20));
-	    // @@... call prepare...
-	};
-    }
-}
-AccountsCtrl.$inject = ['Account', 'AccountSummary', '$log'];
 
 /* based on
 File upload - how to / examples?
 Oct 2011
 https://groups.google.com/group/angular/browse_thread/thread/334a155cbc886c92/bcb5b998f0fac10f?lnk=gst&q=file+upload#bcb5b998f0fac10f
 http://jsfiddle.net/vojtajina/epCyK/a
+hmm... and http://docs.angularjs.org/guide/directive
 */
-angular.widget('ng:chooser', function(elm) {
-    var choice = elm.attr('choice'), update=elm.attr('update');
 
-    console.log(choice);
-    return function() {
-	var scope = this;
-	this.$watch(choice, function(newV) {
-	    console.log(newV);
-	    if (newV != Math.NaN) {
-		scope.$eval(update);
-	    }
-	});
+FinModule.directive('finFile', function() {
+    console.log('registering fin_file directive.');
+    return {
+	compile: function(telm, tattrs) {
+	    var choice = tattrs.finFile;
+
+	    return function(scope, elm, attrs) {
+		elm.bind('change', function() {
+		    var f;
+		    if (this.files) {
+			f = this.files[0];
+			console.log('files[0]: ' + f);
+			scope.$apply(function(scope) {
+			    scope[choice] = f;
+			});
+		    }
+		});
+	    };
+	}
     };
 });
 
-angular.service('Transaction', function($resource) {
+FinModule.factory('Transaction', function($resource) {
     return $resource('../transaction/:guid', {}, {
 	// override the query method to make sure the trailing / is kept
 	query: {method: 'GET', params: {guid: '-'},
@@ -159,10 +165,10 @@ angular.service('Transaction', function($resource) {
 });
 
 
-function TransactionsCtrl(Transaction, $log) {
-    var self = this;
+function TransactionsCtrl(Transaction, $scope, $log) {
+    var $scope = this;
 
-    self.matches = [{post_date: '2012-01-01',
+    $scope.matches = [{post_date: '2012-01-01',
 		     description: 'fun fun',
 		     splits: [{
 			 memo: 'memo',
@@ -170,8 +176,8 @@ function TransactionsCtrl(Transaction, $log) {
 			 account_name: 'Friendly Bank',
 			 value_num: 200,
 			 value_denom: 100}]}];
-    self.search = function(qtxt, account, amount) {
-	self.matches = Transaction.query({q: qtxt, account: account,
+    $scope.search = function(qtxt, account, amount) {
+	$scope.matches = Transaction.query({q: qtxt, account: account,
 					  amount: amount});
     }
 
@@ -202,22 +208,22 @@ function TransactionsCtrl(Transaction, $log) {
 	return tx.simple = true;
     };
 
-    self.primaryAccount = function(tx) {
+    $scope.primaryAccount = function(tx) {
 	return simpleTx(tx) ? tx.payment.account_name : null;
     };
-    self.primaryTransfer = function(tx) {
+    $scope.primaryTransfer = function(tx) {
 	return simpleTx(tx) ? tx.transfer.account_name : null;
     };
     var splitAmount = function(s, sign) {
 	var amount = sign * (s.value_num / s.value_denom);
 	return amount > 0 ? amount : NaN;
     };
-    self.splitAmount = splitAmount;
+    $scope.splitAmount = splitAmount;
 
-    self.primaryAmount = function(tx, sign) {
+    $scope.primaryAmount = function(tx, sign) {
 	return simpleTx(tx) ? splitAmount(tx.payment, sign) : NaN;
     };
-    self.details = function(tx) {
+    $scope.details = function(tx) {
 	return simpleTx(tx) ? [] : tx.splits;
     };
 }
