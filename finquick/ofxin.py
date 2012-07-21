@@ -18,6 +18,15 @@ from models import FixedOffset
 log = logging.getLogger(__name__)
 
 
+def main(argv):
+    for fn in argv[1:]:
+        summary, _txs = OFXParser.ofx_data(open(fn))
+        print '%s: %10.2f %s: %s' % (summary['dtasof'].date(),
+                                     float(summary['balamt']),
+                                     summary['org'],
+                                     summary['acctid'])
+
+
 class Importer(object):
     r'''Import OFX data into GnuCash account using `online_id` matching.
 
@@ -402,5 +411,9 @@ class dotelt(object):
 
 
 if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
+    
+    def _argv_hide_sys():
+        import sys
+        return sys.argv
+
+    main(_argv_hide_sys())
