@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <!-- When following links, don't grant destination access to this. -->
+    <meta name="referrer" content="never">
+    <title>OFX Account: ??</title>
+    <script type="text/javascript" src="/views/libs/jquery-2.1.1.js"></script>
+    <script type="text/javascript" src="/views/libs/q.js"></script>
+    <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
+    <script type="text/javascript" src="/views/libs/capperLayout.js"></script>
+    <script type="text/javascript" src="/views/libs/capperUtils.js"></script>
+    <script type="text/javascript" src="/apps/ofxies/ui/ofxies.js"></script>
+  </head>
+  <body>
+    <h1>Account: ??</h1>
+
+    <fieldset>
+      <p><label>Account:<input id="accId" /></label></p>
+      <p><label>User:<input id="user" /></label></p>
+      <p><label>Password:<input type="password" id="password" /></label></p>
+      <p><button onClick="logIn()">Log In</button></p>
+    </fieldset>
+    <fieldset>
+      <p><button onClick="fetch()">Fetch</button></p>
+      <div id='txns'>
+      </div>
+    </fieldset>
+
+    <div id="printlnarea">
+    </div>
+  </body>
+</html>
