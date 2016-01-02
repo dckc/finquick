@@ -1,0 +1,19 @@
+<html>
+  <head>
+    <!-- When following links, don't grant destination access to this. -->
+    <meta name="referrer" content="never">
+    <title>OFX Account</title>
+    <script type="text/javascript" src="/views/libs/q.js"></script>
+    <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
+    <script type="text/javascript" src="/apps/ofxies/ui/ofxies.js"></script>
+  </head>
+  <body>
+    <h1 id="acct-desc">Account: ??</h1>
+
+    <fieldset>
+      <p><label>Description:<input id="description" /></label></p>
+      <p><label>URL:<input id="url" /></label></p>
+      <p><button onClick="setUp()">Set Up</button></p>
+    </fieldset>
+  </body>
+</html>
