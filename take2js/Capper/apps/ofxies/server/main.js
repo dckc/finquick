@@ -5,6 +5,7 @@ require('object-assign-shim'); // ES6 Object.assign
 var Banking = require('banking');
 var Q = require('q');
 var freedesktop = require('./budget');  // secretTool is there for now
+var GnuCash = require('./budget');  // still thinking about what goes where
 
 module.exports = function Ofxies() {
     'use strict';
@@ -103,17 +104,44 @@ module.exports = function Ofxies() {
 
         return Object.freeze({
             init: function(store /*, etc*/) {
-                var properties = {};
-                for (var i=1; i + 1 < arguments.length; i += 2) {
-                    properties[arguments[i]] = arguments[i + 1];
-                }
-                mem.properties = properties;
+                var etc = Array.prototype.slice.call(arguments, 1);
+                mem.properties = args2props(etc);
                 mem.store = store;
             },
-            properties: function() { return mem.properties },
+            properties: function() { return mem.properties; },
             get: function() {
                 return mem.store.lookup(mem.properties);
             }
+        });
+    }
+
+    function makeGnuCashDB(context) {
+        var mem = context.state;
+        var mysql = require('mysql');
+        var optsP, db;
+
+        function ensureDB(){
+            if (!db) {
+                optsP = mem.passKey.get().then(function(password) {
+                    return Object.assign({},
+                                         { password: password },
+                                         mem.properties);
+                });
+                db = GnuCash.makeDB(mysql, optsP);
+            }
+            return db;
+        }
+
+        return Object.freeze({
+            init: function(passKey /*, etc*/) {
+                var etc = Array.prototype.slice.call(arguments, 1);
+                mem.passKey = passKey;
+                mem.properties = args2props(etc);
+            },
+            query: function query(dml, params) {
+                return ensureDB().query(dml, params);
+            },
+            destroy: function() { ensureDB().end(); }
         });
     }
 
@@ -121,9 +149,18 @@ module.exports = function Ofxies() {
         makeAccount: makeAccount,
         makeInstitution: makeInstitution,
         makeKeyStore: makeKeyStore,
-        makePassKey: makePassKey
+        makePassKey: makePassKey,
+        makeGnuCashDB: makeGnuCashDB
     });
 }();
+
+function args2props(args) {
+    var properties = {};
+    for (var i=0; i < args.length; i += 2) {
+        properties[args[i]] = args[i + 1];
+    }
+    return properties;
+}
 
 function ofxDateFmt(d) {
     return d.toISOString().substring(0, 20).replace(/[^0-9]/g, '');

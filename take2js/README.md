@@ -50,6 +50,23 @@ Now we're ready to make a webkey for the account:
 Access the webkey from above and hit **Fetch**; after a few seconds, a
 table your transactions going back 60 days should appear.
 
+## GnuCash DB access
+
+As per GnuCash, access the password by `protocol`, `server`, `user`,
+and `object` attributes:
+
+    $ dbkey=@`node --harmony server -make ofxies.makePassKey $store protocol mysql server localhost user me object myGC | tail -1`
+
+These properties overlap with mysql construction parameters, but note
+that `server` becomes `host`:
+
+    $ db=@`node --harmony server -make ofxies.makeGnuCashDB $dbkey host localhost user me database myGC | tail -1`
+
+And lo...
+
+    $ node --harmony server -post $db query 'select  4 + 4'
+    {"=":[{"4 + 4":8}]}
+
 ## Background / Motivation
 
 I gather OFX data from ~5 sources and sync with gnucash (and then do

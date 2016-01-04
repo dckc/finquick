@@ -5,30 +5,26 @@ function integrationTestMain(process, mysql) {
         dbName = argv[2], host = 'localhost',
         acctName = argv[3], since = argv[4];
 
-    makeSecretTool(process.spawn).lookup({
+    var optsP = makeSecretTool(process.spawn).lookup({
         protocol: 'mysql',
         server: host,
         object: dbName
     }).then(function(password) {
-        var budget = makeBudget(makeDB(
-            mysql,
-            {
-                host     : host,
-                user     : process.env.LOGNAME,
-                password : password,
-                database : dbName
-            }));
-
-        /*
-        budget.subAccounts(acctName).then(function(accts) {
-            console.log('subaccounts: ', accts);
-        });
-        */
-
-        budget.acctBalance(acctName, since).then(function(info) {
-            console.log('balance: ', info.balance);
-        }).done();
+        return {
+            host     : host,
+            user     : process.env.LOGNAME,
+            password : password,
+            database : dbName
+        };
     });
+    var db = makeDB(mysql, optsP);
+    var budget = makeBudget(db);
+
+    budget.acctBalance(acctName, since).then(function(info) {
+        console.log('balance: ', info.balance);
+    })
+        .then(function() { db.end(); })
+        .done();
 }
 
 
@@ -72,19 +68,17 @@ function makeSecretTool(spawn) {
 }
 
 
-function makeDB(mysql, opts) {
-    function withConnection(fn) {
-        var connection = mysql.createConnection(opts);
-        connection.connect(); // ???
-        var out = fn(connection);
-        connection.end();  // TODO: pooling?
-        return out;
-    }
+function makeDB(mysql, optsP) {
+    var connP = optsP.then(function(opts) {
+        return mysql.createConnection(opts);
+    });
 
     function query(dml, params) {
-        return Q.promise(function(resolve, reject) {
-            withConnection(function(c) {
-                // console.log('DEBUG: db.query: ', dml, params || '');
+        return connP.then(function(c) {
+            // console.log('DEBUG: db.query: ', dml, params || '');
+
+            // This seems like the Q.ninvoke pattern, but I'm struggling...
+            return Q.promise(function(resolve, reject) {
                 c.query(dml, params, function(err, rows) {
                     if (err) return reject(err);
                     // console.log('DEBUG: db.query result: ', rows);
@@ -95,8 +89,8 @@ function makeDB(mysql, opts) {
     }
 
     return Object.freeze({
-        withConnection: withConnection,
-        query: query
+        query: query,
+        end: function(err) { connP.then(function(c) { c.end(err); }); }
     });
 }
 
@@ -172,14 +166,16 @@ function makeBudget(db) {
     });
 }
 
-/*
-integrationTestMain(
-    {
-        argv: process.argv,
-        env: process.env,
-        spawn: require('child_process').spawn
-    },
-    require('mysql'));
-*/
+
+if (process.env.TESTING) {
+    integrationTestMain(
+        {
+            argv: process.argv,
+            env: process.env,
+            spawn: require('child_process').spawn
+        },
+        require('mysql'));
+}
 
 exports.makeSecretTool = makeSecretTool;
+exports.makeDB = makeDB;
