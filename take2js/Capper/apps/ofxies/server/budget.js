@@ -44,7 +44,7 @@ function makeSecretTool(spawn) {
         }
 
 
-        // console.log('spawn(', toolPath, args, ')');
+        console.log('spawn(', toolPath, args, ')');
         var tool = spawn(toolPath, args);
 
         var password = '';
@@ -172,6 +172,7 @@ function makeBudget(db) {
     });
 }
 
+/*
 integrationTestMain(
     {
         argv: process.argv,
@@ -179,3 +180,6 @@ integrationTestMain(
         spawn: require('child_process').spawn
     },
     require('mysql'));
+*/
+
+exports.makeSecretTool = makeSecretTool;

@@ -1,9 +1,10 @@
 /*global console */
+
 require('object-assign-shim'); // ES6 Object.assign
 
 var Banking = require('banking');
 var Q = require('q');
-
+var freedesktop = require('./budget');  // secretTool is there for now
 
 module.exports = function Ofxies() {
     'use strict';
@@ -87,10 +88,41 @@ module.exports = function Ofxies() {
             }
         });
     }
-                            
+
+    function makeKeyStore(context) {
+        var spawn = require('child_process').spawn; // boo! ambient
+        var tool = freedesktop.makeSecretTool(spawn);
+
+        return Object.freeze({
+            lookup: function(what) {
+                return tool.lookup(what);
+            }
+        });
+    }
+
+    function makePassKey(context) {
+        var mem = context.state;
+
+        return Object.freeze({
+            init: function(store /*, etc*/) {
+                var properties = {};
+                for (var i=1; i + 1 < arguments.length; i += 2) {
+                    properties[arguments[i]] = arguments[i + 1];
+                }
+                mem.properties = properties;
+                mem.store = store;
+            },
+            get: function() {
+                return mem.store.lookup(mem.properties);
+            }
+        });
+    }
+
     return Object.freeze({
         makeAccount: makeAccount,
-        makeInstitution: makeInstitution
+        makeInstitution: makeInstitution,
+        makeKeyStore: makeKeyStore,
+        makePassKey: makePassKey
     });
 }();
 
