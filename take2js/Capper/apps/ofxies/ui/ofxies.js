@@ -6,9 +6,7 @@ window.onload = function() {
     var byId = function(i) { return document.getElementById(i); };
 
     ui = {
-        accId: byId('accId'),
-        user: byId('user'),
-        password: byId('password')
+        name: byId('name')
     };
 
     update();
@@ -25,22 +23,10 @@ function update() {
         });
     });
 
-    CapperConnect.home.post('info').then(function (info) {
-        ui.accId.value = info.accId;
-        ui.user.value = info.user;
+    CapperConnect.home.post('name').then(function (name) {
+        ui.name.value = name;
     });
 }
-
-window.logIn = function logIn() {
-    CapperConnect.home.post(
-        'logIn',
-        ui.accId.value,
-        ui.user.value,
-        ui.password.value).then(
-            function() {
-                update();
-            });
-};
 
 window.fetch = function() {
     var C = CapperLayout;

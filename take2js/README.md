@@ -11,28 +11,44 @@
 
 ## Fetch 60 days of transactions
 
-### Create an account object
+### Create an OFX institution object
 
 For `discover` or `amex`:
 
-    ~/projects/finquick/take2js/Capper$ node --harmony server -make ofxies.makeAccount discover
+    finquick/take2js/Capper$ discover=@`node --harmony server -make ofxies.makeInstitution discover | tail -1`
 
-The result should be a webkey a la `https://localhost:1341/ocaps/#s=Yslejls...`.
+The resulting `$discover` should be a webkey a la
+`@https://localhost:1341/ocaps/#s=Yslejls...`.
+
+### Put your OFX account credentials in the freedesktop secret store
+
+The credit card number, username, and password are combined into one
+secret, separated by spaces; `protocol` and `object` attributes are
+used for lookup:
+
+    finquick/take2js/Capper$ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
+
+Then make a webkey for the freedesktop secret store:
+
+    finquick/take2js/Capper$ store=@`node --harmony server -make ofxies.makeKeyStore | tail -1`
+
+And make another for access to just the relevant entry:
+
+    finquick/take2js/Capper$ key=@`node --harmony server -make ofxies.makePassKey $store protocol OFX object 8146 | tail -1`
 
 
-### Log in
+### Create an account object
 
-i.e. provide the persistent object with the credentials to log in.
+Now we're ready to make a webkey for the account:
 
-**WARNING**: This will store your credentials in clear-text in `capper.db`.
-
-Using the webkey from above, supply account (credit card number),
-userid, and password, and hit the **Log In** button.
+    finquick/take2js/Capper$ disc1=@`node --harmony server -make ofxies.makeAccount $discover $key | tail -1`
+    finquick/take2js/Capper$ echo $disc1
+	@https://localhost:1341/ocaps/#s=abc123...
 
 ### Fetch
 
-Hit **Fetch**, and after a few seconds, a table your transactions
-going back 60 days should appear.
+Access the webkey from above and hit **Fetch**; after a few seconds, a
+table your transactions going back 60 days should appear.
 
 ## Background / Motivation
 

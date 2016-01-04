@@ -9,9 +9,6 @@ var freedesktop = require('./budget');  // secretTool is there for now
 module.exports = function Ofxies() {
     'use strict';
 
-    // hmm... ambient authority.
-    var clock = function() { return new Date(); };
-
     var institutionDB = {
         discover: {
             fid: 7101
@@ -34,11 +31,30 @@ module.exports = function Ofxies() {
         var mem = context.state;
 
         return Object.freeze({
-            init: function(info) {
+            init: function(key) {
+                var info = institutionDB[key];
+                if (!info) {
+                    throw('banking institution not known: ' + key);
+                }
+                console.log('Intsitution.init: ', key, info);
+
                 mem.info = info;
             },
             info: function() {
                 return mem.info;
+            },
+            getStatement: function getStatement(creds, daysAgo) {
+                // ambient authority :-/
+                var now = new Date();
+                var banking = new Banking(Object.assign({}, creds, mem.info));
+
+                console.log('getStatement:', mem.info.fidOrg, mem.info.url);
+                return Q.ninvoke(
+                    banking, 'getStatement',
+                    {
+                        start: ofxDateFmt(daysBefore(daysAgo, now)),
+                        end: ofxDateFmt(now)
+                    });
             }
         });
     }
@@ -47,44 +63,26 @@ module.exports = function Ofxies() {
         var mem = context.state;
 
         return Object.freeze({
-            init: function(institutionKey) {
-                var info = institutionDB[institutionKey];
-                if (!info) {
-                    throw('not known: ' + institutionKey);
-                }
-                console.log(institutionKey, info);
-                mem.institution = context.make('ofxies.makeInstitution', info);
+            init: function(institution, passKey) {
+                mem.institution = institution;
+                mem.passKey = passKey;
             },
-            logIn: function(accId, user, password) {
-                console.log('logIn...', accId, user);
-                mem.accId = accId;
-                mem.user = user;
-                mem.password = password;
-            },
-            info: function() {
-                return { user: mem.user, accId: mem.accId };
+            name: function() {
+                return mem.passKey.properties()['object'];
             },
             institution: function() {
                 return mem.institution;
             },
             fetch: function() {
-                var opts = Object.assign(
-                    { accId: mem.accId,
-                      user: mem.user,
-                      password: mem.password },
-                    mem.institution.info());
-                console.log('fetch:', opts);
-                // ugh... Banking carries ambient net access authority
-                var myCard = new Banking(opts);
+                return mem.passKey.get().then(function(secret) {
+                    var daysAgo = 60,
+                        parts = secret.trim().split(' '),
+                        creds = { accId: parts[0],
+                                  user: parts[1],
+                                  password: parts[2] };
 
-                var now = clock();
-
-                return Q.ninvoke(
-                    myCard, 'getStatement',
-                    {
-                        start: ofxDateFmt(daysBefore(60, now)),
-                        end: ofxDateFmt(now)
-                    });
+                    return mem.institution.getStatement(creds, daysAgo);
+                });
             }
         });
     }
@@ -112,6 +110,7 @@ module.exports = function Ofxies() {
                 mem.properties = properties;
                 mem.store = store;
             },
+            properties: function() { return mem.properties },
             get: function() {
                 return mem.store.lookup(mem.properties);
             }
