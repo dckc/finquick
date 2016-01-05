@@ -1,58 +1,58 @@
-var Q = require('q');
+const Q = require('q');
+
 
 function integrationTestMain(process, mysql) {
-    var argv = process.argv,
-        dbName = argv[2], host = 'localhost',
-        acctName = argv[3], since = argv[4];
+    'use strict';
 
-    var optsP = makeSecretTool(process.spawn).lookup({
+    const argv = process.argv,
+          dbName = argv[2], host = 'localhost',
+          acctName = argv[3], since = argv[4];
+
+    const optsP = makeSecretTool(process.spawn).lookup({
         protocol: 'mysql',
         server: host,
         object: dbName
-    }).then(function(password) {
-        return {
-            host     : host,
-            user     : process.env.LOGNAME,
-            password : password,
-            database : dbName
-        };
-    });
-    var db = makeDB(mysql, optsP);
-    var budget = makeBudget(db);
+    }).then(password => ({
+        host     : host,
+        user     : process.env.LOGNAME,
+        password : password,
+        database : dbName
+    }));
+    const db = makeDB(mysql, optsP);
+    const budget = makeBudget(db);
 
-    budget.acctBalance(acctName, since).then(function(info) {
-        console.log('balance: ', info.balance);
-    })
-        .then(function() { db.end(); })
+    budget.acctBalance(acctName, since).then(
+        info => console.log('balance: ', info.balance)
+    )
+        .then(() => db.end())
         .done();
 }
 
 
 function makeSecretTool(spawn) {
+    'use strict';
+
     // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
-    var toolPath = 'secret-tool';
+    const toolPath = 'secret-tool';
 
     function lookup(what) {
-        var args = ['lookup'];
-        for (var prop in what) {
+        const args = ['lookup'];
+        for (let prop in what) {
             args.push(prop);
             args.push(what[prop]);
         }
 
 
         console.log('spawn(', toolPath, args, ')');
-        var tool = spawn(toolPath, args);
+        const tool = spawn(toolPath, args);
 
-        var password = '';
-        tool.stdout.on('data', function(d) {
-            password += d;
-        });
+        let password = '';
+        tool.stdout.on('data', d => { password += d; });
 
-        var out = Q.defer();
-        tool.on('close', function(code /* , signal */) {
+        const out = Q.defer();
+        tool.on('close', (code /* , signal */) => {
             if (code !== 0) {
-                out.reject(new Error('non-zero exit from ' + toolPath));
-                return;
+                return out.reject(new Error('non-zero exit from ' + toolPath));
             }
 
             out.resolve(password);
@@ -63,34 +63,34 @@ function makeSecretTool(spawn) {
 
     return Object.freeze({
         lookup: lookup,
-        path: function() { return toolPath; }
+        path: () => toolPath
     });
 }
 
 
 function makeDB(mysql, optsP) {
-    var connP = optsP.then(function(opts) {
-        return mysql.createConnection(opts);
-    });
+    'use strict';
+
+    const connP = optsP.then(opts => mysql.createConnection(opts));
 
     function query(dml, params) {
-        return connP.then(function(c) {
+        return connP.then(c => {
             // console.log('DEBUG: db.query: ', dml, params || '');
 
             // This seems like the Q.ninvoke pattern, but I'm struggling...
-            return Q.promise(function(resolve, reject) {
-                c.query(dml, params, function(err, rows) {
-                    if (err) return reject(err);
-                    // console.log('DEBUG: db.query result: ', rows);
-                    resolve(rows);
-                });
-            });
+            return Q.promise(
+                (resolve, reject) =>
+                    c.query(dml, params, (err, rows) => {
+                        if (err) return reject(err);
+                        console.log('DEBUG: db.query result: ', rows);
+                        resolve(rows);
+                    }));
         });
     }
 
     return Object.freeze({
         query: query,
-        end: function(err) { connP.then(function(c) { c.end(err); }); }
+        end: err => connP.then(c => c.end(err))
     });
 }
 
@@ -98,7 +98,7 @@ function makeDB(mysql, optsP) {
 
 function sqlList(uuids) {
     // TODO: verify uuid syntax to prevent against SQL injection
-    return uuids.map(function(u) { return '\'' + u + '\''; }).join(', ');
+    return uuids.map(u => '\'' + u + '\'').join(', ');
 }
 
 
@@ -108,18 +108,20 @@ function first(rows) {
 
 
 function makeBudget(db) {
+    'use strict';
+
     function subAccounts(acctP) {
-        var q = ('select child.guid, child.name ' +
-                 'from accounts child ' +
-                 'join accounts parent on child.parent_guid = parent.guid ' +
-                 'where parent.guid in (PARENTS)');
+        const q = ('select child.guid, child.name ' +
+                   'from accounts child ' +
+                   'join accounts parent on child.parent_guid = parent.guid ' +
+                   'where parent.guid in (PARENTS)');
 
         function recur(parents, generations, resolve, reject) {
-            var parentIds = parents.map(function(p) { return p.guid; });
+            const parentIds = parents.map(p => p.guid);
             db.query(q.replace('PARENTS', sqlList(parentIds))).then(
-                function(children) {
+                children => {
                     if (children.length == 0) {
-                        var acctIds = [].concat.apply([], generations);
+                        const acctIds = [].concat.apply([], generations);
                         return resolve(acctIds);
                     }
                     generations.push(children);
@@ -127,24 +129,24 @@ function makeBudget(db) {
                 }, reject);
         }
 
-        return Q.promise(function(resolve, reject) {
-            acctP.then(function(acct) {
+        return Q.promise((resolve, reject) => {
+            acctP.then(acct => {
                 recur([acct], [[acct]], resolve, reject);
             }, reject);
         });
     }
 
     function acctBalance(acctName, since) {
-        var q = ('select sum(value_num / value_denom) balance ' +
-                 '  , ? name, ? since ' +
-                 'from splits s ' +
-                 'join accounts a on a.guid = s.account_guid ' +
-                 'join transactions tx on tx.guid = s.tx_guid ' +
-                 'where a.guid in (SUBACCOUNTS) ' +
-                 'and tx.post_date >= ?');
+        const q = ('select sum(value_num / value_denom) balance ' +
+                   '  , ? name, ? since ' +
+                   'from splits s ' +
+                   'join accounts a on a.guid = s.account_guid ' +
+                   'join transactions tx on tx.guid = s.tx_guid ' +
+                   'where a.guid in (SUBACCOUNTS) ' +
+                   'and tx.post_date >= ?');
 
-        return subAccounts(acctByName(acctName)).then(function(accts) {
-            var acctIds = accts.map(function(a) { return a.guid; });
+        return subAccounts(acctByName(acctName)).then(accts => {
+            const acctIds = accts.map(a => a.guid);
             return db.query(q.replace('SUBACCOUNTS', sqlList(acctIds)),
                             [acctName, since, since])
                 .then(first);
@@ -159,9 +161,7 @@ function makeBudget(db) {
     }
 
     return Object.freeze({
-        subAccounts: function(acctName) {
-            return subAccounts(acctByName(acctName));
-        },
+        subAccounts: acctName => subAccounts(acctByName(acctName)),
         acctBalance: acctBalance
     });
 }
