@@ -96,29 +96,25 @@ function makeDB(mysql, optsP) {
 
 
 
-function sqlList(uuids) {
-    // TODO: verify uuid syntax to prevent against SQL injection
-    return uuids.map(u => '\'' + u + '\'').join(', ');
-}
-
-
-function first(rows) {
-    return rows[0];
-}
-
-
 function makeBudget(db) {
     'use strict';
 
-    function subAccounts(acctP) {
-        const q = ('select child.guid, child.name ' +
-                   'from accounts child ' +
-                   'join accounts parent on child.parent_guid = parent.guid ' +
-                   'where parent.guid in (PARENTS)');
+    function guids(objs) {
+        return objs.map(o => o.guid).map(u => '\'' + u + '\'').join(', ');
+    }
 
+    function first(rows) {
+        return rows[0];
+    }
+
+    function subAccounts(acctP) {
         function recur(parents, generations, resolve, reject) {
-            const parentIds = parents.map(p => p.guid);
-            db.query(q.replace('PARENTS', sqlList(parentIds))).then(
+            db.query(
+                `select child.guid, child.name
+                from accounts child
+                join accounts parent on child.parent_guid = parent.guid
+                where parent.guid in (${guids(parents)})`
+            ).then(
                 children => {
                     if (children.length == 0) {
                         const acctIds = [].concat.apply([], generations);
@@ -129,28 +125,26 @@ function makeBudget(db) {
                 }, reject);
         }
 
-        return Q.promise((resolve, reject) => {
-            acctP.then(acct => {
-                recur([acct], [[acct]], resolve, reject);
-            }, reject);
-        });
+        return Q.promise(
+            (resolve, reject) =>
+                acctP.then(acct => recur([acct], [[acct]], resolve, reject),
+                           reject)
+        );
     }
 
     function acctBalance(acctName, since) {
-        const q = ('select sum(value_num / value_denom) balance ' +
-                   '  , ? name, ? since ' +
-                   'from splits s ' +
-                   'join accounts a on a.guid = s.account_guid ' +
-                   'join transactions tx on tx.guid = s.tx_guid ' +
-                   'where a.guid in (SUBACCOUNTS) ' +
-                   'and tx.post_date >= ?');
-
-        return subAccounts(acctByName(acctName)).then(accts => {
-            const acctIds = accts.map(a => a.guid);
-            return db.query(q.replace('SUBACCOUNTS', sqlList(acctIds)),
-                            [acctName, since, since])
-                .then(first);
-        });
+        return subAccounts(acctByName(acctName)).then(
+            accts =>
+                db.query(
+                    `select sum(value_num / value_denom) balance
+                    , ? name, ? since
+                    from splits s
+                    join accounts a on a.guid = s.account_guid
+                    join transactions tx on tx.guid = s.tx_guid
+                    where a.guid in (${guids(accts)})
+                    and tx.post_date >= ?`,
+                    [acctName, since, since]).then(first)
+        );
     }
 
     function acctByName(acctName) {
