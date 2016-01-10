@@ -1,6 +1,6 @@
 var Q    = require('q');
 
-function integrationTestMain(env, Nightmare) {
+function integrationTestMain(stdout, env, Nightmare) {
     'use strict';
 
     const credsP = Q({
@@ -10,7 +10,7 @@ function integrationTestMain(env, Nightmare) {
 
     const acctRd = makeSimpleRd(Nightmare, credsP);
     acctRd.transactions()
-        .then((txns) => console.log(txns))
+        .then((txns) => stdout.write(JSON.stringify(txns)))
         .then(() => acctRd.end())
         .done();
 }
@@ -69,6 +69,9 @@ function makeSimpleRd(Nightmare, credsP) {
 
 if (process.env.TESTING) {
     integrationTestMain(
+        process.stdout,
         process.env,
         require('nightmare'));
 }
+
+exports.makeSimpleRd = makeSimpleRd;
