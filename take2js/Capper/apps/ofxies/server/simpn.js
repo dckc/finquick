@@ -1,26 +1,46 @@
-var Nightmare = require('nightmare');
 var Q    = require('q');
 
-var creds = {
-    username: process.env.SIMPLE_USERNAME,
-    password: process.env.SIMPLE_PASSWORD
-};
+function integrationTestMain(env, Nightmare) {
+    'use strict';
 
-function* doit() {
-    const n = Nightmare({show:true});
-    const t = yield n
+    const creds = {
+	username: process.env.SIMPLE_USERNAME,
+	password: process.env.SIMPLE_PASSWORD
+    };
+
+    Q.spawn(() => doit(Nightmare, creds));
+}
+
+
+function* doit(Nightmare, creds) {
+    'use strict';
+
+    const n = Nightmare({
+	show: true
+    });
+
+    const tx = yield n
 	.goto('https://www.simple.com/signin')
+	.wait(0.5 * 1000)
+	.wait('input#login_username')
 	.type('input#login_username', creds.username)
 	.type('input#login_password', creds.password)
 	.click('input#signin-btn')
-	.wait('#export-btn')
-	.title();
+	.wait(0.5 * 1000)
+	.wait('#safe-to-spend')
+        .evaluate(() => Butcher.models.Transactions);
 
-    console.log(t);
+    console.log('Transactions: ', tx);
 
     yield n.end();
 }
 
-Q.spawn(doit);
 
-
+if (process.env.TESTING) {
+    integrationTestMain(
+	{
+	    username: process.env.SIMPLE_USERNAME,
+	    password: process.env.SIMPLE_PASSWORD
+	},
+	require('nightmare'));
+}
