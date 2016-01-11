@@ -1,5 +1,7 @@
 const Q = require('q');
 
+const makeSecretTool = require('./secret-tool').makeSecretTool;
+
 
 function integrationTestMain(process, mysql) {
     'use strict';
@@ -26,45 +28,6 @@ function integrationTestMain(process, mysql) {
     )
         .then(() => db.end())
         .done();
-}
-
-
-function makeSecretTool(spawn) {
-    'use strict';
-
-    // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
-    const toolPath = 'secret-tool';
-
-    function lookup(what) {
-        const args = ['lookup'];
-        for (let prop in what) {
-            args.push(prop);
-            args.push(what[prop]);
-        }
-
-
-        console.log('spawn(', toolPath, args, ')');
-        const tool = spawn(toolPath, args);
-
-        let password = '';
-        tool.stdout.on('data', d => { password += d; });
-
-        const out = Q.defer();
-        tool.on('close', (code /* , signal */) => {
-            if (code !== 0) {
-                return out.reject(new Error('non-zero exit from ' + toolPath));
-            }
-
-            out.resolve(password);
-        });
-
-        return out.promise;
-    }
-
-    return Object.freeze({
-        lookup: lookup,
-        path: () => toolPath
-    });
 }
 
 
@@ -147,6 +110,27 @@ function makeBudget(db) {
         );
     }
 
+    function getStatement(acctName, since) {
+        const sinceWhen = new Date(since.year, since.month, since.day);
+        return subAccounts(acctByName(acctName)).then(
+            acct =>
+                db.query(
+                    `select tx.post_date, tx.description
+                    , s.value_num / s.value_denom amount
+                    , s.memo
+                    , fid.string_val fid
+                    , s.guid, s.tx_guid
+                    from splits s
+                    join transactions tx on tx.guid = s.tx_guid
+                    join accounts sa on sa.guid = s.account_guid
+                    left join slots fid on fid.obj_guid = s.guid
+
+                    where fid.name = 'online_id'
+                    and sa.guid = ?
+                        and tx.post_date > ?
+                    order by tx.post_date desc`, [acct.guid, sinceWhen]));
+    }
+
     function acctByName(acctName) {
         return db.query(
             'select guid, name from accounts where name = ?',
@@ -156,10 +140,10 @@ function makeBudget(db) {
 
     return Object.freeze({
         subAccounts: acctName => subAccounts(acctByName(acctName)),
-        acctBalance: acctBalance
+        acctBalance: acctBalance,
+        getStatement: getStatement
     });
 }
-
 
 if (process.env.TESTING) {
     integrationTestMain(
@@ -171,5 +155,4 @@ if (process.env.TESTING) {
         require('mysql'));
 }
 
-exports.makeSecretTool = makeSecretTool;
 exports.makeDB = makeDB;
