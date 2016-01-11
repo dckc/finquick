@@ -1,15 +1,13 @@
 /*global console */
+'use strict';
 
 require('object-assign-shim'); // ES6 Object.assign
 
-var Banking = require('banking');
 var Q = require('q');
-var freedesktop = require('./budget');  // secretTool is there for now
+var freedesktop = require('./secret-tool');
 var GnuCash = require('./budget');  // still thinking about what goes where
 
-module.exports = function Ofxies() {
-    'use strict';
-
+module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
     var institutionDB = {
         discover: {
             fid: 7101
@@ -45,8 +43,7 @@ module.exports = function Ofxies() {
                 return mem.info;
             },
             getStatement: function getStatement(creds, daysAgo) {
-                // ambient authority :-/
-                var now = new Date();
+                var now = clock(); // TODO: return a promise from clock()?
                 var banking = new Banking(Object.assign({}, creds, mem.info));
 
                 console.log('getStatement:', mem.info.fidOrg, mem.info.url);
@@ -88,36 +85,34 @@ module.exports = function Ofxies() {
         });
     }
 
-    function makeKeyStore(context) {
-        var spawn = require('child_process').spawn; // boo! ambient
-        var tool = freedesktop.makeSecretTool(spawn);
-
-        return Object.freeze({
-            lookup: function(what) {
-                return tool.lookup(what);
-            }
-        });
-    }
-
+    const keyStore = freedesktop.makeSecretTool(spawn);
     function makePassKey(context) {
-        var mem = context.state;
+        const mem = context.state;
 
         return Object.freeze({
-            init: function(store /*, etc*/) {
-                var etc = Array.prototype.slice.call(arguments, 1);
-                mem.properties = args2props(etc);
-                mem.store = store;
+            init: function(/*... etc*/) {
+                const arg0 = arguments[0];
+                const etc = Array.prototype.slice.call(arguments, 0);
+                const props = freedesktop.args2props(arg0, etc);
+                mem.properties = props;
             },
-            properties: function() { return mem.properties; },
-            get: function() {
-                return mem.store.lookup(mem.properties);
-            }
+            subKey: function(/*, etc*/) {
+                const arg0 = arguments[0];
+                const etc = Array.prototype.slice.call(arguments, 0);
+                const props = Object.assign(
+                    {},
+                    mem.properties,
+                    freedesktop.args2props(arg0, etc));
+
+                return context.make('ofxies.makePassKey', props);
+            },
+            properties: () => mem.properties,
+            get: () => keyStore.lookup(mem.properties)
         });
     }
 
     function makeGnuCashDB(context) {
         var mem = context.state;
-        var mysql = require('mysql');
         var optsP, db;
 
         function ensureDB(){
@@ -136,7 +131,7 @@ module.exports = function Ofxies() {
             init: function(passKey /*, etc*/) {
                 var etc = Array.prototype.slice.call(arguments, 1);
                 mem.passKey = passKey;
-                mem.properties = args2props(etc);
+                mem.properties = freedesktop.args2props(null, etc);
             },
             query: function query(dml, params) {
                 return ensureDB().query(dml, params);
@@ -148,19 +143,15 @@ module.exports = function Ofxies() {
     return Object.freeze({
         makeAccount: makeAccount,
         makeInstitution: makeInstitution,
-        makeKeyStore: makeKeyStore,
         makePassKey: makePassKey,
         makeGnuCashDB: makeGnuCashDB
     });
-}();
-
-function args2props(args) {
-    var properties = {};
-    for (var i=0; i < args.length; i += 2) {
-        properties[args[i]] = args[i + 1];
-    }
-    return properties;
-}
+})(
+    // pass in ambient stuff here
+    () => new Date(),
+    require('child_process').spawn,
+    require('mysql'),
+    require('banking'));
 
 function ofxDateFmt(d) {
     return d.toISOString().substring(0, 20).replace(/[^0-9]/g, '');

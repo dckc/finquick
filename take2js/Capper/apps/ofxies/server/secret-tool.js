@@ -1,8 +1,9 @@
+'use strict';
+
 const Q = require('q');
 
+exports.makeSecretTool = makeSecretTool;
 function makeSecretTool(spawn) {
-    'use strict';
-
     // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
     const toolPath = 'secret-tool';
 
@@ -12,7 +13,6 @@ function makeSecretTool(spawn) {
             args.push(prop);
             args.push(what[prop]);
         }
-
 
         console.log('spawn(', toolPath, args, ')');
         const tool = spawn(toolPath, args);
@@ -32,10 +32,34 @@ function makeSecretTool(spawn) {
         return out.promise;
     }
 
+    function makePassKey(tool, properties) {
+        return Object.freeze({
+            subKey: (subProps) => makePassKey(
+                tool,
+                Object.assign({}, properties, subProps)),
+            properties: () => properties,
+            get: () => tool.lookup(properties)
+        });
+    }
+
     return Object.freeze({
         lookup: lookup,
-        path: () => toolPath
+        makePassKey: makePassKey
     });
 }
 
-exports.makeSecretTool = makeSecretTool;
+exports.args2props = args2props;
+function args2props(arg1, args) {
+    if (typeof arg1 === 'string') {
+        const properties = {};
+        for (let i=0; i < args.length; i += 1) {
+            let kv = args[i].split('=');  // no destructuring let in node yet?
+            properties[kv[0]] = kv[1];
+        }
+        return properties;
+    } else if (typeof arg1 === 'object' && arg1 !== null) {
+        return arg1;
+    } else {
+        return {};
+    }
+}

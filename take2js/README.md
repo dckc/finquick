@@ -15,7 +15,7 @@
 
 For `discover` or `amex`:
 
-    finquick/take2js/Capper$ discover=@`node --harmony server -make ofxies.makeInstitution discover | tail -1`
+    $ discover=@`node --harmony-proxies server -make ofxies.makeInstitution discover | tail -1`
 
 The resulting `$discover` should be a webkey a la
 `@https://localhost:1341/ocaps/#s=Yslejls...`.
@@ -26,22 +26,23 @@ The credit card number, username, and password are combined into one
 secret, separated by spaces; `protocol` and `object` attributes are
 used for lookup:
 
-    finquick/take2js/Capper$ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
+    $ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
 
-Then make a webkey for the freedesktop secret store:
+Then make a webkey for the root of the freedesktop secret store:
 
-    finquick/take2js/Capper$ store=@`node --harmony server -make ofxies.makeKeyStore | tail -1`
+    $ rootKey=@`node --harmony-proxies server -make ofxies.makePassKey | tail -1`
 
-And make another for access to just the relevant entry:
+And make a subkey for access to just the relevant entry:
 
-    finquick/take2js/Capper$ key=@`node --harmony server -make ofxies.makePassKey $store protocol OFX object 8146 | tail -1`
+    $ key=@`node --harmony-proxies server -post $rootKey subKey protocol=OFX object=8146 | tail -1`
 
+*oops... post results are formatted differently*
 
 ### Create an account object
 
 Now we're ready to make a webkey for the account:
 
-    finquick/take2js/Capper$ disc1=@`node --harmony server -make ofxies.makeAccount $discover $key | tail -1`
+    $ disc1=@`node --harmony-proxies server -make ofxies.makeAccount $discover $key | tail -1`
     finquick/take2js/Capper$ echo $disc1
 	@https://localhost:1341/ocaps/#s=abc123...
 
