@@ -5,28 +5,26 @@
 /*jshint undef: true */
 /* globals console */
 /* globals require, exports */
-var xml = require('xml');
-var docopt = require('docopt');
+const xml = require('xml');
+const docopt = require('docopt');
 
-var doc = `
+const doc = `
 Usage:
   asOFX IN OUT
 `;
 
 
 /*::
-  import type {Readable, Writeable} from 'stream2';
-
-  type Access = {
-  read(which: string): Readable;
-  write(which: string): Writeable
-  };
+type Access = {
+    read(which: string): ReadStream;
+    write(which: string): WriteStream
+};
 */
 
 function main(cli/*: Access*/, clock/*: () => Date*/) {
     const input = cli.read('IN');
     const output = cli.write('OUT');
-    var buf = '';
+    let buf = '';
     input.on('data', (chunk) => {
         buf += chunk;
     });
@@ -67,15 +65,15 @@ const Simple = function() {
             return stxs.length === 0 ? fallback : f(stxs[stxs.length - 1]);
         };
 
-        var bank_id = last('', function(t) { return t.user_id; });
-        var account_id = bank_id;
-        var end_balance = last(0, function(t) {
+        const bank_id = last('', function(t) { return t.user_id; });
+        const account_id = bank_id;
+        const end_balance = last(0, function(t) {
             return Simple.toUSD(t.running_balance);
         });
-        var txs = stxs.map(transaction);
-        var txdates = txs.map(function(tx) { return tx.DTPOSTED; });
-        var start_date = min(txdates);
-        var end_date = max(txdates);
+        const txs = stxs.map(transaction);
+        const txdates = txs.map(function(tx) { return tx.DTPOSTED; });
+        const start_date = min(txdates);
+        const end_date = max(txdates);
 
         return {BANKMSGSRSV1: [
             {STMTTRNRS: [
@@ -112,7 +110,7 @@ const Simple = function() {
 }();
 
 
-function nopunct(iso) {
+function nopunct(iso /*:string*/) {
     return iso.replace(/[: ZT-]/g, '');
 }
 
@@ -176,10 +174,10 @@ function max(arr) {
 
 
 function CLI(argv /*: Array<string> */,
-             createReadStream /*: (path: string) => Readable */,
-             createWriteStream /*: (path: string) => Writeable */)/*: Access*/
+             createReadStream /*: (path: string) => ReadStream */,
+             createWriteStream /*: (path: string) => WriteStream */)/*: Access*/
 {
-    var opt = docopt.docopt(doc, {argv: argv.slice(2)});
+    const opt = docopt.docopt(doc, {argv: argv.slice(2)});
     return {
         // TODO: refactor as creating a new object that has an openrd() method
         read: function(which) {
