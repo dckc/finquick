@@ -1,22 +1,33 @@
+/** budget -- Collect transaction info and review/revise budgeted expenses.
+ *
+ * @flow
+ */
+
 const Q = require('q');
 
 const makeSecretTool = require('./secret-tool').makeSecretTool;
 
-
-function integrationTestMain(process, mysql) {
+function integrationTestMain(
+    argv /*: Array<string>*/,
+    env /*:any*/,
+    stdout /*: stream$Writable | tty$WriteStream */,
+    spawn /*: (command: string, args: Array<string>) =>
+            child_process$ChildProcess */,
+    mysql /*: MySql */)
+{
     'use strict';
 
-    const argv = process.argv,
-          dbName = argv[2], host = 'localhost',
-          acctName = argv[3], since = argv[4];
+    const
+        dbName = argv[2], host = 'localhost',
+        acctName = argv[3], since = argv[4];
 
-    const optsP = makeSecretTool(process.spawn).lookup({
+    const optsP = makeSecretTool(spawn).lookup({
         protocol: 'mysql',
         server: host,
         object: dbName
     }).then(password => ({
         host     : host,
-        user     : process.env.LOGNAME,
+        user     : env.LOGNAME,
         password : password,
         database : dbName
     }));
@@ -24,14 +35,22 @@ function integrationTestMain(process, mysql) {
     const budget = makeBudget(db);
 
     budget.acctBalance(acctName, since).then(
-        info => console.log('balance: ', info.balance)
+        info => stdout.write(`balance: ${info.balance}`)
     )
         .then(() => db.end())
         .done();
 }
 
 
-function makeDB(mysql, optsP) {
+/*::
+type DB = {
+    query(dml: string, params?: Array<any>): Promise<Array<Object>>;
+    end(): void
+}
+
+*/
+
+function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
     'use strict';
 
     const connP = optsP.then(opts => mysql.createConnection(opts));
@@ -147,12 +166,40 @@ function makeBudget(db) {
 
 if (process.env.TESTING) {
     integrationTestMain(
-        {
-            argv: process.argv,
-            env: process.env,
-            spawn: require('child_process').spawn
-        },
+        process.argv,
+        process.env,
+        process.stdout,
+        require('child_process').spawn,
         require('mysql'));
 }
+
+// TODO: move mysql decls to lib/mysql.js
+/*::
+interface MySql {
+  createConnection(config: IConnectionConfig): IConnection;
+}
+
+
+interface IConnection {
+    query(sql: string,
+          values?: Array<any>,
+          callback?: (err: IError, rows: Array<Array<any>>) => void): IQuery;
+};
+
+interface IError {};
+interface IQuery {};
+
+interface IConnectionOptions {
+    user?: string;
+    password?: string;
+    database?: string;
+    charset?: string;
+};
+
+interface IConnectionConfig extends IConnectionOptions {
+    host?: string;
+    port?: number;
+};
+*/
 
 exports.makeDB = makeDB;
