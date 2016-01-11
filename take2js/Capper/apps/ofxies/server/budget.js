@@ -2,6 +2,7 @@
  *
  * @flow
  */
+'use strict';
 
 const Q = require('q');
 
@@ -15,8 +16,6 @@ function integrationTestMain(
             child_process$ChildProcess */,
     mysql /*: MySql */)
 {
-    'use strict';
-
     const
         dbName = argv[2], host = 'localhost',
         acctName = argv[3], since = argv[4];
@@ -51,8 +50,6 @@ type DB = {
 */
 
 function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
-    'use strict';
-
     const connP = optsP.then(opts => mysql.createConnection(opts));
 
     function query(dml, params) {
@@ -78,9 +75,8 @@ function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
 
 
 
-function makeBudget(db) {
-    'use strict';
-
+function makeBudget(db)
+{
     function guids(objs) {
         return objs.map(o => o.guid).map(u => '\'' + u + '\'').join(', ');
     }
