@@ -49,3 +49,24 @@ window.fetch = function() {
         stderr(oops);
     });
 };
+
+window.getStatement = function() {
+    var C = CapperLayout;
+    var acct = CapperConnect.home;
+
+    acct.post('budget')
+        .then(function(splits) {
+
+        var splitsElt = C.jtable();
+        splits.forEach(function(split) {
+            splitsElt.append(C.jrow(
+                split.post_date, split.description,
+                split.amount, split.memo, split.fid
+            ));        
+        });
+        $('#splits').html('');
+        $('#splits').append(splitsElt);
+    }, function(oops) {
+        stderr(oops);
+    });
+};

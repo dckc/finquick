@@ -16,9 +16,16 @@
     <fieldset>
       <p><label>Account:<input id="name" /></label></p>
     </fieldset>
+
     <fieldset>
-      <p><button onClick="fetch()">Fetch</button></p>
+      <p><button onClick="fetch()">Fetch from OFX Service</button></p>
       <div id='txns'>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <p><button onClick="getStatement()">Select from DB</button></p>
+      <div id='splits'>
       </div>
     </fieldset>
 
