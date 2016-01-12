@@ -5,6 +5,8 @@
 /*jshint undef: true */
 /* globals console */
 /* globals require, exports */
+'use strict';
+
 const xml = require('xml');
 const docopt = require('docopt');
 
@@ -115,8 +117,25 @@ function nopunct(iso /*:string*/) {
 }
 
 
-
 const OFX = function() {
+    const institutionInfo = {
+        discover: {
+            fid: 7101
+            , fidOrg: 'Discover Financial Services'
+            , url: 'https://ofx.discovercard.com'
+            , bankId: null /* not a bank account */
+            , accType: 'CREDITCARD'
+        },
+        amex: {
+            fid: 3101
+            , fidOrg: 'American Express Card'
+            , url: 'https://online.americanexpress.com/myca/ofxdl/desktop/desktopDownload.do?request_type=nl_ofxdownload'
+            , bankId: null /* not a bank */
+            , accType: 'CREDITCARD'
+        }
+    };
+
+
     // cribbed from
     // https://github.com/kedder/ofxstatement/blob/master/src/ofxstatement/ofx.py
     const header = ['<!-- ',
@@ -145,6 +164,7 @@ const OFX = function() {
             ]}]});
 
     return Object.freeze({
+        institutionInfo: institutionInfo,
         header: header,
         signOn: signOn,
         OFX: (clock, stmt) => {

@@ -5,44 +5,22 @@ require('object-assign-shim'); // ES6 Object.assign
 
 var Q = require('q');
 var freedesktop = require('./secret-tool');
-var GnuCash = require('./budget');  // still thinking about what goes where
+var budget = require('./budget');
+var OFX = require('./asOFX').OFX;
 
 module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
-    var institutionDB = {
-        discover: {
-            fid: 7101
-            , fidOrg: 'Discover Financial Services'
-            , url: 'https://ofx.discovercard.com'
-            , bankId: null /* not a bank account */
-            , accType: 'CREDITCARD'
-        },
-        amex: {
-            fid: 3101
-            , fidOrg: 'American Express Card'
-            , url: 'https://online.americanexpress.com/myca/ofxdl/desktop/desktopDownload.do?request_type=nl_ofxdownload'
-            , bankId: null /* not a bank */
-            , accType: 'CREDITCARD'
-        }
-    };
+    const keyStore = freedesktop.makeSecretTool(spawn);
 
+    function makeOFX(context) {
+        const mem = context.state;
 
-    function makeInstitution(context) {
-        var mem = context.state;
-
-        return Object.freeze({
-            init: function(key) {
-                var info = institutionDB[key];
-                if (!info) {
-                    throw('banking institution not known: ' + key);
-                }
-                console.log('Intsitution.init: ', key, info);
-
-                mem.info = info;
-            },
-            info: function() {
-                return mem.info;
-            },
-            getStatement: function getStatement(creds, daysAgo) {
+        const fetch = function (daysAgo) {
+            return keyStore.lookup(mem.keyAttrs).then(secret => {
+                const parts = secret.trim().split(' ');
+                return { accId: parts[0],
+                         user: parts[1],
+                         password: parts[2] };
+            }).then(creds => {
                 var now = clock(); // TODO: return a promise from clock()?
                 var banking = new Banking(Object.assign({}, creds, mem.info));
 
@@ -50,101 +28,75 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                 return Q.ninvoke(
                     banking, 'getStatement',
                     {
-                        start: ofxDateFmt(daysBefore(daysAgo, now)),
+                        start: ofxDateFmt(daysBefore(daysAgo || 60, now)),
                         end: ofxDateFmt(now)
                     });
-            }
-        });
-    }
-
-    function makeAccount(context) {
-        var mem = context.state;
+            });
+        };
 
         return Object.freeze({
-            init: function(institution, passKey) {
-                mem.institution = institution;
-                mem.passKey = passKey;
-            },
-            name: function() {
-                return mem.passKey.properties()['object'];
-            },
-            institution: function() {
-                return mem.institution;
-            },
-            fetch: function() {
-                return mem.passKey.get().then(function(secret) {
-                    var daysAgo = 60,
-                        parts = secret.trim().split(' '),
-                        creds = { accId: parts[0],
-                                  user: parts[1],
-                                  password: parts[2] };
+            init: function(institutionKey /*, etc.*/) {
+                var info = OFX.institutionInfo[institutionKey];
+                if (!info) {
+                    throw('banking institution not known: ' + institutionKey);
+                }
+                console.log('Institution.init: ', institutionKey, info);
 
-                    return mem.institution.getStatement(creds, daysAgo);
-                });
-            }
+                const arg1 = arguments[1];
+                const etc = Array.prototype.slice.call(arguments, 1);
+                const props = freedesktop.args2props(arg1, etc);
+                mem.keyAttrs = props;
+                mem.info = info;
+            },
+            institution: () => mem.info,
+            name: () => mem.keyAttrs.object,
+            fetch: fetch
         });
     }
 
-    const keyStore = freedesktop.makeSecretTool(spawn);
-    function makePassKey(context) {
-        const mem = context.state;
-
-        return Object.freeze({
-            init: function(/*... etc*/) {
-                const arg0 = arguments[0];
-                const etc = Array.prototype.slice.call(arguments, 0);
-                const props = freedesktop.args2props(arg0, etc);
-                mem.properties = props;
-            },
-            subKey: function(/*, etc*/) {
-                const arg0 = arguments[0];
-                const etc = Array.prototype.slice.call(arguments, 0);
-                const props = Object.assign(
-                    {},
-                    mem.properties,
-                    freedesktop.args2props(arg0, etc));
-
-                return context.make('ofxies.makePassKey', props);
-            },
-            properties: () => mem.properties,
-            get: () => keyStore.lookup(mem.properties)
-        });
-    }
-
-    function makeGnuCashDB(context) {
+    function makeBudget(context) {
         var mem = context.state;
-        var optsP, db;
+        var chart = mem.opts ? makeChart(mem.opts) : null;
 
-        function ensureDB(){
-            if (!db) {
-                optsP = mem.passKey.get().then(function(password) {
-                    return Object.assign({},
-                                         { password: password },
-                                         mem.properties);
-                });
-                db = GnuCash.makeDB(mysql, optsP);
-            }
-            return db;
+        function makeChart(opts) {
+            const dbOptsP = keyStore.lookup({
+                protocol: opts.protocol || 'mysql',
+                server: opts.server || 'localhost',
+                object: opts.object || opts.database
+            }).then((password) => ({
+                host: opts.host || opts.server || 'localhost',
+                user: opts.user,
+                password: password,
+                database: opts.database
+            }));
+
+            const db = budget.makeDB(mysql, dbOptsP);
+            return budget.makeChartOfAccounts(db);
         }
 
         return Object.freeze({
-            init: function(passKey /*, etc*/) {
-                var etc = Array.prototype.slice.call(arguments, 1);
-                mem.passKey = passKey;
-                mem.properties = freedesktop.args2props(null, etc);
+            init: function(arg0 /*, etc*/) {
+                const etc = Array.prototype.slice.call(arguments, 0);
+                mem.opts = freedesktop.args2props(arg0, etc);
+                chart = makeChart(mem.opts);
+                mem.remotes = {};
             },
-            query: function query(dml, params) {
-                return ensureDB().query(dml, params);
+            acctBalance: (name, ymd) => chart.acctBalance(name, ymd),
+            getLedger: (name, ymd) => chart.getLedger(name, ymd),
+            setRemote: (code, remote) => {
+                mem.remotes[code] = remote;
             },
-            destroy: function() { ensureDB().end(); }
+            fetch: (code, daysAgo) => mem.remotes[code].fetch(daysAgo),
+            destroy: function() {
+                chart.destroy();
+                context.destroy();
+            }
         });
     }
 
     return Object.freeze({
-        makeAccount: makeAccount,
-        makeInstitution: makeInstitution,
-        makePassKey: makePassKey,
-        makeGnuCashDB: makeGnuCashDB
+        makeBudget: makeBudget,
+        makeOFX: makeOFX
     });
 })(
     // pass in ambient stuff here

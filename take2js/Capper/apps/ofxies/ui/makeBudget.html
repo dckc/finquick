@@ -2,30 +2,29 @@
   <head>
     <!-- When following links, don't grant destination access to this. -->
     <meta name="referrer" content="never">
-    <title>OFX Account: ??</title>
+    <title>Budget</title>
     <script type="text/javascript" src="/views/libs/jquery-2.1.1.js"></script>
     <script type="text/javascript" src="/views/libs/q.js"></script>
     <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
-    <script type="text/javascript" src="/views/libs/capperLayout.js"></script>
     <script type="text/javascript" src="/views/libs/capperUtils.js"></script>
     <script type="text/javascript" src="/apps/ofxies/ui/ofxies.js"></script>
   </head>
   <body>
-    <h1>Account: ??</h1>
+    <h1>Budget</h1>
 
     <fieldset>
-      <p><label>Account:<input id="name" /></label></p>
-    </fieldset>
+      <p><label>Expense account name:<input id="expenseName" /></label></p>
+      <p><label>Start Date:<input type=date id="since" /></label></p>
 
-    <fieldset>
-      <p><button onClick="fetch()">Fetch from OFX Service</button></p>
-      <div id='txns'>
+      <p><button onClick="getLedger()">Get Ledger</button></p>
+      <div id='splits'>
       </div>
     </fieldset>
 
     <fieldset>
-      <p><button onClick="getStatement()">Select from DB</button></p>
-      <div id='splits'>
+      <p><label>Balance account code:<input id="balCode" /></label></p>
+      <p><button onClick="fetch()">Fetch OFX</button></p>
+      <div id='txns'>
       </div>
     </fieldset>
 

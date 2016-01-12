@@ -6,10 +6,10 @@ window.onload = function() {
     var byId = function(i) { return document.getElementById(i); };
 
     ui = {
-        name: byId('name')
+        expenseName: byId('expenseName'),
+        since: byId('since'),
+        balCode: byId('balCode')
     };
-
-    update();
 };
 
 
@@ -30,18 +30,22 @@ function update() {
 
 window.fetch = function() {
     var C = CapperLayout;
+    var balCode = ui.balCode.value;
+    var budget = CapperConnect.home;
 
-    CapperConnect.home.post('fetch').then(function(reply) {
+    budget.post('fetch', balCode).then(function(reply) {
         var stmt = reply.body.OFX.CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0].CCSTMTRS[0];
         var txnsElt = C.jtable();
         stmt.BANKTRANLIST[0].STMTTRN.forEach(function(trn) {
-            txnsElt.append(C.jrow(
+            var txElt = C.jrow(
                 trn.DTPOSTED[0],
                 trn.TRNAMT[0],
                 trn.TRNTYPE[0],
-                trn.NAME[0],
-                trn.FITID[0]
-            ));        
+                trn.NAME[0]
+            );
+            txElt.attr('id', trn.FITID[0]);
+            txElt.attr('title', trn.FITID[0]);
+            txnsElt.append(txElt);        
         });
         $('#txns').html('');
         $('#txns').append(txnsElt);
@@ -50,19 +54,22 @@ window.fetch = function() {
     });
 };
 
-window.getStatement = function() {
+window.getLedger = function() {
     var C = CapperLayout;
-    var acct = CapperConnect.home;
+    var budget = CapperConnect.home;
 
-    acct.post('budget')
+    budget.post('getLedger', ui.expenseName.value, ui.since.value)
         .then(function(splits) {
 
         var splitsElt = C.jtable();
         splits.forEach(function(split) {
-            splitsElt.append(C.jrow(
+            var splitElt = C.jrow(
                 split.post_date, split.description,
-                split.amount, split.memo, split.fid
-            ));        
+                split.amount, split.memo
+            );
+            splitElt.attr('id', split.guid);
+            splitElt.attr('title', split.fid);
+            splitsElt.append(splitElt);
         });
         $('#splits').html('');
         $('#splits').append(splitsElt);

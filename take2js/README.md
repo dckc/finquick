@@ -11,15 +11,6 @@
 
 ## Fetch 60 days of transactions
 
-### Create an OFX institution object
-
-For `discover` or `amex`:
-
-    $ discover=@`node --harmony-proxies server -make ofxies.makeInstitution discover | tail -1`
-
-The resulting `$discover` should be a webkey a la
-`@https://localhost:1341/ocaps/#s=Yslejls...`.
-
 ### Put your OFX account credentials in the freedesktop secret store
 
 The credit card number, username, and password are combined into one
@@ -28,45 +19,57 @@ used for lookup:
 
     $ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
 
-Then make a webkey for the root of the freedesktop secret store:
+### Create an OFX account capper object
 
-    $ rootKey=@`node --harmony-proxies server -make ofxies.makePassKey | tail -1`
+For `discover` or `amex`:
 
-And make a subkey for access to just the relevant entry:
+    $ alias node=node --harmony-proxies
+    $ discover=@`node server -make ofxies.makeOFX discover protocol=OFX object=disc1 | tail -1`
 
-    $ key=@`node --harmony-proxies server -post $rootKey subKey protocol=OFX object=8146 | tail -1`
+### Fetch OFX data
 
-*oops... post results are formatted differently*
+Test OFX access from the command line:
 
-### Create an account object
+    $ node server -post $discover fetch
 
-Now we're ready to make a webkey for the account:
+After a few seconds, your transactions going back 60 days should
+appear in node console log.
 
-    $ disc1=@`node --harmony-proxies server -make ofxies.makeAccount $discover $key | tail -1`
-    finquick/take2js/Capper$ echo $disc1
-	@https://localhost:1341/ocaps/#s=abc123...
+## GnuCash DB budget access
 
-### Fetch
+Following GnuCash, we access the database password by `protocol`,
+`server`, `user`, and `object` attributes. The database connection
+options are given with `host`, `user`, and `database` properties. The
+`server`, `protocol`, and `object` attributes have sensible defaults:
 
-Access the webkey from above and hit **Fetch**; after a few seconds, a
-table your transactions going back 60 days should appear.
+    $ budget=@`node server -make ofxies.makeBudget database=db1 user=me | tail -1`
 
-## GnuCash DB access
+Now we can check the balance of an account since some date:
 
-As per GnuCash, access the password by `protocol`, `server`, `user`,
-and `object` attributes:
+    $ node server -post $budget acctBalance Cash 2015-10-01
+    ...
+    {"=":{"balance":473.04,"name":"Cash","since":"2015-10-01 00:00:00.000"}}
 
-    $ dbkey=@`node --harmony server -make ofxies.makePassKey $store protocol mysql server localhost user me object myGC | tail -1`
+The resulting `$discover` is a webkey:
 
-These properties overlap with mysql construction parameters, but note
-that `server` becomes `host`:
+    $ echo $discover
+    @https://localhost:1341/ocaps/#s=Yslejls...
 
-    $ db=@`node --harmony server -make ofxies.makeGnuCashDB $dbkey host localhost user me database myGC | tail -1`
+If you visit that address in your web browser and fill in an account
+name and a date, the **Get Ledger** button should show transactions
+since that date.
 
-And lo...
+## Introducing the budget to the OFX remote accounts
 
-    $ node --harmony server -post $db query 'select  4 + 4'
-    {"=":[{"4 + 4":8}]}
+Make sure to give your remote accounts codes in GnuCash; say `1234`:
+
+    $ node server -post $budget setRemote 1234 $discover
+
+Now the **Fetch OFX** button on the web page should work, once you
+fill in 1234 in the **Balance account code** field.
+
+**TODO**: highlight OFX transactions that are not yet in GnuCash and
+  allow the user to import them.
 
 ## Background / Motivation
 
