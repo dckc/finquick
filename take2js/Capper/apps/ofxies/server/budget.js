@@ -7,6 +7,7 @@
 const Q = require('q');
 
 const makeSecretTool = require('./secret-tool').makeSecretTool;
+const OFX = require('./asOFX').OFX;
 
 function integrationTestMain(
     argv /*: Array<string>*/,
@@ -57,7 +58,7 @@ type DB = {
 function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
     const connP = optsP.then(opts => mysql.createConnection(opts));
 
-    function statement(dml, params) {
+    function statement(dml, params) /*: Promise<Array<Object>>*/{
         return connP.then(c => {
             // console.log('DEBUG: db.query: ', dml, params || '');
 
@@ -87,6 +88,64 @@ function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
 
 function makeChartOfAccounts(db /*:DB*/)
 {
+    function filterSeen(acctCode, remoteTxns) {
+        console.log('@@filterSeen:', acctCode, remoteTxns.length);
+
+        const createTemp = `
+          create temporary table stmttrn (
+            fitid varchar(80),
+            checknum varchar(80),
+            dtposted datetime not null,
+            dtuser datetime,
+            memo varchar(80),
+            name varchar(80) not null,
+            trnamt decimal(7, 2) not null,
+            trntype enum ('CREDIT', 'DEBIT'),
+            match_guid varchar(32)
+          )`;
+        const insertRemote = `
+          insert into stmttrn (
+            trntype, dtposted, dtuser, fitid
+          , trnamt, name, memo) values ? `;
+        const varchar = v => v ? v[0] : null;
+        const date = v => v ? OFX.parseDate(v[0]) : null;
+        const num = v => v ? Number(v[0]) : null;
+        const txValues = remoteTxns.map(trn => [
+            varchar(trn.TRNTYPE),
+            date(trn.DTPOSTED),
+            date(trn.DTUSER),
+            varchar(trn.FITID),
+            // REFNUM?
+            num(trn.TRNAMT),
+            varchar(trn.NAME),
+            varchar(trn.MEMO)
+        ]);
+
+        const selectNew = `
+        select '' + ofx.dtposted post_date, ofx.name description
+             , ofx.trnamt amount, ofx.memo
+             , ofx.fitid fid, null guid, null tx_guid
+        from stmttrn ofx
+        left join (
+          select s.guid, fitid.string_val fitid
+          from splits s
+          join slots fitid
+            on fitid.obj_guid = s.guid
+          join accounts a
+            on a.guid = s.account_guid
+          where fitid.name = 'online_id' and a.code = ?
+        ) gc on gc.fitid = ofx.fitid
+        where gc.fitid is null
+          and ofx.trnamt != 0
+        order by ofx.dtposted `;
+
+        // begin?
+        return db.update('drop table if exists stmttrn')
+            .then(() => db.update(createTemp))
+            .then(() => db.update(insertRemote, [txValues]))
+            .then(() => db.query(selectNew, [acctCode]));
+    }
+
     function guids(objs) {
         return objs.map(o => o.guid).map(u => '\'' + u + '\'').join(', ');
     }
@@ -161,12 +220,13 @@ function makeChartOfAccounts(db /*:DB*/)
         return new Date(parts[0], parts[1]-1, parts[2]);
     }
 
+    // KLUDGE: name or code
     function acctByName(acctName) {
         return db.query(
             `select guid, name, account_type, parent_guid
                   , code, description, hidden, placeholder
-             from accounts where name = ?`,
-            [acctName])
+             from accounts where name = ? or code = ?`,
+            [acctName, acctName])
             .then(first);
     }
 
@@ -174,6 +234,7 @@ function makeChartOfAccounts(db /*:DB*/)
         subAccounts: acctName => subAccounts(acctByName(acctName)),
         acctBalance: acctBalance,
         getLedger: getLedger,
+        filterSeen: filterSeen,
         destroy: () => db.end()
     });
 }

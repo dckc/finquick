@@ -18,8 +18,8 @@ Usage:
 
 /*::
 type Access = {
-    read(which: string): ReadStream;
-    write(which: string): WriteStream
+    read(which: string): stream$Readable;
+    write(which: string): stream$Writable
 };
 */
 
@@ -36,9 +36,25 @@ function main(cli/*: Access*/, clock/*: () => Date*/) {
     });
 }
 
+/*::
+type SimpleTrx = {
+    uuid: string;
+    description: string;
+    memo: string;
+    times: {
+      when_recorded: number;
+      when_recorded_local: string
+    };
+    bookkeeping_type: 'credit' | 'debit';
+    amounts: {
+        amount: number
+    }
+}
+*/
+
 const Simple = function() {
 
-    const transaction = (tx) => {
+    const transaction = (tx /*: SimpleTrx*/) => {
         const recorded = new Date(tx.times.when_recorded);
         const dtposted = nopunct(recorded.toISOString());
         console.log(dtposted, ' from ', recorded, ' from ', tx.times.when_recorded);
@@ -117,6 +133,18 @@ function nopunct(iso /*:string*/) {
 }
 
 
+/*::
+type Transaction = {
+    TRNTYPE: 'CREDIT' | 'DEBIT';
+    DTPOSTED: Date;
+    DTUSER: Date;
+    TRNAMT: number;
+    FITID: string;
+    CHECKNUM: ?string,
+    NAME: string
+}
+*/
+
 const OFX = function() {
     const institutionInfo = {
         discover: {
@@ -163,10 +191,27 @@ const OFX = function() {
                 {'LANGUAGE': 'ENG'}
             ]}]});
 
+    function parseDate(s) {
+        // '20160108170000.000'
+        // '20151229050000.000[-7:MST]'
+        const syntax = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?(?:\[([-+])?(\d+(?:\.\d+)?)(?::([a-zA-Z]+))?)?/;
+        const parts = s.match(syntax);
+        const n = i => Number(parts[i]);
+        const d0 = new Date(n(1), n(2) - 1, n(3),
+                            n(4), n(5), n(6),
+                            parts[7] ? n(7) / 1000 : 0);
+        const sign = parts[8] == '-' ? -1 : 1;
+        const msPerHr = 60 * 1000;
+        const offset = parts[9] ? n(9) * sign * msPerHr : 0;
+        return new Date(d0.getTime() + offset);
+    }
+
     return Object.freeze({
         institutionInfo: institutionInfo,
         header: header,
         signOn: signOn,
+        fmtDate: d => d.toISOString().substring(0, 20).replace(/[^0-9]/g, ''),
+        parseDate: parseDate,
         OFX: (clock, stmt) => {
             const document = {
                 'OFX': [signOn(clock)].concat(stmt)
@@ -194,8 +239,8 @@ function max(arr) {
 
 
 function CLI(argv /*: Array<string> */,
-             createReadStream /*: (path: string) => ReadStream */,
-             createWriteStream /*: (path: string) => WriteStream */)/*: Access*/
+             createReadStream /*: (path: string) => stream$Readable */,
+             createWriteStream /*: (path: string) => stream$Writable */)/*: Access*/
 {
     const opt = docopt.docopt(doc, {argv: argv.slice(2)});
     return {

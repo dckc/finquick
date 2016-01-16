@@ -33,10 +33,9 @@ window.fetch = function() {
     var balCode = ui.balCode.value;
     var budget = CapperConnect.home;
 
-    budget.post('fetch', balCode).then(function(reply) {
-        var stmt = reply.body.OFX.CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0].CCSTMTRS[0];
+    budget.post('fetch', balCode).then(function(txns) {
         var txnsElt = C.jtable();
-        stmt.BANKTRANLIST[0].STMTTRN.forEach(function(trn) {
+        txns.forEach(function(trn) {
             var txElt = C.jrow(
                 trn.DTPOSTED[0],
                 trn.TRNAMT[0],
@@ -54,11 +53,12 @@ window.fetch = function() {
     });
 };
 
-window.getLedger = function() {
+window.getLedger = function(withOFX) {
     var C = CapperLayout;
     var budget = CapperConnect.home;
 
-    budget.post('getLedger', ui.expenseName.value, ui.since.value)
+    budget.post(withOFX ? 'fetchNew' : 'getLedger',
+                ui.expenseName.value, ui.since.value)
         .then(function(splits) {
 
         var splitsElt = C.jtable();

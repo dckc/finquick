@@ -16,7 +16,8 @@
       <p><label>Expense account name:<input id="expenseName" /></label></p>
       <p><label>Start Date:<input type=date id="since" /></label></p>
 
-      <p><button onClick="getLedger()">Get Ledger</button></p>
+      <p><button onClick="getLedger(false)">Get Ledger</button></p>
+      <p><button onClick="getLedger(true)">Fetch New OFX</button></p>
       <div id='splits'>
       </div>
     </fieldset>

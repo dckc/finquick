@@ -1,4 +1,7 @@
-/*global console */
+/** ofxies main
+global console
+@flow
+ */
 'use strict';
 
 require('object-assign-shim'); // ES6 Object.assign
@@ -28,9 +31,12 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                 return Q.ninvoke(
                     banking, 'getStatement',
                     {
-                        start: ofxDateFmt(daysBefore(daysAgo || 60, now)),
-                        end: ofxDateFmt(now)
-                    });
+                        start: OFX.fmtDate(daysBefore(daysAgo || 60, now)),
+                        end: OFX.fmtDate(now)
+                    }).then(reply =>
+                            reply.body.OFX
+                            .CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0].CCSTMTRS[0]
+                            .BANKTRANLIST[0].STMTTRN);
             });
         };
 
@@ -58,6 +64,13 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
         var mem = context.state;
         var chart = mem.opts ? makeChart(mem.opts) : null;
 
+        function theChart() {
+            if (!chart) {
+                throw new Error('no chart of accounts?!');
+            }
+            return chart;
+        }
+
         function makeChart(opts) {
             const dbOptsP = keyStore.lookup({
                 protocol: opts.protocol || 'mysql',
@@ -74,6 +87,14 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             return budget.makeChartOfAccounts(db);
         }
 
+        const fetch = (code, daysAgo) => mem.remotes[code].fetch(daysAgo);
+        const fetchNew = (code, daysAgo) => {
+            return fetch(code, daysAgo).then(txns => {
+                console.log('fetchNew txns qty:', txns.length);
+                return theChart().filterSeen(code, txns);
+            });
+        };
+            
         return Object.freeze({
             init: function(arg0 /*, etc*/) {
                 const etc = Array.prototype.slice.call(arguments, 0);
@@ -81,14 +102,15 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                 chart = makeChart(mem.opts);
                 mem.remotes = {};
             },
-            acctBalance: (name, ymd) => chart.acctBalance(name, ymd),
-            getLedger: (name, ymd) => chart.getLedger(name, ymd),
+            acctBalance: (name, ymd) => theChart().acctBalance(name, ymd),
+            getLedger: (name, ymd) => theChart().getLedger(name, ymd),
             setRemote: (code, remote) => {
                 mem.remotes[code] = remote;
             },
-            fetch: (code, daysAgo) => mem.remotes[code].fetch(daysAgo),
+            fetch: fetch,
+            fetchNew: fetchNew,
             destroy: function() {
-                chart.destroy();
+                theChart().destroy();
                 context.destroy();
             }
         });
@@ -104,10 +126,6 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
     require('child_process').spawn,
     require('mysql'),
     require('banking'));
-
-function ofxDateFmt(d) {
-    return d.toISOString().substring(0, 20).replace(/[^0-9]/g, '');
-}
 
 function daysBefore(n, d) {
     var msPerDay = 24 * 60 * 60 * 1000;
