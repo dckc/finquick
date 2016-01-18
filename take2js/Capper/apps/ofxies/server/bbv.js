@@ -26,7 +26,8 @@ function integrationTestMain(argv, stdout, access) {
         }),
         creds);
     acctHistoryRd.login()
-        .then(() => console.log('logged in!'))
+        .then((session) => session.getHistory())
+        .then((historyResponse) => console.log('history?', historyResponse))
         .done();
 }
 
@@ -37,14 +38,18 @@ function daysBefore(n, d) {
 
 /*::
 type HistoryRd = {
-  login: () => Promise<null>;
-  end: () => Promise<null>;
+  login(): Promise<Session>;
+  end(): Promise<null>;
+}
+
+type Session = {
+  getHistory(): Promise<{ status: number, responseText: string}>
 }
 
 type Creds = {
-  username: () => Promise<string>;
-  password: () => Promise<string>;
-  challenge: (question: string) => Promise<string>;
+  username(): Promise<string>;
+  password(): Promise<string>;
+  challenge(question?: string): Promise<string>;
 }
 
 */
@@ -60,7 +65,7 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
             .type('.online-banking input[name="username"]',
                   yield creds.username())
             .click('.online-banking input[type="submit"]')
-            .wait(1 * 1000) // wait for page load
+            .wait(5 * 1000) // wait for page load
             .wait('body');
 
         if (yield userAgent.exists('body#PassmarkChallenge')) {
@@ -80,13 +85,55 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
                 .wait('body');
         }
 
-        return yield userAgent
+        yield userAgent
             .wait('#PassmarkLogin')
             .type('#login_form input[name="login_form:password"]',
                   yield creds.password())
             .click('#login_form input[type="submit"]')
             .wait(3 * 1000)
             .wait('div#welcome');
+
+        function getHistory() {
+            console.log('getHistory()...');
+
+            const navExportHistory = 'div#bottom_nav ul li:nth-child(3) a';
+            const ofxFormat = 'tr:nth-child(4) ul li:nth-child(2)';
+            return userAgent
+                .click(navExportHistory)
+                .wait(3 * 1000)
+                // pick account?
+                // .type('input[name="export_history:startDate"]', startDate)
+                // .type('input[name="export_history:endDate"]', endDate)
+                // OFX format
+
+                .click('form#export_history_form ' + ofxFormat)
+                .click('form#export_history_form input[type="submit"]')
+                .wait(3 * 1000)
+                .wait('div#main')
+                .evaluate(
+// ack: azurelogic commented on Feb 17, 2015
+// Cannot download a file #151
+// https://github.com/segmentio/nightmare/issues/151#issuecomment-74787987
+                function (name) {
+                    var formId = name + '_form';
+                    var form = document.querySelector('form#' + formId);
+                    document.forms[formId][formId + ':_idcl'].value = name + ':submit_button';
+                    var fd = new FormData(form);
+                    var xhr = new XMLHttpRequest();
+                    var synchronous = false;
+                    xhr.open('POST', form.getAttribute('action'), synchronous);
+                    xhr.overrideMimeType('text/ofx');
+                    xhr.send(fd);
+                    return {
+                        status: xhr.status,
+                        responseText: xhr.responseText
+                    };
+                }, 'export_history_instructions');
+        }
+
+        return Object.freeze({
+            getHistory: getHistory
+        });
     });
 
     return Object.freeze({
