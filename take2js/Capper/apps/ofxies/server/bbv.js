@@ -3,8 +3,8 @@
 */
 
 'use strict';
-var Q    = require('q');
-var freedesktop = require('./secret-tool');
+const Q    = require('q');
+const docopt = require('docopt').docopt;
 
 function integrationTestMain(argv, stdout, access) {
     'use strict';
