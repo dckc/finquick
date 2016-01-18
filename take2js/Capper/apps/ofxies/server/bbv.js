@@ -143,8 +143,8 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
 }
 
 
-if (process.env.TESTING) {
-    integrationTestMain(
+if (require.main === module) {
+    main(
         process.argv,
         process.stdout,
         { clock: () => new Date(),
