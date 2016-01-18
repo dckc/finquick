@@ -6,18 +6,42 @@
 const Q    = require('q');
 const docopt = require('docopt').docopt;
 
-function integrationTestMain(argv, stdout, access) {
-    'use strict';
-    const keyChain = freedesktop.makeSecretTool(access.spawn);
-    const username = argv[2];
-    const code = argv[3];
-    const realm = argv[4];
+const freedesktop = require('./secret-tool');
 
+const usage = `
+Usage:
+  bbv.js history --login=ID --code=N --output=FILE [-r URL]
+  bbv.js -h | --help
+
+Options:
+ -l ID --login=ID       BlueWave Login ID (account number)
+ -c N --code=N          Account code for challenge questions (see below)
+ -r URL --realm=URL     Realm of Chrome password entry in freedesktop
+                        secret store (aka gnome keychain)
+                        [default: https://pib.secure-banking.com/]
+ -o FILE --output=FILE  where to save OFX data
+ -h --help              show usage
+
+We look up the login password using the 'signon_realm' attribute,
+following Chrome conventions.
+
+For challenge questions, we use 'code' and 'question' as in:
+
+$ ssh-askpass | secret-tool store --label 'Challenge Question' \\
+    url https://www.bankbv.com/ code 1020 \\
+    question "What is your mother's maiden name?"
+`;
+
+function main(argv, access) {
+    'use strict';
+    const cli = docopt(usage, { argv: argv.slice(2) });
+
+    const keyChain = freedesktop.makeSecretTool(access.spawn);
     const creds = {
-        username: () => Q(username),
-        password: () => keyChain.lookup({signon_realm: realm}),
+        username: () => Q(cli['--login']),
+        password: () => keyChain.lookup({signon_realm: cli['--realm']}),
         challenge: (question) => keyChain.lookup(
-            {code: code, question: question})
+            {code: cli['--code'], question: question})
     };
 
     const acctHistoryRd = makeHistoryRd(
@@ -26,8 +50,9 @@ function integrationTestMain(argv, stdout, access) {
         }),
         creds);
     acctHistoryRd.login()
-        .then((session) => session.getHistory())
-        .then((historyResponse) => console.log('history?', historyResponse))
+        .then(session => session.getHistory())
+        .then(ofx => Q.nfcall(access.writeFile, cli['--output'], ofx))
+        .then(() => acctHistoryRd.end())
         .done();
 }
 
@@ -43,7 +68,7 @@ type HistoryRd = {
 }
 
 type Session = {
-  getHistory(): Promise<{ status: number, responseText: string}>
+  getHistory(): Promise<string>
 }
 
 type Creds = {
@@ -93,20 +118,20 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
             .wait(3 * 1000)
             .wait('div#welcome');
 
-        function getHistory() {
+        const getHistory = Q.async(function*() {
             console.log('getHistory()...');
 
             const navExportHistory = 'div#bottom_nav ul li:nth-child(3) a';
-            const ofxFormat = 'tr:nth-child(4) ul li:nth-child(2)';
-            return userAgent
+            const ofxFormat = 'tr:nth-child(4) ul li:nth-child(2) label';
+            const response = yield userAgent
                 .click(navExportHistory)
-                .wait(3 * 1000)
+                .wait(2 * 1000)
                 // pick account?
                 // .type('input[name="export_history:startDate"]', startDate)
                 // .type('input[name="export_history:endDate"]', endDate)
-                // OFX format
-
+                .wait('form#export_history_form ' + ofxFormat)
                 .click('form#export_history_form ' + ofxFormat)
+                .wait(0.5 * 1000)
                 .click('form#export_history_form input[type="submit"]')
                 .wait(3 * 1000)
                 .wait('div#main')
@@ -126,10 +151,17 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
                     xhr.send(fd);
                     return {
                         status: xhr.status,
+                        statusText: xhr.statusText,
                         responseText: xhr.responseText
                     };
                 }, 'export_history_instructions');
-        }
+            console.log(response.status, response.statusText);
+            if (response.status === 200) {
+                return response.responseText;
+            } else {
+                throw new Error(response.statusText);
+            }
+        });
 
         return Object.freeze({
             getHistory: getHistory
@@ -138,7 +170,9 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
 
     return Object.freeze({
         login: login,
-        end: () => userAgent.end()
+        end: Q.async(function*() {
+            yield userAgent.end();
+        })
     });
 }
 
@@ -146,9 +180,9 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
 if (require.main === module) {
     main(
         process.argv,
-        process.stdout,
         { clock: () => new Date(),
           spawn: require('child_process').spawn,
+          writeFile: require('fs').writeFile,
           nightmare: require('nightmare')
         });
 }
