@@ -1,3 +1,7 @@
+/**
+@flow
+*/
+
 'use strict';
 
 const Q = require('q');
@@ -49,7 +53,7 @@ function makeSecretTool(spawn) {
 }
 
 exports.args2props = args2props;
-function args2props(arg1, args) {
+function args2props(arg1 /*: string*/, args /*: Array<string>*/) /*:Object*/{
     if (typeof arg1 === 'string') {
         const properties = {};
         for (let i=0; i < args.length; i += 1) {
