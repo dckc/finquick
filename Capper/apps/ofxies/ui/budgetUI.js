@@ -45,9 +45,6 @@ export function ui(budget, $) {
             accounts => accounts.map(fetch));
 
     function fetch (acct) {
-	var C = CapperLayout;
-	var budget = CapperConnect.home;
-
 	budget.post('fetch', acct.code, acct.latest).then(txns => {
             const rows = txns.map(
 		trn =>
