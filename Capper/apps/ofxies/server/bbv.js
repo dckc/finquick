@@ -89,6 +89,8 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
             .wait('.online-banking form')
             .type('.online-banking input[name="username"]',
                   yield creds.username())
+            .type('.online-banking input[name="password"]',
+                  yield creds.password())
             .click('.online-banking input[type="submit"]')
             .wait(5 * 1000) // wait for page load
             .wait('body');
@@ -109,14 +111,6 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
                 .wait(0.5 * 1000)
                 .wait('body');
         }
-
-        yield userAgent
-            .wait('#PassmarkLogin')
-            .type('#login_form input[name="login_form:password"]',
-                  yield creds.password())
-            .click('#login_form input[type="submit"]')
-            .wait(3 * 1000)
-            .wait('div#welcome');
 
         const getHistory = Q.async(function*() {
             console.log('getHistory()...');
