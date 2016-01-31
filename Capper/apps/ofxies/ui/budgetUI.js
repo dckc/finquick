@@ -29,16 +29,26 @@ export function ui(budget, $) {
 	    $('#accounts').html(rows);
 	});
 
-    $('#fetchOFX').asEventStream('click')
-	.map(() => $('#accounts input:checkbox:checked')
-	     .map((i, e) => $(e).val()) )
-	.onValue(codes => $.makeArray(codes).forEach(fetch))
+    const selectedCodes =  $('#fetchOFX').asEventStream('click')
+        .map(event => $.makeArray(
+            $('#accounts input:checkbox:checked')
+	        .map((i, box) => $(box).val())));
 
-    function fetch (balCode) {
+    Bacon.combineWith(
+        (accounts, codes) =>
+            accounts.filter(acct => codes.indexOf(acct.code) >= 0),
+        onlineStatus,
+        selectedCodes)
+        .onValue(
+            // should be foreach rather than map,
+            // but chrome doesn't seem to grok
+            accounts => accounts.map(fetch));
+
+    function fetch (acct) {
 	var C = CapperLayout;
 	var budget = CapperConnect.home;
 
-	budget.post('fetch', balCode).then(txns => {
+	budget.post('fetch', acct.code, acct.latest).then(txns => {
             const rows = txns.map(
 		trn =>
 		    elt('tr', [

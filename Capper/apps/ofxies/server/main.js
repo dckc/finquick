@@ -17,26 +17,46 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
     function makeOFX(context) {
         const mem = context.state;
 
-        const fetch = function (daysAgo) {
+        const fetch = function (startMS /*: ?number */, maxAge /*: ?number */) {
+            const hr = 60 * 60 * 1000;
+            var now = clock();
+            maxAge = maxAge || (36 * hr);
+            const start = startMS ? daysBefore(3, new Date(startMS))
+                : daysBefore(45, now);
+            if (mem.timestamp && new Date(mem.timestamp + maxAge) > now) {
+                return Q(mem.stmttrn);
+            }
+
             return keyStore.lookup(mem.keyAttrs).then(secret => {
                 const parts = secret.trim().split(' ');
                 return { accId: parts[0],
                          user: parts[1],
                          password: parts[2] };
             }).then(creds => {
-                var now = clock(); // TODO: return a promise from clock()?
                 var banking = new Banking(Object.assign({}, creds, mem.info));
 
                 console.log('getStatement:', mem.info.fidOrg, mem.info.url);
                 return Q.ninvoke(
                     banking, 'getStatement',
                     {
-                        start: OFX.fmtDate(daysBefore(daysAgo || 60, now)),
+                        start: OFX.fmtDate(start),
                         end: OFX.fmtDate(now)
-                    }).then(reply =>
-                            reply.body.OFX
-                            .CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0].CCSTMTRS[0]
-                            .BANKTRANLIST[0].STMTTRN);
+                    })
+                    .then(reply => {
+                        const trnrs = reply.body.OFX
+                            .CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0];
+                        const status = trnrs.STATUS[0];
+                        if (status.CODE[0] != '0') {
+                            console.log('fetch error:', status);
+                            throw new Error(status);
+                        }
+                        const stmttrn = trnrs.CCSTMTRS[0]
+                            .BANKTRANLIST[0].STMTTRN;
+                        mem.stmttrn = stmttrn;
+                        mem.xml = reply.xml;
+                        mem.timestamp = now.valueOf();
+                        return stmttrn;
+                    });
             });
         };
 
@@ -87,7 +107,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             return budget.makeChartOfAccounts(db);
         }
 
-        const fetch = (code, daysAgo) => mem.remotes[code].fetch(daysAgo);
+        const fetch = (code, start) => mem.remotes[code].fetch(start);
         const fetchNew = (code, daysAgo) => {
             return fetch(code, daysAgo).then(txns => {
                 console.log('fetchNew txns qty:', txns.length);
@@ -109,7 +129,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             },
             fetch: fetch,
             fetchNew: fetchNew,
-	    onlineStatus: () => theChart().onlineStatus(),
+            onlineStatus: () => theChart().onlineStatus(),
             destroy: function() {
                 theChart().destroy();
                 context.destroy();
@@ -128,7 +148,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
     require('mysql'),
     require('banking'));
 
-function daysBefore(n, d) {
+function daysBefore(n /*: number*/, d /*: Date*/) /*: Date*/ {
     var msPerDay = 24 * 60 * 60 * 1000;
     return new Date(d.getTime() - n * msPerDay);
 }
