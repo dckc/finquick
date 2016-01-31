@@ -6,7 +6,7 @@ import _ from 'underscore';
 export function ui(budget, $) {
     // TODO: triggers
     const onlineStatus = Bacon.once(null)
-	.merge(Bacon.interval(5 * 1000, null))
+	.merge(Bacon.interval(60 * 1000, null))
 	.flatMap(() => Bacon.fromPromise(budget.post('onlineStatus')))
 	.skipDuplicates(_.isEqual);
 
