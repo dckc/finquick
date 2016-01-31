@@ -26,21 +26,19 @@
 
     <div class='row'>
     <div class="col-xs-8">
-    <form class="form-horizontal">
       <div class="form-group">
     <table class='table table-bordered table-condensed table-hover'>
       <thead>
 	<tr><th></th><th>Name</th><th>Balance</th><th>Latest</th></tr>
       </thead>
       <tbody id='accounts'>
-	<!-- filled in by budget.js -->
+	<tr><td>stand by...</td></tr>
       </tbody>
     </table>
       </div>
 	<div class="col-sm-offset-2 col-sm-10">
-	  <button onClick="fetchX()" class="btn">Fetch OFX</button>
+	  <button id='fetchOFX' class="btn">Fetch OFX</button>
 	</div>
-    </form>
     </div>
     </div>
     <p>@@@@@@@@@@</p>
@@ -83,6 +81,7 @@
 	</div>
       </div>
       <div id='txns'>
+	TXNS...
       </div>
     </form>
 
