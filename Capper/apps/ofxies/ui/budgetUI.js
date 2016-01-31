@@ -14,12 +14,14 @@ export function ui(budget, $) {
 	accounts => {
 	    const rows = accounts
 		.map(acct => [
-		    elt('input', '',
-			{type: 'checkbox',
-			 'class': 'form-control',
-			 name: 'code',
-			 value: acct.code}),
-		    elt('td', acct.name),
+		    elt('td', [
+			elt('label', [
+			    elt('input', '',
+				{type: 'checkbox',
+				 name: 'code',
+				 value: acct.code}),
+			    acct.name])],
+		       {'class': 'form-group'}),
 		    elt('td', bal.format(acct.balance),
 			{'class': 'text-right'}),
 		    elt('td', fmtDate(new Date(acct.latest)))])
