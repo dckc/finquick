@@ -189,8 +189,7 @@ function makeChartOfAccounts(db /*:DB*/)
               join splits s on s.account_guid = a.guid
               join slots fid on fid.obj_guid = s.guid and fid.name = 'online_id'
               join transactions tx on s.tx_guid = tx.guid
-              -- exclude one goofy transaction
-              where a.account_type not in ('EXPENSE')
+              where a.hidden = 0
               group by a.guid, a.name
             ) ofx join (
               select a.guid, sum(value_num / value_denom) balance
