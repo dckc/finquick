@@ -259,12 +259,10 @@ exports.OFX = OFX;
 exports.CLI = CLI;
 exports.main = main;
 
-if (process.env.TESTING) {
-    (function () {
-        const fs = require('fs');
-        const clock = () => new Date();
-        const cli = CLI(process.argv,
-                        fs.createReadStream, fs.createWriteStream);
-        main(cli, clock);
-    })();
+if (require.main === module) {
+    const fs = require('fs');
+    const clock = () => new Date();
+    const cli = CLI(process.argv,
+                    fs.createReadStream, fs.createWriteStream);
+    main(cli, clock);
 }

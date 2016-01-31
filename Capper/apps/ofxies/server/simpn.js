@@ -1,7 +1,7 @@
+'use strict';
 var Q    = require('q');
 
-function integrationTestMain(stdout, env, Nightmare) {
-    'use strict';
+function main(stdout, env, Nightmare) {
 
     const credsP = Q({
         username: env.SIMPLE_USERNAME,
@@ -67,8 +67,8 @@ function makeSimpleRd(Nightmare, credsP) {
 }
 
 
-if (process.env.TESTING) {
-    integrationTestMain(
+if (require.main === module) {
+    main(
         process.stdout,
         process.env,
         require('nightmare'));

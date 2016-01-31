@@ -9,7 +9,7 @@ const Q = require('q');
 const makeSecretTool = require('./secret-tool').makeSecretTool;
 const OFX = require('./asOFX').OFX;
 
-function integrationTestMain(
+function main(
     argv /*: Array<string>*/,
     env /*:any*/,
     stdout /*: stream$Writable | tty$WriteStream */,
@@ -262,8 +262,8 @@ function makeChartOfAccounts(db /*:DB*/)
     });
 }
 
-if (process.env.TESTING) {
-    integrationTestMain(
+if (require.main === module) {
+    main(
         process.argv,
         process.env,
         process.stdout,
