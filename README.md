@@ -117,3 +117,5 @@ web browser on traditional platforms, but not on ocap platforms.
 
   - Get details on Discover transactions: which card? address?
   - account auto-complete with bacon FRP
+  - subscribe to account balance changes using
+    mysql-events and websockets
