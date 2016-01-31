@@ -179,6 +179,29 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
+    function onlineStatus() {
+	return db.query(`
+            select ofx.*, bal.balance
+            from (
+              select a.guid, unix_timestamp(max(tx.post_date))*1000 latest,
+                     a.code, a.name, a.account_type
+              from accounts a
+              join splits s on s.account_guid = a.guid
+              join slots fid on fid.obj_guid = s.guid and fid.name = 'online_id'
+              join transactions tx on s.tx_guid = tx.guid
+              -- exclude one goofy transaction
+              where a.account_type not in ('EXPENSE')
+              group by a.guid, a.name
+            ) ofx join (
+              select a.guid, sum(value_num / value_denom) balance
+              from splits s
+              join accounts a on a.guid = s.account_guid
+              join transactions tx on tx.guid = s.tx_guid
+              group by a.guid
+            ) bal on bal.guid = ofx.guid
+            order by ofx.latest`);
+    }
+
     function acctBalance(acctName, since) {
         const sinceWhen = parseDate(since);
         return subAccounts(acctByName(acctName)).then(
@@ -235,6 +258,7 @@ function makeChartOfAccounts(db /*:DB*/)
         acctBalance: acctBalance,
         getLedger: getLedger,
         filterSeen: filterSeen,
+        onlineStatus: onlineStatus,
         destroy: () => db.end()
     });
 }

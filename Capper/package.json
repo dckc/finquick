@@ -4,7 +4,8 @@
   "description": "A web application server with built-in object capability security built on Node.js/Express",
   "main": "server.js",
   "directories": {
-    "test": "test"
+    "test": "test",
+    "packages": "jspm_packages"
   },
   "scripts": {
     "test": "mocha --harmony",
@@ -32,6 +33,23 @@
     "xml": "^1.0.0"
   },
   "devDependencies": {
+    "jspm": "^0.16.25",
     "mocha": "~1.19.0"
+  },
+  "jspm": {
+    "directories": {
+      "test": "test"
+    },
+    "dependencies": {
+      "baconjs": "npm:baconjs@^0.7.83",
+      "bootstrap": "github:twbs/bootstrap@^3.3.6",
+      "jquery": "npm:jquery@^2.2.0",
+      "underscore": "npm:underscore@^1.8.3"
+    },
+    "devDependencies": {
+      "babel": "npm:babel-core@^5.8.24",
+      "babel-runtime": "npm:babel-runtime@^5.8.24",
+      "core-js": "npm:core-js@^1.1.4"
+    }
   }
 }

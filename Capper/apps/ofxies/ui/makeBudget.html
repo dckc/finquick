@@ -7,16 +7,43 @@
     <script type="text/javascript" src="/views/libs/q.js"></script>
     <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
     <script type="text/javascript" src="/views/libs/capperUtils.js"></script>
-    <script type="text/javascript" src="/apps/ofxies/ui/ofxies.js"></script>
 
-<!-- http://getbootstrap.com/getting-started/ -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+    <!-- http://getbootstrap.com/getting-started/ -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
 
+    <script src="/views/jspm_packages/system.js"></script>
+    <script src="/views/config.js"></script>
+    <script>
+      System.import('/apps/ofxies/ui/budgetUI.js').then(function(budget) {
+        budget.ui(CapperConnect.home, $);
+      });
+    </script>
   </head>
   <body class="container-fluid">
     <h1>Budget</h1>
+
+    <div class='row'>
+    <div class="col-xs-8">
+    <form class="form-horizontal">
+      <div class="form-group">
+    <table class='table table-bordered table-condensed table-hover'>
+      <thead>
+	<tr><th></th><th>Name</th><th>Balance</th><th>Latest</th></tr>
+      </thead>
+      <tbody id='accounts'>
+	<!-- filled in by budget.js -->
+      </tbody>
+    </table>
+      </div>
+	<div class="col-sm-offset-2 col-sm-10">
+	  <button onClick="fetchX()" class="btn">Fetch OFX</button>
+	</div>
+    </form>
+    </div>
+    </div>
+    <p>@@@@@@@@@@</p>
 
     <form class="form-horizontal">
       <div class="form-group">

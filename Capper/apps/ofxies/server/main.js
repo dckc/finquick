@@ -109,6 +109,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             },
             fetch: fetch,
             fetchNew: fetchNew,
+	    onlineStatus: () => theChart().onlineStatus(),
             destroy: function() {
                 theChart().destroy();
                 context.destroy();
