@@ -111,3 +111,9 @@ computation there.
 
 A central tension is: there are tools and libraries for imitating a
 web browser on traditional platforms, but not on ocap platforms.
+
+
+## TODO
+
+  - Get details on Discover transactions: which card? address?
+  - account auto-complete with bacon FRP
