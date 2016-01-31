@@ -156,7 +156,7 @@ const OFX = function() {
         },
         amex: {
             fid: 3101
-            , fidOrg: 'American Express Card'
+            , fidOrg: 'AMEX'
             , url: 'https://online.americanexpress.com/myca/ofxdl/desktop/desktopDownload.do?request_type=nl_ofxdownload'
             , bankId: null /* not a bank */
             , accType: 'CREDITCARD'
