@@ -24,8 +24,7 @@ export function ui(budget, $) {
 				 value: acct.code}),
 			    acct.name])],
 		       {'class': 'form-group'}),
-		    elt('td', bal.format(acct.balance),
-			{'class': 'text-right'})])
+		    moneyElt('td', acct.balance)])
 		.map(cells => elt('tr', cells));
 	    $('#accounts').html(rows);
 	});
@@ -75,6 +74,14 @@ function elt(tag, children, attrs) {
 	e.attr(a, attrs[a]);
     }
     return e;
+}
+
+function moneyElt(tag, amt) {
+    const attrs = {'class': 'text-right'}
+    if (amt < 0) {
+        attrs['style'] = 'color: red';
+    }
+    return elt(tag, bal.format(amt), attrs);
 }
 
 function fmtDate(d) {
