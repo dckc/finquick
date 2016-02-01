@@ -10,22 +10,77 @@ var Q = require('q');
 var freedesktop = require('./secret-tool');
 var budget = require('./budget');
 var OFX = require('./asOFX').OFX;
+const makeHistoryRd = require('./bbv').makeHistoryRd;
+const parseOFX = require('banking').parse;
 
-module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
+
+module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
     const keyStore = freedesktop.makeSecretTool(spawn);
+
+    const cache = mkCache(clock);
+
+    function getStatement(start, now, creds, info) {
+        const banking = new Banking(Object.assign({}, creds, info));
+
+        console.log('getStatement:', info.fidOrg, info.url);
+        return Q.ninvoke(
+            banking, 'getStatement',
+            {
+                start: OFX.fmtDate(start),
+                end: OFX.fmtDate(now)
+            });
+    }
+
+    const makeDB = (optsP) => budget.makeDB(mysql, optsP);
+    const debug = true;
+    const makeBankRd = (creds) =>
+        makeHistoryRd(nightmare({show: debug}), creds);
+
+    return Object.freeze({
+        makeBudget: makeBudgetMaker(keyStore, makeDB),
+        makeBankBV: makeBankBVmaker(keyStore, makeBankRd, cache),
+        makeOFX: makeOFXmaker(keyStore, getStatement, cache)
+    });
+})(
+    // pass in ambient stuff here
+    () => new Date(),
+    require('child_process').spawn,
+    // TODO: we only need mysql.createConnection
+    require('mysql'),
+    require('banking'),
+    require('nightmare'));
+
+
+const hr = 60 * 60 * 1000;
+
+function mkCache(clock) {
+    return cache;
+
+    function cache(f, mem, field, maxAgeDefault) {
+        return function (x, maxAge /*: ?number */) {
+            var now = clock();
+            maxAge = maxAge || maxAgeDefault;
+            if (mem.timestamp && new Date(mem.timestamp + maxAge) > now) {
+                return Q(mem[field]);
+            }
+            return f(x, now).then(result => {
+                mem[field] = result;
+                mem.timestamp = now.valueOf();
+                return result;
+            });
+        };
+    }
+}
+
+function makeOFXmaker(keyStore, getStatement, cache) {
+    return makeOFX;
 
     function makeOFX(context) {
         const mem = context.state;
 
-        const fetch = function (startMS /*: ?number */, maxAge /*: ?number */) {
-            const hr = 60 * 60 * 1000;
-            var now = clock();
-            maxAge = maxAge || (36 * hr);
+        const fetch = function (startMS /*: ?number */, now /*: Date*/) {
             const start = startMS ? daysBefore(3, new Date(startMS))
                 : daysBefore(45, now);
-            if (mem.timestamp && new Date(mem.timestamp + maxAge) > now) {
-                return Q(mem.stmttrn);
-            }
 
             return keyStore.lookup(mem.keyAttrs).then(secret => {
                 const parts = secret.trim().split(' ');
@@ -33,15 +88,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                          user: parts[1],
                          password: parts[2] };
             }).then(creds => {
-                var banking = new Banking(Object.assign({}, creds, mem.info));
-
-                console.log('getStatement:', mem.info.fidOrg, mem.info.url);
-                return Q.ninvoke(
-                    banking, 'getStatement',
-                    {
-                        start: OFX.fmtDate(start),
-                        end: OFX.fmtDate(now)
-                    })
+                return getStatement(start, now, creds, mem.info)
                     .then(reply => {
                         const trnrs = reply.body.OFX
                             .CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0];
@@ -50,12 +97,9 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                             console.log('fetch error:', status);
                             throw new Error(status);
                         }
-                        const stmttrn = trnrs.CCSTMTRS[0]
-                            .BANKTRANLIST[0].STMTTRN;
-                        mem.stmttrn = stmttrn;
                         mem.xml = reply.xml;
-                        mem.timestamp = now.valueOf();
-                        return stmttrn;
+                        return trnrs.CCSTMTRS[0]
+                            .BANKTRANLIST[0].STMTTRN;
                     });
             });
         };
@@ -76,9 +120,73 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             },
             institution: () => mem.info,
             name: () => mem.keyAttrs.object,
-            fetch: fetch
+            fetch: cache(fetch, mem, 'stmttrn', 36 * hr)
         });
     }
+}
+
+
+function makeBankBVmaker(keyStore, makeBankRd, cache) {
+    return makeBankBV;
+
+    function makeBankBV(context) {
+        const mem = context.state;
+        var sessionP = null;
+
+        const creds = {
+            username: () => Q(mem.login),
+            password: () => keyStore.lookup({signon_realm: mem.realm}),
+            challenge: (question) => keyStore.lookup(
+                {code: mem.code, question: question})
+        };
+
+        function stmttrn(res) {
+            console.log('@@stmtrn(): ', res);
+            const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
+            const status = trnrs.STATUS[0];
+            if (status.CODE[0] != '0') {
+                console.log('bank error:', status);
+                throw new Error(status);
+            }
+            return trnrs.STMTRS[0]
+                .BANKTRANLIST[0].STMTTRN;
+        }
+        
+        function fetch(startMS /*: ?number */, now /*: Date*/) {
+            var ofx_markup;
+
+            if (!sessionP) {
+                sessionP = makeBankRd(creds).login();
+            }
+
+            return sessionP
+                .then(session => session.getHistory(new Date(startMS), now))
+                .then(markup => {
+                    ofx_markup = markup;
+                    return Q.promise(
+                        (resolve) => parseOFX(markup, resolve));
+                })
+                .then(
+                    ofx => {
+                        const txns = stmttrn(ofx);
+                        mem.xml = ofx_markup;
+                        return txns;
+                    });
+        }
+        
+        return Object.freeze({
+            init: (login, code, realm) => {
+                mem.login = login;
+                mem.realm = realm || 'https://pib.secure-banking.com/';
+                mem.code = code;
+            },
+            fetch: cache(fetch, mem, 'stmttrn', 36 * hr)
+        });
+    }
+}
+
+function makeBudgetMaker(keyStore, makeDB) {
+    return makeBudget;
 
     function makeBudget(context) {
         var mem = context.state;
@@ -103,7 +211,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
                 database: opts.database
             }));
 
-            const db = budget.makeDB(mysql, dbOptsP);
+            const db = makeDB(dbOptsP);
             return budget.makeChartOfAccounts(db);
         }
 
@@ -136,17 +244,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking) {
             }
         });
     }
-
-    return Object.freeze({
-        makeBudget: makeBudget,
-        makeOFX: makeOFX
-    });
-})(
-    // pass in ambient stuff here
-    () => new Date(),
-    require('child_process').spawn,
-    require('mysql'),
-    require('banking'));
+}
 
 function daysBefore(n /*: number*/, d /*: Date*/) /*: Date*/ {
     var msPerDay = 24 * 60 * 60 * 1000;

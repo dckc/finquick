@@ -35,6 +35,24 @@ Test OFX access from the command line:
 After a few seconds, your transactions going back 60 days should
 appear in node console log.
 
+### Create a capability to fetch OFX from BankBV
+
+We look up the login password using the `signon_realm` attribute,
+following Chrome conventions.
+
+For challenge questions, we use 'code' and 'question' as in:
+
+    $ ssh-askpass | secret-tool store --label 'Challenge Question' \\
+        url https://www.bankbv.com/ code 1234 \\
+        question "What is your mother's maiden name?"
+
+    $ bankbv=@`node server -make ofxies.makeBankBV login123 1234 | tail -1`
+
+**TODO**: Fix the hanging nightmare session.
+
+**TODO**: confine headless browser to its own capper app?
+
+
 ## GnuCash DB budget access
 
 Following GnuCash, we access the database password by `protocol`,

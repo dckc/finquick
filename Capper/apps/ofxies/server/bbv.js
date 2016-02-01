@@ -112,8 +112,8 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
                 .wait('body');
         }
 
-        const getHistory = Q.async(function*() {
-            console.log('getHistory()...');
+        const getHistory = Q.async(function*(startDate, endDate) {
+            console.log('getHistory() TODO:', startDate, endDate);
 
             const navExportHistory = 'div#bottom_nav ul li:nth-child(3) a';
             const ofxFormat = 'tr:nth-child(4) ul li:nth-child(2) label';
