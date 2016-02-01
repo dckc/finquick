@@ -45,17 +45,16 @@ export function ui(budget, $) {
             accounts => accounts.map(fetch));
 
     function fetch (acct) {
-	budget.post('fetch', acct.code, acct.latest).then(txns => {
-            const rows = txns.map(
-		trn =>
+	budget.post('fetchNew', acct.code, acct.latest).then(splits => {
+            const rows = splits.map(
+		split =>
 		    elt('tr', [
-			elt('td', trn.DTPOSTED[0]),
-			elt('td', trn.TRNAMT[0]),
-			elt('td', trn.TRNTYPE[0]),
-			elt('td', trn.NAME[0])],
-			{id: trn.FITID[0],
-			 title: trn.FITID[0]}) );
-            $('#txns').html(elt('table', rows));
+			elt('td', split.post_date),
+			moneyElt('td', split.amount),
+			elt('td', split.description),
+			elt('td', split.memo)],
+			{title: split.fid}) );
+            $('#splits').html(rows);
 	}, function(oops) {
             stderr(oops);
 	});

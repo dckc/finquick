@@ -216,8 +216,8 @@ function makeBudgetMaker(keyStore, makeDB) {
         }
 
         const fetch = (code, start) => mem.remotes[code].fetch(start);
-        const fetchNew = (code, daysAgo) => {
-            return fetch(code, daysAgo).then(txns => {
+        const fetchNew = (code, start) => {
+            return fetch(code, start).then(txns => {
                 console.log('fetchNew txns qty:', txns.length);
                 return theChart().filterSeen(code, txns);
             });
