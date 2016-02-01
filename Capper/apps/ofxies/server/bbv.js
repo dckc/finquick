@@ -108,7 +108,7 @@ function makeHistoryRd(userAgent, creds /*: Creds*/) /*: HistoryRd */ {
 
             yield userAgent.type('input[name="login_form:answer"]', a)
                 .click('.submission input[type="submit"]')
-                .wait(0.5 * 1000)
+                .wait(3 * 1000)
                 .wait('body');
         }
 
