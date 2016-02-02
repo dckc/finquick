@@ -134,6 +134,7 @@ function makeChartOfAccounts(db /*:DB*/)
           join accounts a
             on a.guid = s.account_guid
           where fitid.name = 'online_id' and a.code = ?
+          -- TODO: and tx.post_date > min(DTPOSTED) - 7 days
         ) gc on gc.fitid = ofx.fitid
         where gc.fitid is null
           and ofx.trnamt != 0
@@ -198,7 +199,7 @@ function makeChartOfAccounts(db /*:DB*/)
               join transactions tx on tx.guid = s.tx_guid
               group by a.guid
             ) bal on bal.guid = ofx.guid
-            order by ofx.latest`);
+            order by ofx.code`);
     }
 
     function acctBalance(acctName, since) {
