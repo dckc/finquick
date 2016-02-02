@@ -57,24 +57,23 @@ const Simple = function() {
     const transaction = (tx /*: SimpleTrx*/) => {
         const recorded = new Date(tx.times.when_recorded);
         const dtposted = nopunct(recorded.toISOString());
-        console.log(dtposted, ' from ', recorded, ' from ', tx.times.when_recorded);
+        // console.log(dtposted, ' from ', recorded, ' from ', tx.times.when_recorded);
         const dtuser = nopunct(tx.times.when_recorded_local);
-        console.log(dtuser, ' from ', tx.times.when_recorded_local);
+        // console.log(dtuser, ' from ', tx.times.when_recorded_local);
 
         const trnamt = ((tx.bookkeeping_type == 'credit' ? 1 : -1) *
                         Simple.toUSD(tx.amounts.amount));
-        return {STMTTRN: [
-            {TRNTYPE: tx.bookkeeping_type.toUpperCase()},
-            {DTPOSTED: dtposted},
-            {DTUSER: dtuser},
-            {TRNAMT: trnamt},
-            {FITID: tx.uuid},
+        return {
+            TRNTYPE: [tx.bookkeeping_type.toUpperCase()],
+            DTPOSTED: [dtposted],
+            DTUSER: [dtuser],
+            TRNAMT: [trnamt],
+            FITID: [tx.uuid],
             //TODO? {CHECKNUM: check_no},
-            {NAME: tx.description || ''},
-            {MEMO: tx.memo || ''}
             //TODO: {REFNUM: refnum}
             //TODO? BANKACCTTO...
-        ]};
+            NAME: [tx.description || ''],
+            MEMO: [tx.memo || '']};
     };
 
 
@@ -95,27 +94,28 @@ const Simple = function() {
 
         return {BANKMSGSRSV1: [
             {STMTTRNRS: [
-                {TRNUID: '0'},
-                {STATUS: [
-                    {CODE: '0'},
-                    {SEVERITY: 'INFO'}]},
+                {TRNUID: '0',
+                 STATUS: [
+                    {CODE: '0',
+                     SEVERITY: 'INFO'}],
                 
-                {STMTRS: [
-                    {CURDEF: Simple.currency},
+                 STMTRS: [
+                    {CURDEF: Simple.currency,
                     // sometimes CCACCTFROM
-                    {BANKACCTFROM: [
+                     BANKACCTFROM: [
                         {BANKID: bank_id},
                         {ACCTID: account_id},
-                        {ACCTTYPE: Simple.account_type}]},
+                        {ACCTTYPE: Simple.account_type}],
                     
-                    {BANKTRANLIST: [
-                        {DTSTART: start_date},
-                        {DTEND: end_date}].concat(txs)},
+                     BANKTRANLIST: [
+                        {DTSTART: start_date,
+                         DTEND: end_date,
+                         STMTTRN: txs}],
                     
-                    {LEDGERBAL: [
-                        {BALAMT: end_balance},
-                        {DTASOF: end_date}]}
-                ]}]}]};
+                     LEDGERBAL: [
+                        {BALAMT: end_balance,
+                         DTASOF: end_date}]
+                     }]}]}]};
     };
 
     return Object.freeze({

@@ -3,37 +3,37 @@ var Q    = require('q');
 
 function main(stdout, env, Nightmare) {
 
-    const credsP = Q({
-        username: env.SIMPLE_USERNAME,
-        password: env.SIMPLE_PASSWORD
-    });
+    const creds = {
+        username: () => Q(env.SIMPLE_USERNAME),
+        password: () => Q(env.SIMPLE_PASSWORD)
+    };
 
-    const acctRd = makeSimpleRd(Nightmare, credsP);
+    const debug = true;
+    const userAgent = Nightmare({ show: debug });
+    const acctRd = makeSimpleRd(userAgent, creds);
     acctRd.transactions()
         .then((txns) => stdout.write(JSON.stringify(txns)))
-        .then(() => acctRd.end())
+        .then(() => userAgent.end())
         .done();
 }
 
 
-function makeSimpleRd(Nightmare, credsP) {
-    'use strict';
-    const userAgent = Nightmare({
-        show: true  // DEBUG
-    });
-
+function makeSimpleRd(userAgent, creds) {
     const transactions = Q.async(function *(){
         yield login();
 
         // note document below refers to the user agent's document
+        console.log('fetching simple.com transactions');
         return yield userAgent
             .evaluate(() => window.Butcher.models.Transactions);
     });
 
+    // Interrogating the page before we have visited it hangs.
     let visited = false;
 
     const login = Q.async(function*(){
         const nameSel = '.masthead-username';
+        // getName is evaluated in the browser; nameSel isn't in scope there.
         const getName =
             () => document.querySelector('.masthead-username').innerText;
 
@@ -42,27 +42,26 @@ function makeSimpleRd(Nightmare, credsP) {
             (yield userAgent.visible(nameSel));
 
         if (! viz) {
-            const creds = yield credsP;
-
+            console.log('logging in to simple.com');
             yield userAgent
                 .goto('https://www.simple.com/signin')
                 .wait(0.5 * 1000)
                 .wait('input#login_username')
-                .type('input#login_username', creds.username)
-                .type('input#login_password', creds.password)
+                .type('input#login_username', yield creds.username())
+                .type('input#login_password', yield creds.password())
                 .click('input#signin-btn')
                 .wait(0.5 * 1000)
                 .wait(nameSel);
             visited = true;
         }
         const name = yield userAgent.evaluate(getName);
+        console.log('logged in as: ', name);
         return name;
     });
 
     return Object.freeze({
         transactions: transactions,
         login: login,
-        end: () => userAgent.end()
     });
 }
 

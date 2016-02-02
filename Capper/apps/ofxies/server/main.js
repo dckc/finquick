@@ -10,7 +10,9 @@ var Q = require('q');
 var freedesktop = require('./secret-tool');
 var budget = require('./budget');
 var OFX = require('./asOFX').OFX;
+var Simple = require('./asOFX').Simple;
 const makeHistoryRd = require('./bbv').makeHistoryRd;
+const makeSimpleRd = require('./simpn').makeSimpleRd;
 const parseOFX = require('banking').parse;
 
 
@@ -33,12 +35,17 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
 
     const makeDB = (optsP) => budget.makeDB(mysql, optsP);
     const debug = true;
-    const makeBankRd = (creds) =>
+    const bbvAux = (creds) =>
         makeHistoryRd(nightmare({show: debug}), creds);
+    const simpleAux = (creds) =>
+        makeSimpleRd(nightmare({show: debug}), creds);
+    const sitePassword = realm =>
+        keyStore.lookup({signon_realm: realm});
 
     return Object.freeze({
         makeBudget: makeBudgetMaker(keyStore, makeDB),
-        makeBankBV: makeBankBVmaker(keyStore, makeBankRd, cache),
+        makeBankBV: makeBankBVmaker(keyStore, bbvAux, cache),
+        makeSimple: makeSimplemaker(sitePassword, simpleAux, cache),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
 })(
@@ -141,7 +148,6 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
         };
 
         function stmttrn(res) {
-            console.log('@@stmtrn(): ', res);
             const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
             const status = trnrs.STATUS[0];
             if (status.CODE[0] != '0') {
@@ -184,6 +190,48 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
         });
     }
 }
+
+
+function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
+    return makeSimple;
+
+    function makeSimple(context) {
+        const mem = context.state;
+        var simple = null;
+
+        const creds = {
+            username: () => Q(mem.username),
+            password: () => sitePassword(mem.realm)
+        };
+
+        function transactions(_x, _now /*: Date*/) {
+            if (!simple) {
+                simple = makeSimpleRd(creds);
+            }
+
+            return simple.transactions();
+        }
+        const transactions_ = cache(transactions, mem, 'transactions', 36 * hr);
+
+        // TODO: move this STMTRN extraction stuff to asOFX
+        function toOFX(txns) {
+            const stmt = Simple.statement(txns.data);
+            return stmt.BANKMSGSRSV1[0].STMTTRNRS[0].STMTRS[0]
+                .BANKTRANLIST[0].STMTTRN;
+        }
+
+        return Object.freeze({
+            init: (username, code, realm) => {
+                mem.username = username;
+                mem.code = code;
+                mem.realm = realm || 'https://bank.simple.com/';
+            },
+            transactions: transactions_,
+            fetch: (_startMS, _maxAge) => transactions_().then(toOFX)
+        });
+    }
+}
+
 
 function makeBudgetMaker(keyStore, makeDB) {
     return makeBudget;

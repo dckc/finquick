@@ -89,7 +89,7 @@ function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
 function makeChartOfAccounts(db /*:DB*/)
 {
     function filterSeen(acctCode, remoteTxns) {
-        console.log('@@filterSeen:', acctCode, remoteTxns.length);
+        // console.log('filterSeen:', acctCode, remoteTxns.length);
 
         const createTemp = `
           create temporary table stmttrn (
