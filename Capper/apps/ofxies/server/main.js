@@ -285,6 +285,8 @@ function makeBudgetMaker(keyStore, makeDB) {
             },
             fetch: fetch,
             fetchNew: fetchNew,
+            importRemote: (code, start) => fetch(code, start).then(
+                txns => theChart().importRemote(code, txns)),
             onlineStatus: () => theChart().onlineStatus(),
             destroy: function() {
                 theChart().destroy();

@@ -91,8 +91,98 @@ function makeChartOfAccounts(db /*:DB*/)
     function filterSeen(acctCode, remoteTxns) {
         // console.log('filterSeen:', acctCode, remoteTxns.length);
 
+        const selectNew = `
+          select '' + ofx.dtposted post_date, ofx.name description
+             , ofx.checknum
+             , ofx.trnamt amount, ofx.memo
+             , ofx.fitid fid, ofx.trntype
+          from stmttrn ofx
+          where tx_guid is not null
+        `;
+        return withTxns(
+            acctCode, remoteTxns,
+            () => db.query(selectNew, [acctCode])
+                .then(result => { db.update('rollback'); return result; }));
+    }
+
+    function importRemote(acctCode, remoteTxns) {
+        const other = '9001';  // Imbalance-USD
+
+        const addTxns = `
+          insert into transactions (
+            guid, currency_guid, num, post_date, enter_date, description)
+          select
+              ofx.tx_guid guid
+            , (select guid from commodities
+               where namespace='CURRENCY' and mnemonic = 'USD') currency_guid
+            , ofx.checknum num
+            , ofx.dtposted post_date
+            , current_timestamp enter_date
+            , ofx.name description
+          from stmttrn ofx
+          where tx_guid is not null`;
+
+        const addSplits = `
+          insert into splits (
+             guid, tx_guid, account_guid, memo, action, reconcile_state
+           , value_num, value_denom
+           , quantity_num, quantity_denom)
+          select
+              ofx.credit_guid guid
+            , ofx.tx_guid
+            , (select guid
+               from accounts acct
+               where acct.code = ?) account_guid
+            , ofx.memo
+            , '' action
+            , 'c' reconcile_state
+            , ofx.trnamt * 100 value_num
+            , 100 value_denom
+            , ofx.trnamt * 100 quantity_num
+            , 100 quantity_denom
+          from stmttrn ofx
+          where tx_guid is not null
+
+          union all
+
+          select
+              ofx.debit_guid guid
+            , ofx.tx_guid
+            , (select guid
+               from accounts acct
+               -- Imbalance-USD
+               where acct.code = ?) account_guid
+            , null memo
+            , '' action
+            , 'n' reconcile_state
+            , - ofx.trnamt * 100 value_num
+            , 100 value_denom
+            , - ofx.trnamt * 100 quantity_num
+            , 100 quantity_denom
+          from stmttrn ofx
+          where tx_guid is not null`;
+
+        const addSlots = `
+          insert into slots (obj_guid, name, slot_type, string_val)
+          select
+              credit_guid obj_guid
+            , 'online_id' name
+            , 4 slot_type
+            , fitid string_val
+          from stmttrn ofx
+          where tx_guid is not null`;
+
+        return withTxns(
+            acctCode, remoteTxns,
+            () => db.update(addTxns)
+                .then(() => db.update(addSplits, [acctCode, other]))
+                .then(() => db.update(addSlots))
+                .then(() => db.update('commit')));
+    }
+
+    function withTxns(acctCode, remoteTxns, finalAction) {
         const createTemp = `
-          create temporary table stmttrn (
+          create table if not exists stmttrn (  -- @@
             fitid varchar(80),
             checknum varchar(80),
             dtposted datetime not null,
@@ -101,17 +191,20 @@ function makeChartOfAccounts(db /*:DB*/)
             name varchar(80) not null,
             trnamt decimal(7, 2) not null,
             trntype enum ('CREDIT', 'DEBIT'),
-            match_guid varchar(32)
+            tx_guid varchar(32),
+            credit_guid varchar(32),
+            debit_guid varchar(32)
           )`;
         const insertRemote = `
           insert into stmttrn (
-            trntype, dtposted, dtuser, fitid
+            trntype, checknum, dtposted, dtuser, fitid
           , trnamt, name, memo) values ? `;
         const varchar = v => v ? v[0] : null;
         const date = v => v ? OFX.parseDate(v[0]) : null;
         const num = v => v ? Number(v[0]) : null;
         const txValues = remoteTxns.map(trn => [
             varchar(trn.TRNTYPE),
+            varchar(trn.CHECKNUM),
             date(trn.DTPOSTED),
             date(trn.DTUSER),
             varchar(trn.FITID),
@@ -121,30 +214,36 @@ function makeChartOfAccounts(db /*:DB*/)
             varchar(trn.MEMO)
         ]);
 
-        const selectNew = `
-        select '' + ofx.dtposted post_date, ofx.name description
-             , ofx.trnamt amount, ofx.memo
-             , ofx.fitid fid, null guid, null tx_guid
-        from stmttrn ofx
-        left join (
-          select s.guid, fitid.string_val fitid
-          from splits s
-          join slots fitid
-            on fitid.obj_guid = s.guid
-          join accounts a
-            on a.guid = s.account_guid
-          where fitid.name = 'online_id' and a.code = ?
-          -- TODO: and tx.post_date > min(DTPOSTED) - 7 days
-        ) gc on gc.fitid = ofx.fitid
-        where gc.fitid is null
-          and ofx.trnamt != 0
-        order by ofx.dtposted `;
+        const matchByFid = `
+          update stmttrn ofx
+          join (
+           select s.guid slot_guid, fid.string_val fitid
+           from accounts acct
+           join splits s on s.account_guid = acct.guid
+           join slots fid on fid.obj_guid = s.guid
+           where fid.name = 'online_id'
+           and acct.code = ?
+          ) gc on gc.fitid = ofx.fitid
+          set credit_guid = slot_guid
+        `;
+
+        const genIds = `
+          update stmttrn
+          set tx_guid = replace(uuid(), '-', '')
+            , credit_guid = replace(uuid(), '-', '')
+            , debit_guid = replace(uuid(), '-', '')
+          where credit_guid is null
+        `;
 
         // begin?
-        return db.update('drop table if exists stmttrn')
+        return db.update('begin')
+            .then(() => db.update('drop table if exists stmttrn')) // @@
             .then(() => db.update(createTemp))
+            .then(() => db.update(`truncate table stmttrn`))  // @@
             .then(() => db.update(insertRemote, [txValues]))
-            .then(() => db.query(selectNew, [acctCode]));
+            .then(() => db.update(matchByFid, [acctCode]))
+            .then(() => db.update(genIds))
+            .then(finalAction);
     }
 
     function guids(objs) {
@@ -181,7 +280,8 @@ function makeChartOfAccounts(db /*:DB*/)
     }
 
     function onlineStatus() {
-	return db.query(`
+        console.log('computing account balances...');
+        return db.query(`
             select ofx.*, bal.balance
             from (
               select a.guid, unix_timestamp(max(tx.post_date))*1000 latest,
@@ -258,6 +358,7 @@ function makeChartOfAccounts(db /*:DB*/)
         acctBalance: acctBalance,
         getLedger: getLedger,
         filterSeen: filterSeen,
+        importRemote: importRemote,
         onlineStatus: onlineStatus,
         destroy: () => db.end()
     });

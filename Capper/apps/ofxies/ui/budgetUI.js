@@ -29,20 +29,23 @@ export function ui(budget, $) {
 	    $('#accounts').html(rows);
 	});
 
-    const selectedCodes =  $('#fetchOFX').asEventStream('click')
-        .map(event => $.makeArray(
-            $('#accounts input:checkbox:checked')
-	        .map((i, box) => $(box).val())));
+    function accountsCommand(button) {
+        function checked(accounts) {
+            const codes = $.makeArray(
+                $('#accounts input:checkbox:checked')
+	            .map((i, box) => $(box).val()));
+            return accounts.filter(acct => codes.indexOf(acct.code) >= 0);
+        }
 
-    Bacon.combineWith(
-        (accounts, codes) =>
-            accounts.filter(acct => codes.indexOf(acct.code) >= 0),
-        onlineStatus,
-        selectedCodes)
-        .onValue(
-            // should be foreach rather than map,
-            // but chrome doesn't seem to grok
-            accounts => accounts.map(fetch));
+        return Bacon.combineWith(
+            (accounts, event) => checked(accounts),
+            onlineStatus, button.asEventStream('click'));
+    }
+
+    // should be foreach rather than map,
+    // but chrome doesn't seem to grok
+    accountsCommand($('#fetchOFX'))
+        .onValue(accounts => accounts.map(fetch));
 
     function fetch (acct) {
 	budget.post('fetchNew', acct.code, acct.latest).then(splits => {
@@ -50,7 +53,9 @@ export function ui(budget, $) {
 		split =>
 		    elt('tr', [
 			elt('td', split.post_date),
+			elt('td', split.checknum),
 			moneyElt('td', split.amount),
+			elt('td', split.trntype),
 			elt('td', split.description),
 			elt('td', split.memo)],
 			{title: split.fid}) );
@@ -58,6 +63,16 @@ export function ui(budget, $) {
 	}, function(oops) {
             stderr(oops);
 	});
+    }
+
+    accountsCommand($('#importOFX'))
+        .onValue(accounts => accounts.map(importRemote));
+
+    function importRemote(acct) {
+        //@@waiting indicator
+        //@@handle errors
+        budget.post('importRemote', acct.code, acct.latest)
+            .then(() => fetch(acct));
     }
 }
 
