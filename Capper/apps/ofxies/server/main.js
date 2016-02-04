@@ -6,14 +6,15 @@ global console
 
 require('object-assign-shim'); // ES6 Object.assign
 
-var Q = require('q');
-var freedesktop = require('./secret-tool');
-var budget = require('./budget');
-var OFX = require('./asOFX').OFX;
-var Simple = require('./asOFX').Simple;
+const Q = require('q');
+const parseOFX = require('banking').parse;
+
+const freedesktop = require('./secret-tool');
+const budget = require('./budget');
+const OFX = require('./asOFX').OFX;
+const Simple = require('./asOFX').Simple;
 const makeHistoryRd = require('./bbv').makeHistoryRd;
 const makeSimpleRd = require('./simpn').makeSimpleRd;
-const parseOFX = require('banking').parse;
 
 
 module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
@@ -65,7 +66,7 @@ function mkCache(clock) {
 
     function cache(f, mem, field, maxAgeDefault) {
         return function (x, maxAge /*: ?number */) {
-            var now = clock();
+            const now = clock();
             maxAge = maxAge || maxAgeDefault;
             if (mem.timestamp && new Date(mem.timestamp + maxAge) > now) {
                 return Q(mem[field]);
@@ -113,7 +114,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
 
         return Object.freeze({
             init: function(institutionKey /*, etc.*/) {
-                var info = OFX.institutionInfo[institutionKey];
+                const info = OFX.institutionInfo[institutionKey];
                 if (!info) {
                     throw('banking institution not known: ' + institutionKey);
                 }
@@ -138,7 +139,7 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
 
     function makeBankBV(context) {
         const mem = context.state;
-        var sessionP = null;
+        let sessionP = null;
 
         const creds = {
             username: () => Q(mem.login),
@@ -159,7 +160,7 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
         }
         
         function fetch(startMS /*: ?number */, now /*: Date*/) {
-            var ofx_markup;
+            let ofx_markup;
 
             if (!sessionP) {
                 sessionP = makeBankRd(creds).login();
@@ -197,7 +198,7 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
 
     function makeSimple(context) {
         const mem = context.state;
-        var simple = null;
+        let simple = null;
 
         const creds = {
             username: () => Q(mem.username),
@@ -237,8 +238,8 @@ function makeBudgetMaker(keyStore, makeDB) {
     return makeBudget;
 
     function makeBudget(context) {
-        var mem = context.state;
-        var chart = mem.opts ? makeChart(mem.opts) : null;
+        let mem = context.state;
+        let chart = mem.opts ? makeChart(mem.opts) : null;
 
         function theChart() {
             if (!chart) {
@@ -297,6 +298,6 @@ function makeBudgetMaker(keyStore, makeDB) {
 }
 
 function daysBefore(n /*: number*/, d /*: Date*/) /*: Date*/ {
-    var msPerDay = 24 * 60 * 60 * 1000;
+    const msPerDay = 24 * 60 * 60 * 1000;
     return new Date(d.getTime() - n * msPerDay);
 }
