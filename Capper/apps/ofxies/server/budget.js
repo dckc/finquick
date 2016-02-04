@@ -182,7 +182,7 @@ function makeChartOfAccounts(db /*:DB*/)
 
     function withTxns(acctCode, remoteTxns, finalAction) {
         const createTemp = `
-          create table if not exists stmttrn (  -- @@
+          create temporary table stmttrn (
             fitid varchar(80),
             checknum varchar(80),
             dtposted datetime not null,
@@ -235,11 +235,9 @@ function makeChartOfAccounts(db /*:DB*/)
           where credit_guid is null
         `;
 
-        // begin?
         return db.update('begin')
-            .then(() => db.update('drop table if exists stmttrn')) // @@
+            .then(() => db.update('drop table if exists stmttrn'))
             .then(() => db.update(createTemp))
-            .then(() => db.update(`truncate table stmttrn`))  // @@
             .then(() => db.update(insertRemote, [txValues]))
             .then(() => db.update(matchByFid, [acctCode]))
             .then(() => db.update(genIds))
