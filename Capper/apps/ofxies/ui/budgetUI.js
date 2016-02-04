@@ -5,75 +5,76 @@ import _ from 'underscore';
 
 export function ui(budget, $) {
     // TODO: triggers
-    const onlineStatus = Bacon.once(null)
+    const currentAccounts = Bacon.once(null)
 	.merge(Bacon.interval(60 * 1000, null))
-	.flatMap(() => Bacon.fromPromise(budget.post('onlineStatus')))
+	.flatMap(() => Bacon.fromPromise(budget.post('currentAccounts')))
 	.skipDuplicates(_.isEqual);
 
-    onlineStatus.onValue(
+    const renderAcct = acct => elt('tr', [
+        elt('td', acct.code),
+        elt('td', [
+            elt('label', [
+                elt('input', '',
+                    {type: 'radio',
+		     name: 'code',
+		     value: acct.code}),
+		acct.name])],
+	    {'class': 'form-group'}),
+	moneyElt('td', acct.balance),
+        elt('td', fmtDate(new Date(acct.latest)))]);
+
+    currentAccounts.onValue(
 	accounts => {
-	    const rows = accounts
-		.map(acct => [
-                    elt('td', fmtDate(new Date(acct.latest))),
-                    elt('td', acct.code),
-                    elt('td', [
-                        elt('label', [
-                            elt('input', '',
-                        	{type: 'checkbox',
-				 name: 'code',
-				 value: acct.code}),
-			    acct.name])],
-		       {'class': 'form-group'}),
-		    moneyElt('td', acct.balance)])
-		.map(cells => elt('tr', cells));
-	    $('#accounts').html(rows);
+	    const rows = accounts.map(renderAcct);
+            const total = accounts.map(a => a.balance).reduce((x, y) => x + y);
+            const totalRow = elt('tr', [
+                elt('td', [], {colspan: 2}),
+                moneyElt('td', total)]);
+                        
+	    $('#accounts').html([].concat(rows, [totalRow]));
 	});
 
-    function accountsCommand(button) {
+    function results(button, method) {
         function checked(accounts) {
             const codes = $.makeArray(
-                $('#accounts input:checkbox:checked')
+                $('#accounts input:checked')
 	            .map((i, box) => $(box).val()));
             return accounts.filter(acct => codes.indexOf(acct.code) >= 0);
         }
 
-        return Bacon.combineWith(
-            (accounts, event) => checked(accounts),
-            onlineStatus, button.asEventStream('click'));
+        const requests = button.asEventStream('click');
+        const responses = Bacon.combineWith(
+            (accounts, _) => checked(accounts),
+            currentAccounts, requests)
+            .flatMap(Bacon.fromArray)
+            .flatMap(acct => Bacon.fromPromise(
+                budget.post(method, acct.code, acct.latest)));
+
+        requests.awaiting(responses).onValue(loading => {
+            if (loading) { button.button('loading'); }
+            else { button.button('reset'); }
+        });
+
+        return responses;
     }
 
-    // should be foreach rather than map,
-    // but chrome doesn't seem to grok
-    accountsCommand($('#fetchOFX'))
-        .onValue(accounts => accounts.map(fetch));
+    const previewSplits = results($('#fetchOFX'), 'fetchNew');
+    const importSplits = results($('#importOFX'), 'importRemote');
 
-    function fetch (acct) {
-	budget.post('fetchNew', acct.code, acct.latest).then(splits => {
-            const rows = splits.map(
-		split =>
-		    elt('tr', [
-			elt('td', split.post_date),
-			elt('td', split.checknum),
-			moneyElt('td', split.amount),
-			elt('td', split.trntype),
-			elt('td', split.description),
-			elt('td', split.memo)],
-			{title: split.fid}) );
-            $('#splits').html(rows);
-	}, function(oops) {
-            stderr(oops);
-	});
-    }
+    const renderSplit = split =>
+	elt('tr', [
+	    elt('td', split.post_date),
+	    elt('td', split.checknum),
+	    moneyElt('td', split.amount),
+	    elt('td', split.trntype),
+	    elt('td', split.description),
+	    elt('td', split.memo)],
+	    {title: split.fid});
 
-    accountsCommand($('#importOFX'))
-        .onValue(accounts => accounts.map(importRemote));
-
-    function importRemote(acct) {
-        //@@waiting indicator
-        //@@handle errors
-        budget.post('importRemote', acct.code, acct.latest)
-            .then(() => fetch(acct));
-    }
+    previewSplits.merge(importSplits)
+        .onValue(splits => {
+            $('#splits').html(splits.map(renderSplit));
+        });
 }
 
 
@@ -100,7 +101,7 @@ function moneyElt(tag, amt) {
 
 function fmtDate(d) {
     // const [ymd, y, m, d] = /(\d{4})(\d\d)(\d\d)/.exec(s);
-    return d.toISOString().substr(0, 10);
+    return d > 0 ? d.toISOString().substr(0, 10) : '';
 }
 
 

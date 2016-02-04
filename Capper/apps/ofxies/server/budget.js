@@ -277,27 +277,35 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
-    function onlineStatus() {
+    function currentAccounts() {
         console.log('computing account balances...');
-        return db.query(`
-            select ofx.*, bal.balance
-            from (
-              select a.guid, unix_timestamp(max(tx.post_date))*1000 latest,
-                     a.code, a.name, a.account_type
-              from accounts a
-              join splits s on s.account_guid = a.guid
-              join slots fid on fid.obj_guid = s.guid and fid.name = 'online_id'
-              join transactions tx on s.tx_guid = tx.guid
-              where a.hidden = 0
-              group by a.guid, a.name
-            ) ofx join (
-              select a.guid, sum(value_num / value_denom) balance
-              from splits s
-              join accounts a on a.guid = s.account_guid
-              join transactions tx on tx.guid = s.tx_guid
-              group by a.guid
-            ) bal on bal.guid = ofx.guid
-            order by ofx.code`);
+        return db.query(
+            `
+            select cur.*, ofx.latest
+            from
+            (
+                select a.guid, a.code, a.name, a.account_type
+                     , sum(value_num / value_denom) balance
+                from splits s
+                join accounts a on a.guid = s.account_guid
+	        where a.code between '1000' and '2199'
+                  and a.code not between '1500' and '1999'
+ 	          and length(a.code) = 4
+                  and a.account_type not in ('INCOME', 'EXPENSE')
+                  and a.hidden = 0
+                group by a.guid
+                order by a.code
+            ) cur left join (
+                select a.guid, unix_timestamp(max(tx.post_date))*1000 latest
+                from accounts a
+                join splits s on s.account_guid = a.guid
+                join slots fid
+                  on fid.obj_guid = s.guid
+                 and fid.name = 'online_id'
+                join transactions tx on s.tx_guid = tx.guid
+                group by a.guid
+            ) ofx on cur.guid = ofx.guid
+            order by cur.code`);
     }
 
     function acctBalance(acctName, since) {
@@ -357,7 +365,7 @@ function makeChartOfAccounts(db /*:DB*/)
         getLedger: getLedger,
         filterSeen: filterSeen,
         importRemote: importRemote,
-        onlineStatus: onlineStatus,
+        currentAccounts: currentAccounts,
         destroy: () => db.end()
     });
 }
