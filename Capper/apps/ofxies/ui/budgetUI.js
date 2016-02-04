@@ -8,6 +8,8 @@ export function ui(budget, $) {
     const currentAccounts = Bacon.once(null)
 	.merge(Bacon.interval(60 * 1000, null))
 	.flatMap(() => Bacon.fromPromise(budget.post('currentAccounts')))
+        .map(accounts => accounts.filter(
+            a => a.balance != 0 || a.latest > 0))
 	.skipDuplicates(_.isEqual);
 
     const renderAcct = acct => elt('tr', [
