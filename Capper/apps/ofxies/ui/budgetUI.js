@@ -57,6 +57,14 @@ export function ui(budget, $) {
             else { button.button('reset'); }
         });
 
+        responses.onError(
+            err => {
+                $('#errorMessage').text(err.toString());
+                $('#error').show();
+                button.button('reset'); // why don't I get this for free?
+            });
+
+
         return responses;
     }
 
