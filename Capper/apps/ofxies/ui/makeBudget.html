@@ -1,17 +1,26 @@
 <html>
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
     <!-- When following links, don't grant destination access to this. -->
     <meta name="referrer" content="never">
+
     <title>Budget</title>
-    <script type="text/javascript" src="/views/libs/jquery-2.1.1.js"></script>
+
+    <link rel="stylesheet"
+          href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/css/bootstrap.min.css"
+          integrity="sha384-y3tfxAZXuh4HwSYylfB+J125MxIs6mR5FOHamPBG064zB+AFeWH94NdvaCBm8qnd"
+          crossorigin="anonymous">
+
+    <!-- TODO module-ize capperConnect -->
     <script type="text/javascript" src="/views/libs/q.js"></script>
     <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
-    <script type="text/javascript" src="/views/libs/capperUtils.js"></script>
 
-    <!-- http://getbootstrap.com/getting-started/ -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/js/bootstrap.min.js" integrity="sha384-vZ2WRJMwsjRMW/8U7i6PWi6AlO1L79snBrmgiDpgIWJ82z8eA5lenwvxbMV1PAh7" crossorigin="anonymous"></script>
 
     <script src="/views/jspm_packages/system.js"></script>
     <script src="/views/config.js"></script>
@@ -21,55 +30,66 @@
       });
     </script>
   </head>
-  <body class="container-fluid">
+  <body class="container">
     <h1>Budget</h1>
 
     <div class='row'>
     <div class="col-xs-10">
       <h2>Current Accounts</h2>
 
-      <div class="form-group small">
-        <label>
-          <input type="checkbox" disabled="disabled"/>
-          Show zero-balance accounts (TODO)
-        </label>
-      </div>
-      <div>
-        <label>
-          Current account codes
-          <input name="currentCodes" disabled="disabled"
-                 value="1000-2199 / 1500-1999"/>
-        </label>
-        <br />TODO: allow selection
-      </div>
-
-      <div id="error" class="collapse alert alert-danger"
-           style="display: none" role="alert">
-        <h4>Error</h4>
-        <p id="errorMessage">...</p>
-        <button class="btn btn-primary" type="button"
-                data-target="#error" data-toggle="collapse">
-          Close
-        </button>
+      <div id="error" class="modal fade">
+        <div class="modal-dialog alert alert-danger" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <button type="button" class="close"
+                      data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+              <h4 class="modal-title">Error</h4>
+              <p class="modal-body" id="errorMessage">...</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="form-group">
-    <table class='table table-bordered table-condensed table-hover'>
-      <thead>
-	<tr><th>Code</th><th>Account</th><th>Balance</th><th>Sync</th></tr>
+    <table class='table table-bordered table-sm table-hover'>
+      <thead class="thead-inverse">
+	<tr>
+          <th>Code</th> <th>Account</th> <th>Balance</th> <th>Sync</th>
+        </tr>
+        <tr>
+          <td>
+            <small data-toggle="tooltip" title="TODO">
+              <i>1000-2199<br /><s>1500-1999</s></i></small>
+          </td>
+          <td></td>
+          <td class="text-xs-right">
+            <small><label data-toggle="tooltip" title="TODO">
+              <input type="checkbox" disabled="disabled"/>
+              <i>Show $0</i>
+            </label></small>
+          </td>
+          <td>
+	    <button id='fetchOFX' class="btn btn-info btn-sm">Preview</button>
+          </td>
+        </tr>
       </thead>
       <tbody id='accounts'>
 	<tr><td>stand by...</td></tr>
       </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"></td>
+          <td>
+	    <button id='importOFX' class="btn btn-primary">Sync</button>
+          </td>
+        </tr>
+      </tfoot>
     </table>
       </div>
-      <div class="col-sm-offset-2 col-sm-10">
-	<button id='fetchOFX' class="btn btn-info">Preview Sync</button>
 
-	<button id='importOFX' class="btn btn-primary">Sync</button>
-      </div>
-
-      <table class='table table-bordered table-condensed table-hover'>
+      <table class='table table-bordered table-sm table-hover'>
         <thead>
 	  <tr>
             <th>Date</th><th>Num</th><th>Amount</th><th>Type</th>

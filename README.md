@@ -137,3 +137,11 @@ web browser on traditional platforms, but not on ocap platforms.
   - account auto-complete with bacon FRP
   - subscribe to account balance changes using
     mysql-events and websockets
+
+## Dev Notes
+
+ - [CSS Bootstrap][bs]
+ - [Bacon.js][frp] - Functional Reactive Programming for Javascript
+
+[bs]: http://getbootstrap.com/css/
+[frp]: https://baconjs.github.io/

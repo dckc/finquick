@@ -31,7 +31,7 @@ export function ui(budget, $) {
             const total = accounts.map(a => a.balance).reduce((x, y) => x + y);
             const totalRow = elt('tr', [
                 elt('td', [], {colspan: 2}),
-                moneyElt('td', total)]);
+                moneyElt('td', total, true)]);
                         
 	    $('#accounts').html([].concat(rows, [totalRow]));
 	});
@@ -52,7 +52,8 @@ export function ui(budget, $) {
             .flatMap(acct => Bacon.fromPromise(
                 budget.post(method, acct.code, acct.latest)));
 
-        requests.awaiting(responses).onValue(loading => {
+        const replies = responses.merge(responses.flatMapError(err => null));
+        requests.awaiting(replies).onValue(loading => {
             if (loading) { button.button('loading'); }
             else { button.button('reset'); }
         });
@@ -60,10 +61,8 @@ export function ui(budget, $) {
         responses.onError(
             err => {
                 $('#errorMessage').text(err.toString());
-                $('#error').show();
-                button.button('reset'); // why don't I get this for free?
+                $('#error').modal('show');
             });
-
 
         return responses;
     }
@@ -101,11 +100,11 @@ function elt(tag, children, attrs) {
     return e;
 }
 
-function moneyElt(tag, amt) {
-    const attrs = {'class': 'text-right'}
-    if (amt < 0) {
-        attrs['style'] = 'color: red';
-    }
+function moneyElt(tag, amt, total) {
+    const style = (amt < 0 ? 'color: red ' : '') +
+        (total ? 'font-weight: bold ' : '');
+    const attrs = {'class': 'text-xs-right',
+                   'style': style};
     return elt(tag, bal.format(amt), attrs);
 }
 
