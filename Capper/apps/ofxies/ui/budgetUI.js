@@ -6,7 +6,7 @@ import _ from 'underscore';
 export function ui(budget, $) {
     // TODO: triggers
     const currentAccounts = Bacon.once(null)
-	.merge(Bacon.interval(60 * 1000, null))
+	.merge(Bacon.interval(15 * 60 * 1000, null))
 	.flatMap(() => Bacon.fromPromise(budget.post('currentAccounts')))
         .map(accounts => accounts.filter(
             a => a.balance != 0 || a.latest > 0))
@@ -56,10 +56,9 @@ export function ui(budget, $) {
             .flatMap(acct => Bacon.fromPromise(
                 budget.post(method, acct.code, acct.latest, maxAge())));
 
-        const replies = responses.merge(responses.flatMapError(err => null));
+        const replies = responses.merge(responses.mapError(err => null));
         requests.awaiting(replies).onValue(loading => {
-            if (loading) { button.button('loading'); }
-            else { button.button('reset'); }
+            button.attr('disabled', loading);
         });
 
         responses.onError(

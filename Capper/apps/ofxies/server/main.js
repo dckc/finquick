@@ -70,10 +70,14 @@ function mkCache(clock) {
     function cache(f, mem, field, maxAgeDefault) {
         return function (x, maxAge /*: ?number */) {
             const now = clock();
-            maxAge = maxAge || maxAgeDefault;
+            maxAge = maxAge !== null ? maxAge : maxAgeDefault;
             if (mem.timestamp && (new Date(mem.timestamp + maxAge) > now)) {
                 return Q(mem[field]);
             }
+            // TODO: return cache, filter details to UI
+            console.log('min. cache stale:',
+                        (now - new Date(mem.timestamp + maxAge)) / (1000 * 60),
+                        'maxAge (hr):', maxAge / (1000 * 60 * 60));
             return f(x, now).then(result => {
                 mem[field] = result;
                 mem.timestamp = now.valueOf();
@@ -88,6 +92,11 @@ function makeOFXmaker(keyStore, getStatement, cache) {
 
     function makeOFX(context) {
         const mem = context.state;
+
+        // Discover gives bogus <TRNAMT>-0</TRNAMT> transactions.
+        const notBogus = tx => {
+            return tx.TRNAMT[0] != '-0';
+        };
 
         const fetch = function (startMS /*: ?number */, now /*: Date*/) {
             const start = startMS ? daysBefore(3, new Date(startMS))
@@ -110,7 +119,8 @@ function makeOFXmaker(keyStore, getStatement, cache) {
                         }
                         mem.xml = reply.xml;
                         return trnrs.CCSTMTRS[0]
-                            .BANKTRANLIST[0].STMTTRN;
+                            .BANKTRANLIST[0].STMTTRN
+                            .filter(notBogus);
                     });
             });
         };
@@ -131,7 +141,8 @@ function makeOFXmaker(keyStore, getStatement, cache) {
             },
             institution: () => mem.info,
             name: () => mem.keyAttrs.object,
-            fetch: cache(fetch, mem, 'stmttrn', 36 * hr)
+            ofx: () => mem.xml,
+            fetch: cache(fetch, mem, 'stmttrn', 18 * hr)
         });
     }
 }
@@ -190,7 +201,8 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
                 mem.realm = realm || 'https://pib.secure-banking.com/';
                 mem.code = code;
             },
-            fetch: cache(fetch, mem, 'stmttrn', 36 * hr)
+            ofx: () => mem.xml,
+            fetch: cache(fetch, mem, 'stmttrn', 18 * hr)
         });
     }
 }
@@ -215,7 +227,7 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
 
             return simple.transactions();
         }
-        const transactions_ = cache(transactions, mem, 'transactions', 36 * hr);
+        const transactions_ = cache(transactions, mem, 'transactions', 18 * hr);
 
         // TODO: move this STMTRN extraction stuff to asOFX
         function toOFX(txns) {
