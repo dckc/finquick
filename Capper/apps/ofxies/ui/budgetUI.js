@@ -76,7 +76,8 @@ export function ui(budget, $) {
 
     const renderSplit = split =>
 	elt('tr', [
-	    elt('td', fmtDate(new Date(split.post_date))),
+	    elt('td', [fmtDate(new Date(split.post_date))],
+                {style: 'white-space: nowrap'}),
 	    elt('td', split.checknum),
 	    moneyElt('td', split.amount),
 	    elt('td', split.trntype),
@@ -105,8 +106,9 @@ function elt(tag, children, attrs) {
 }
 
 function moneyElt(tag, amt, total) {
-    const style = (amt < 0 ? 'color: red ' : '') +
-        (total ? 'font-weight: bold ' : '');
+    const style = 'white-space: nowrap; ' +
+        (amt < 0 ? 'color: red; ' : '') +
+        (total ? 'font-weight: bold; ' : '');
     const attrs = {'class': 'text-xs-right',
                    'style': style};
     return elt(tag, bal.format(amt), attrs);
