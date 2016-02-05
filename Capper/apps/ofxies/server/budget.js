@@ -1,6 +1,8 @@
 /** budget -- Collect transaction info and review/revise budgeted expenses.
  *
  * @flow
+ *
+ * TODO: make stmttrn table name configurable, or at least expose it.
  */
 'use strict';
 
@@ -183,7 +185,7 @@ function makeChartOfAccounts(db /*:DB*/)
 
     function withTxns(acctCode, remoteTxns, finalAction) {
         const createTemp = `
-          create temporary table stmttrn (
+          create table if not exists stmttrn (
             fitid varchar(80),
             checknum varchar(80),
             dtposted datetime not null,
@@ -237,8 +239,8 @@ function makeChartOfAccounts(db /*:DB*/)
         `;
 
         return db.update('begin')
-            .then(() => db.update('drop table if exists stmttrn'))
             .then(() => db.update(createTemp))
+            .then(() => db.update('truncate table stmttrn'))
             .then(() => db.update(insertRemote, [txValues]))
             .then(() => db.update(matchByFid, [acctCode]))
             .then(() => db.update(genIds))
