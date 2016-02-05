@@ -72,6 +72,28 @@
           </td>
           <td>
 	    <button id='fetchOFX' class="btn btn-info btn-sm">Preview</button>
+            <div class="btn-group">
+              <button type="button" class="btn dropdown-toggle btn-sm btn-info"
+                      data-toggle="dropdown"
+                      aria-haspopup="true" aria-expanded="false">
+                <small>Max Age</small>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-form">
+                <li class="dropdown-item"><label class="radio">
+                    <input type="radio" name="maxAge" value="36"
+                           checked="checked"/>
+                    36 hr</label></li>
+                <li class="dropdown-item"><label class="radio">
+                    <input type="radio" name="maxAge" value="8"/>
+                    8 hr</label></li>
+                <li class="dropdown-item"><label class="radio">
+                    <input type="radio" name="maxAge" value="1"/>
+                    1 hr</label></li>
+                <li class="dropdown-item"><label class="radio">
+                    <input type="radio" name="maxAge" value="0"/>
+                    0 hr</label></li>
+              </ul>
+            </div>
           </td>
         </tr>
       </thead>

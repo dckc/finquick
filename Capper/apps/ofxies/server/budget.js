@@ -92,7 +92,8 @@ function makeChartOfAccounts(db /*:DB*/)
         // console.log('filterSeen:', acctCode, remoteTxns.length);
 
         const selectNew = `
-          select '' + ofx.dtposted post_date, ofx.name description
+          select unix_timestamp(ofx.dtposted) * 1000 post_date
+             , ofx.name description
              , ofx.checknum
              , ofx.trnamt amount, ofx.memo
              , ofx.fitid fid, ofx.trntype
@@ -329,7 +330,8 @@ function makeChartOfAccounts(db /*:DB*/)
         return acctByName(acctName).then(
             acct =>
                 db.query(
-                    `select '' + tx.post_date post_date, tx.description
+                    `select unix_timestamp(tx.post_date) * 1000 post_date
+                    , tx.description
                     , s.value_num / s.value_denom amount
                     , s.memo
                     , fid.string_val fid

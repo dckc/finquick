@@ -68,7 +68,7 @@ function mkCache(clock) {
         return function (x, maxAge /*: ?number */) {
             const now = clock();
             maxAge = maxAge || maxAgeDefault;
-            if (mem.timestamp && new Date(mem.timestamp + maxAge) > now) {
+            if (mem.timestamp && (new Date(mem.timestamp + maxAge) > now)) {
                 return Q(mem[field]);
             }
             return f(x, now).then(result => {
@@ -264,11 +264,18 @@ function makeBudgetMaker(keyStore, makeDB) {
             return budget.makeChartOfAccounts(db);
         }
 
-        const fetch = (code, start) => mem.remotes[code].fetch(start);
-        const fetchNew = (code, start) => {
-            return fetch(code, start).then(txns => {
+        const fetch = (code, start, maxAge) => {
+            const remote = mem.remotes[code];
+            if (!remote) {
+                throw new Error('no remote for account ' + code);
+            }
+            return remote.fetch(start, maxAge);
+        };
+
+        const fetchNew = (code, start, maxAge) => {
+            return fetch(code, start, maxAge).then(txns => {
                 console.log('fetchNew txns qty:', txns.length);
-                return theChart().filterSeen(code, txns);
+                return theChart().filterSeen(code, txns, maxAge);
             });
         };
             
@@ -286,8 +293,8 @@ function makeBudgetMaker(keyStore, makeDB) {
             },
             fetch: fetch,
             fetchNew: fetchNew,
-            importRemote: (code, start) => fetch(code, start).then(
-                txns => theChart().importRemote(code, txns)),
+            importRemote: (code, start, maxAge) => fetch(code, start, maxAge)
+                .then(txns => theChart().importRemote(code, txns)),
             currentAccounts: () => theChart().currentAccounts(),
             destroy: function() {
                 theChart().destroy();

@@ -44,13 +44,17 @@ export function ui(budget, $) {
             return accounts.filter(acct => codes.indexOf(acct.code) >= 0);
         }
 
+        const hr = 60 * 60 * 1000;
+        const maxAge =
+            () => parseInt($('input[name="maxAge"]:checked').val()) * hr;
+
         const requests = button.asEventStream('click');
         const responses = Bacon.combineWith(
             (accounts, _) => checked(accounts),
             currentAccounts, requests)
             .flatMap(Bacon.fromArray)
             .flatMap(acct => Bacon.fromPromise(
-                budget.post(method, acct.code, acct.latest)));
+                budget.post(method, acct.code, acct.latest, maxAge())));
 
         const replies = responses.merge(responses.flatMapError(err => null));
         requests.awaiting(replies).onValue(loading => {
@@ -72,7 +76,7 @@ export function ui(budget, $) {
 
     const renderSplit = split =>
 	elt('tr', [
-	    elt('td', split.post_date),
+	    elt('td', fmtDate(new Date(split.post_date))),
 	    elt('td', split.checknum),
 	    moneyElt('td', split.amount),
 	    elt('td', split.trntype),
