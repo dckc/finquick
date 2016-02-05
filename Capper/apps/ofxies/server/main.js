@@ -17,7 +17,8 @@ const makeHistoryRd = require('./bbv').makeHistoryRd;
 const makeSimpleRd = require('./simpn').makeSimpleRd;
 
 
-module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
+module.exports = (function Ofxies(clock, spawn, writeFile,
+                                  mysql, Banking, nightmare) {
     const keyStore = freedesktop.makeSecretTool(spawn);
 
     const cache = mkCache(clock);
@@ -42,9 +43,10 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
         makeSimpleRd(nightmare({show: debug}), creds);
     const sitePassword = realm =>
         keyStore.lookup({signon_realm: realm});
+    const saveOFX = (code, xml) => Q.nfcall(writeFile, code + '.ofx', xml);
 
     return Object.freeze({
-        makeBudget: makeBudgetMaker(keyStore, makeDB),
+        makeBudget: makeBudgetMaker(keyStore, makeDB, saveOFX),
         makeBankBV: makeBankBVmaker(keyStore, bbvAux, cache),
         makeSimple: makeSimplemaker(sitePassword, simpleAux, cache),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
@@ -53,6 +55,7 @@ module.exports = (function Ofxies(clock, spawn, mysql, Banking, nightmare) {
     // pass in ambient stuff here
     () => new Date(),
     require('child_process').spawn,
+    require('fs').writeFile,
     // TODO: we only need mysql.createConnection
     require('mysql'),
     require('banking'),
@@ -234,7 +237,7 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
 }
 
 
-function makeBudgetMaker(keyStore, makeDB) {
+function makeBudgetMaker(keyStore, makeDB, saveOFX) {
     return makeBudget;
 
     function makeBudget(context) {
@@ -292,6 +295,7 @@ function makeBudgetMaker(keyStore, makeDB) {
                 mem.remotes[code] = remote;
             },
             fetch: fetch,
+            saveOFX: code => saveOFX(code, mem.remotes[code].ofx()),
             fetchNew: fetchNew,
             importRemote: (code, start, maxAge) => fetch(code, start, maxAge)
                 .then(txns => theChart().importRemote(code, txns)),
