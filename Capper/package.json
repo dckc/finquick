@@ -25,10 +25,12 @@
     "docopt": "^0.6.2",
     "express": "~3.4.1",
     "mysql": "^2.10.0",
+    "mysql-events": "0.0.7",
     "nightmare": "^2.1.6",
     "object-assign-shim": "^1.0.0",
     "q": "~1.0.1",
     "request": "^2.67.0",
+    "ws": "^1.0.1",
     "xkeychain": "0.0.6",
     "xml": "^1.0.0"
   },

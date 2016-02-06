@@ -4,12 +4,26 @@ import Bacon from 'baconjs';
 import _ from 'underscore';
 
 export function ui(budget, $) {
-    // TODO: triggers
-    const currentAccounts = Bacon.once(null)
-	.merge(Bacon.interval(15 * 60 * 1000, null))
-	.flatMap(() => Bacon.fromPromise(budget.post('currentAccounts')))
-        .map(accounts => accounts.filter(
-            a => a.balance != 0 || a.latest > 0))
+    const onSplit = handleText =>
+        budget.post('subscriptions').then(ps => {
+            const [port, tableSubs] = ps;
+            const host = 'pav'; // @@get from window.url or something?
+            const addr = `wss://${host}:${port}`;
+            const ws = new WebSocket(addr); // @@ambient
+            ws.onopen = () => ws.send(tableSubs.splits);
+            ws.onmessage = e => handleText(e.data);
+        }).done();
+
+    const splitEdit = Bacon.fromBinder(
+        sink => onSplit(txt => {
+            console.log(txt);
+            sink(Try(() => JSON.parse(txt)));
+        }));
+
+    const interesting = a => a.balance != 0 || a.latest > 0;
+    const currentAccounts = Bacon.once(null).concat(splitEdit)
+	.flatMap(edit => Bacon.fromPromise(budget.post('currentAccounts')))
+        .map(accounts => accounts.filter(interesting))
 	.skipDuplicates(_.isEqual);
 
     const renderAcct = acct => elt('tr', [
@@ -88,6 +102,16 @@ export function ui(budget, $) {
         .onValue(splits => {
             $('#splits').html(splits.map(renderSplit));
         });
+}
+
+
+function Try(thunk) {
+    try {
+        const v = thunk();
+        return new Bacon.Next(v);
+    } catch (e) {
+        return new Bacon.Error(e);
+    }
 }
 
 

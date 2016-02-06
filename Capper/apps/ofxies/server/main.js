@@ -1,7 +1,11 @@
 /** ofxies main
-global console
+
+requires: Capper express app
+
 @flow
  */
+/*global console*/
+
 'use strict';
 
 require('object-assign-shim'); // ES6 Object.assign
@@ -9,6 +13,7 @@ require('object-assign-shim'); // ES6 Object.assign
 const Q = require('q');
 const parseOFX = require('banking').parse;
 
+const caplib = require('../../../caplib');
 const freedesktop = require('./secret-tool');
 const budget = require('./budget');
 const OFX = require('./asOFX').OFX;
@@ -16,50 +21,60 @@ const Simple = require('./asOFX').Simple;
 const makeHistoryRd = require('./bbv').makeHistoryRd;
 const makeSimpleRd = require('./simpn').makeSimpleRd;
 
+const debug = true;
 
-module.exports = (function Ofxies(clock, spawn, writeFile,
-                                  mysql, Banking, nightmare) {
-    const keyStore = freedesktop.makeSecretTool(spawn);
+const cfg = {
+    ssl_key: 'ssl/server.key',
+    ssl_cert: 'ssl/server.crt',
+    port: 8765
+};
 
-    const cache = mkCache(clock);
+
+module.exports = (function Ofxies(time, process, fs, net, db) {
+    const keyStore = freedesktop.makeSecretTool(process.spawn);
+
+    const cache = mkCache(time.clock);
 
     function getStatement(start, now, creds, info) {
-        const banking = new Banking(Object.assign({}, creds, info));
+        const banking = new net.Banking(Object.assign({}, creds, info));
 
         console.log('getStatement:', info.fidOrg, info.url);
-        return Q.ninvoke(
-            banking, 'getStatement',
-            {
-                start: OFX.fmtDate(start),
-                end: OFX.fmtDate(now)
-            });
+        return Q.ninvoke(banking, 'getStatement',
+                         { start: OFX.fmtDate(start), end: OFX.fmtDate(now) });
     }
 
-    const makeDB = (optsP) => budget.makeDB(mysql, optsP);
-    const debug = true;
+    const makeDB = (optsP) => budget.makeDB(db.mysql, db.events, optsP);
     const bbvAux = (creds) =>
-        makeHistoryRd(nightmare({show: debug}), creds);
+        makeHistoryRd(net.nightmare({show: debug}), creds);
     const simpleAux = (creds) =>
-        makeSimpleRd(nightmare({show: debug}), creds);
+        makeSimpleRd(net.nightmare({show: debug}), creds);
     const sitePassword = realm =>
         keyStore.lookup({signon_realm: realm});
-    const saveOFX = (code, xml) => Q.nfcall(writeFile, code + '.ofx', xml);
+    const saveOFX = (code, xml) =>
+        Q.nfcall(fs.writeFile, code + '.ofx', xml);
+    const mkSocket = socketMaker({ createServer: net.createServer,
+                                   SocketServer: net.SocketServer},
+                                 { readFile: fs.readFile}, cfg);
 
     return Object.freeze({
-        makeBudget: makeBudgetMaker(keyStore, makeDB, saveOFX),
+        makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX),
         makeBankBV: makeBankBVmaker(keyStore, bbvAux, cache),
         makeSimple: makeSimplemaker(sitePassword, simpleAux, cache),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
 })(
     // pass in ambient stuff here
-    () => new Date(),
-    require('child_process').spawn,
-    require('fs').writeFile,
+    { clock: () => new Date()},
+    { spawn: require('child_process').spawn },
+    { readFile: require('fs').readFile,
+      writeFile: require('fs').writeFile},
+    { SocketServer: require('ws').Server,
+      createServer: require('https').createServer,
+      Banking: require('banking'),
+      nightmare: require('nightmare')},
     // TODO: we only need mysql.createConnection
-    require('mysql'),
-    require('banking'),
-    require('nightmare'));
+    { mysql: require('mysql'),
+      events: require('mysql-events')});
 
 
 const hr = 60 * 60 * 1000;
@@ -86,6 +101,29 @@ function mkCache(clock) {
         };
     }
 }
+
+
+function socketMaker(net, fs, cfg) {
+    const ok = (_req, res) => {
+        res.writeHead(200);
+        res.end('Rock on.');
+    };
+
+    const read = path => Q.nfcall(fs.readFile, path);
+    const mkSocket = () => Q.spread(
+        [read(cfg.ssl_key), read(cfg.ssl_cert)],
+        (key, cert) => {
+            const https = net.createServer(
+                {key: key, cert: cert}, ok);
+            https.listen(cfg.port);
+            // console.log('https:', https);
+            const ws = new net.SocketServer({ server: https });
+            // console.log('socket:', ws);
+            return ws;
+        });
+    return mkSocket;
+}
+
 
 function makeOFXmaker(keyStore, getStatement, cache) {
     return makeOFX;
@@ -249,7 +287,7 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
 }
 
 
-function makeBudgetMaker(keyStore, makeDB, saveOFX) {
+function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
     return makeBudget;
 
     function makeBudget(context) {
@@ -262,6 +300,17 @@ function makeBudgetMaker(keyStore, makeDB, saveOFX) {
             }
             return chart;
         }
+
+        const tableSubs = {
+            accounts: caplib.unique(),
+            transactions: caplib.unique(),
+            splits: caplib.unique()
+        };
+        const findSubs = new Map([
+            [tableSubs.accounts, 'accounts'],
+            [tableSubs.transactions, 'transactions'], 
+            [tableSubs.splits, 'splits'] 
+        ]);
 
         function makeChart(opts) {
             const dbOptsP = keyStore.lookup({
@@ -276,6 +325,20 @@ function makeBudgetMaker(keyStore, makeDB, saveOFX) {
             }));
 
             const db = makeDB(dbOptsP);
+
+            mkSocket().then(ws => ws.on('connection', conn => {
+                // console.log('websocket connection:', ws);
+                const notify = (o, n) => conn.send(JSON.stringify({
+                    oldRow: o, newRow: n}));
+                conn.on('message', (data, _flags) => {
+                    const table = findSubs.get(data);
+                    console.log('subscribe?', data, 'table:', table);
+                    if (table) {
+                        db.subscribe(`${opts.database}.${table}`, notify);
+                    }
+                });
+            })).done();
+
             return budget.makeChartOfAccounts(db);
         }
 
@@ -302,6 +365,7 @@ function makeBudgetMaker(keyStore, makeDB, saveOFX) {
                 mem.remotes = {};
             },
             acctBalance: (name, ymd) => theChart().acctBalance(name, ymd),
+            subscriptions: () => [cfg.port, tableSubs],
             getLedger: (name, ymd) => theChart().getLedger(name, ymd),
             setRemote: (code, remote) => {
                 mem.remotes[code] = remote;

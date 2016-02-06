@@ -7,9 +7,18 @@
 'use strict';
 
 const Q = require('q');
+const docopt = require('docopt').docopt;
 
 const makeSecretTool = require('./secret-tool').makeSecretTool;
 const OFX = require('./asOFX').OFX;
+
+const usage = `
+Usage:
+  budget.js [-h HOST] DB ACCOUNT SINCE
+
+Options:
+  -h HOST    database host [default: localhost]
+`;
 
 function main(
     argv /*: Array<string>*/,
@@ -17,30 +26,35 @@ function main(
     stdout /*: stream$Writable | tty$WriteStream */,
     spawn /*: (command: string, args: Array<string>) =>
             child_process$ChildProcess */,
+    mkEvents,
     mysql /*: MySql */)
 {
-    const
-        dbName = argv[2], host = 'localhost',
-        acctName = argv[3], since = argv[4];
+    const cli = docopt(usage, { argv: argv.slice(2) });
 
     const optsP = makeSecretTool(spawn).lookup({
         protocol: 'mysql',
-        server: host,
-        object: dbName
+        server: cli['-h'],
+        object: cli.DB
     }).then(password => ({
-        host     : host,
+        host     : cli['-h'],
         user     : env.LOGNAME,
         password : password,
-        database : dbName
+        database : cli.DB
     }));
-    const db = makeDB(mysql, optsP);
+
+    const db = makeDB(mysql, mkEvents, optsP);
+
+    db.subscribe(`${cli.DB}.splits`, (oldRow, newRow) => {
+        console.log('old: ', oldRow,
+                    'new:', newRow);
+    });
 
     const chart = makeChartOfAccounts(db);
 
-    chart.getLedger(acctName, since).then(
+    chart.getLedger(cli.ACCOUNT, cli.SINCE).then(
         info => stdout.write(`ledger: ${info}\n`)
     ).done();
-    chart.acctBalance(acctName, since).then(
+    chart.acctBalance(cli.ACCOUNT, cli.SINCE).then(
         info => stdout.write(`balance: ${info.balance}\n`)
     )
         .then(() => db.end())
@@ -52,12 +66,15 @@ function main(
 type DB = {
     query(dml: string, params?: Array<any>): Promise<Array<Object>>;
     update(dml: string, params?: Array<any>): Promise<Array<Object>>;
+    // TODO: return unsubscribe thingy
+    subscribe(path: string, handler: (oldRow: any, newRow: any) => void): void;
     end(): void
 }
 
+// TODO: annotate mkEvents
 */
 
-function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
+function makeDB(mysql /*: MySql*/, mkEvents /*:any*/, optsP) /*: DB*/ {
     const connP = optsP.then(opts => mysql.createConnection(opts));
 
     function statement(dml, params) /*: Promise<Array<Object>>*/{
@@ -80,9 +97,18 @@ function makeDB(mysql /*: MySql*/, optsP) /*: DB*/ {
         });
     }
 
+    function subscribe(path, handler) {
+        optsP.then(opts => {
+            const watcher = mkEvents(opts);
+            watcher.add(path, handler);
+        });
+    }
+
+
     return Object.freeze({
         query: statement,
         update: statement,
+        subscribe: subscribe,
         end: err => connP.then(c => c.end(err))
     });
 }
@@ -380,6 +406,7 @@ if (require.main === module) {
         process.env,
         process.stdout,
         require('child_process').spawn,
+        require('mysql-events'),
         require('mysql'));
 }
 
