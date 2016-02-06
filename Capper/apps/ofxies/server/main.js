@@ -30,8 +30,9 @@ const cfg = {
 };
 
 
-module.exports = (function Ofxies(time, process, fs, net, db) {
-    const keyStore = freedesktop.makeSecretTool(process.spawn);
+module.exports = (function Ofxies(time, proc, fs, net, db) {
+    // console.log('Ofxies...');
+    const keyStore = freedesktop.makeSecretTool(proc.spawn);
 
     const cache = mkCache(time.clock);
 
@@ -43,7 +44,10 @@ module.exports = (function Ofxies(time, process, fs, net, db) {
                          { start: OFX.fmtDate(start), end: OFX.fmtDate(now) });
     }
 
-    const makeDB = (optsP) => budget.makeDB(db.mysql, db.events, optsP);
+    const makeDB = (optsP) => budget.makeDB(
+        db.mysql, db.events,
+        { pid: proc.pid, hostname: proc.hostname },
+        optsP);
     const bbvAux = (creds) =>
         makeHistoryRd(net.nightmare({show: debug}), creds);
     const simpleAux = (creds) =>
@@ -65,7 +69,9 @@ module.exports = (function Ofxies(time, process, fs, net, db) {
 })(
     // pass in ambient stuff here
     { clock: () => new Date()},
-    { spawn: require('child_process').spawn },
+    { spawn: require('child_process').spawn,
+      pid: process.pid,
+      hostname: require('os').hostname },
     { readFile: require('fs').readFile,
       writeFile: require('fs').writeFile},
     { SocketServer: require('ws').Server,
@@ -326,6 +332,8 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
 
             const db = makeDB(dbOptsP);
 
+            // TODO: manage socket lifetime so that it doesn't
+            // cause -post saveOFX to linger waiting for connections.
             mkSocket().then(ws => ws.on('connection', conn => {
                 // console.log('websocket connection:', ws);
                 const notify = (o, n) => conn.send(JSON.stringify({

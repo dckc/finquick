@@ -9,6 +9,7 @@ export function ui(budget, $) {
             const [port, tableSubs] = ps;
             const host = 'pav'; // @@get from window.url or something?
             const addr = `wss://${host}:${port}`;
+            // TODO: handle disconnect / reconnect
             const ws = new WebSocket(addr); // @@ambient
             ws.onopen = () => ws.send(tableSubs.splits);
             ws.onmessage = e => handleText(e.data);
@@ -77,7 +78,8 @@ export function ui(budget, $) {
 
         responses.onError(
             err => {
-                $('#errorMessage').text(err.toString());
+                const msg = typeof err === 'string' ? err : JSON.stringify(err);
+                $('#errorMessage').text(msg);
                 $('#error').modal('show');
             });
 

@@ -2,7 +2,6 @@
  *
  * @flow
  *
- * TODO: make stmttrn table name configurable, or at least expose it.
  */
 'use strict';
 
@@ -20,18 +19,24 @@ Options:
   -h HOST    database host [default: localhost]
 `;
 
-function main(
-    argv /*: Array<string>*/,
-    env /*:any*/,
-    stdout /*: stream$Writable | tty$WriteStream */,
-    spawn /*: (command: string, args: Array<string>) =>
-            child_process$ChildProcess */,
-    mkEvents,
-    mysql /*: MySql */)
-{
-    const cli = docopt(usage, { argv: argv.slice(2) });
+/*::
+type Env = {
+  argv : Array<string>,
+  LOGNAME: string,
+  stdout : stream$Writable | tty$WriteStream,
+  pid: number,
+  hostname: () => string,
+  spawn : (command: string, args: Array<string>) => child_process$ChildProcess,
+  mkEvents: MySQLEvents,
+  mysql : MySql
+}
+*/
 
-    const optsP = makeSecretTool(spawn).lookup({
+function main(env)
+{
+    const cli = docopt(usage, { argv: env.argv.slice(2) });
+
+    const optsP = makeSecretTool(env.spawn).lookup({
         protocol: 'mysql',
         server: cli['-h'],
         object: cli.DB
@@ -42,7 +47,9 @@ function main(
         database : cli.DB
     }));
 
-    const db = makeDB(mysql, mkEvents, optsP);
+    const db = makeDB(env.mysql, env.mkEvents,
+                      { pid: env.pid, hostname: env.hostname },
+                      optsP);
 
     db.subscribe(`${cli.DB}.splits`, (oldRow, newRow) => {
         console.log('old: ', oldRow,
@@ -52,10 +59,10 @@ function main(
     const chart = makeChartOfAccounts(db);
 
     chart.getLedger(cli.ACCOUNT, cli.SINCE).then(
-        info => stdout.write(`ledger: ${info}\n`)
+        info => env.stdout.write(`ledger: ${info}\n`)
     ).done();
     chart.acctBalance(cli.ACCOUNT, cli.SINCE).then(
-        info => stdout.write(`balance: ${info.balance}\n`)
+        info => env.stdout.write(`balance: ${info.balance}\n`)
     )
         .then(() => db.end())
         .done();
@@ -63,21 +70,38 @@ function main(
 
 
 /*::
+
+TODO: pass 'stmttrn' table name in to makeDB?
+
 type DB = {
-    query(dml: string, params?: Array<any>): Promise<Array<Object>>;
-    update(dml: string, params?: Array<any>): Promise<Array<Object>>;
+    query<T>(dml: string, t: T, params?: Array<any>): Promise<T>;
+    begin(): Promise<Transaction>;
+    withOFX<T>(acctCode: string, remoteTxns: Array<STMTTRN>,
+               action: () => Promise<T>): Promise<T>;
     // TODO: return unsubscribe thingy
     subscribe(path: string, handler: (oldRow: any, newRow: any) => void): void;
     end(): void
 }
 
+type STMTTRN = any; // TODO
+
+type Transaction = {
+    update<T>(dml: string, t: T, params?: Array<any>): Promise<T>;
+    commit(): Promise<{}>;
+    rollback(): Promise<{}>;
+}
+
 // TODO: annotate mkEvents
+
 */
 
-function makeDB(mysql /*: MySql*/, mkEvents /*:any*/, optsP) /*: DB*/ {
+function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
+                proc /*: { pid: number, hostname: () => string }*/,
+                optsP) /*: DB*/ {
     const connP = optsP.then(opts => mysql.createConnection(opts));
 
-    function statement(dml, params) /*: Promise<Array<Object>>*/{
+    function exec/*:: <T>*/(dml /*: string*/, _outType /*: T*/,
+                         params /*: ?Array<any>*/) /*: Promise<T>*/{
         return connP.then(c => {
             // console.log('DEBUG: db.query: ', dml, params || '');
 
@@ -104,112 +128,36 @@ function makeDB(mysql /*: MySql*/, mkEvents /*:any*/, optsP) /*: DB*/ {
         });
     }
 
+    function begin() /*: Promise<Transaction> */ {
+        const mkTx = _r => Object.freeze({
+            update: exec,
+            commit: () => exec('commit', {})
+                .then(_r => exec('delete from gnclock', {})),
+            rollback: () => exec('rollback', {})
+                .then(_r => exec('delete from gnclock', {}))
+        });
 
-    return Object.freeze({
-        query: statement,
-        update: statement,
-        subscribe: subscribe,
-        end: err => connP.then(c => c.end(err))
-    });
-}
+        return exec('select hostname, pid from gnclock',
+                    [{hostname: '', pid: 0}])
+            .then(locks => {
+                if (locks.length > 0) {
+                    console.log('locked!', locks);
+                    const l = locks[0];
+                    const p = `process ${l.pid} on ${l.hostname}`;
+                    return optsP.then(opts => {
+                        throw `Database ${opts.database} locked by ${p}`;
+                    });
+                }
 
-
-function makeChartOfAccounts(db /*:DB*/)
-{
-    function filterSeen(acctCode, remoteTxns) {
-        // console.log('filterSeen:', acctCode, remoteTxns.length);
-
-        const selectNew = `
-          select unix_timestamp(ofx.dtposted) * 1000 post_date
-             , ofx.name description
-             , ofx.checknum
-             , ofx.trnamt amount, ofx.memo
-             , ofx.fitid fid, ofx.trntype
-          from stmttrn ofx
-          where tx_guid is not null
-        `;
-        return withTxns(
-            acctCode, remoteTxns,
-            () => db.query(selectNew, [acctCode])
-                .then(result => { db.update('rollback'); return result; }));
+                return exec(`insert into gnclock (Hostname, Pid)
+                            values (?, ?)`, null, [proc.hostname(), proc.pid])
+                    .then(_result => exec('begin', null))
+                    .then(mkTx);
+            });
     }
 
-    function importRemote(acctCode, remoteTxns) {
-        const other = '9001';  // Imbalance-USD
-
-        const addTxns = `
-          insert into transactions (
-            guid, currency_guid, num, post_date, enter_date, description)
-          select
-              ofx.tx_guid guid
-            , (select guid from commodities
-               where namespace='CURRENCY' and mnemonic = 'USD') currency_guid
-            , ofx.checknum num
-            , ofx.dtposted post_date
-            , current_timestamp enter_date
-            , ofx.name description
-          from stmttrn ofx
-          where tx_guid is not null`;
-
-        const addSplits = `
-          insert into splits (
-             guid, tx_guid, account_guid, memo, action, reconcile_state
-           , value_num, value_denom
-           , quantity_num, quantity_denom)
-          select
-              ofx.credit_guid guid
-            , ofx.tx_guid
-            , (select guid
-               from accounts acct
-               where acct.code = ?) account_guid
-            , ofx.memo
-            , '' action
-            , 'c' reconcile_state
-            , ofx.trnamt * 100 value_num
-            , 100 value_denom
-            , ofx.trnamt * 100 quantity_num
-            , 100 quantity_denom
-          from stmttrn ofx
-          where tx_guid is not null
-
-          union all
-
-          select
-              ofx.debit_guid guid
-            , ofx.tx_guid
-            , (select guid
-               from accounts acct
-               -- Imbalance-USD
-               where acct.code = ?) account_guid
-            , null memo
-            , '' action
-            , 'n' reconcile_state
-            , - ofx.trnamt * 100 value_num
-            , 100 value_denom
-            , - ofx.trnamt * 100 quantity_num
-            , 100 quantity_denom
-          from stmttrn ofx
-          where tx_guid is not null`;
-
-        const addSlots = `
-          insert into slots (obj_guid, name, slot_type, string_val)
-          select
-              credit_guid obj_guid
-            , 'online_id' name
-            , 4 slot_type
-            , fitid string_val
-          from stmttrn ofx
-          where tx_guid is not null`;
-
-        return withTxns(
-            acctCode, remoteTxns,
-            () => db.update(addTxns)
-                .then(() => db.update(addSplits, [acctCode, other]))
-                .then(() => db.update(addSlots))
-                .then(() => db.update('commit')));
-    }
-
-    function withTxns(acctCode, remoteTxns, finalAction) {
+    function withOFX/*:: <T>*/(acctCode, remoteTxns,
+                               action /*: () => Promise<T>*/) {
         const createTemp = `
           create table if not exists stmttrn (
             fitid varchar(80),
@@ -264,13 +212,126 @@ function makeChartOfAccounts(db /*:DB*/)
           where credit_guid is null
         `;
 
-        return db.update('begin')
-            .then(() => db.update(createTemp))
-            .then(() => db.update('truncate table stmttrn'))
-            .then(() => db.update(insertRemote, [txValues]))
-            .then(() => db.update(matchByFid, [acctCode]))
-            .then(() => db.update(genIds))
-            .then(finalAction);
+        const prepare /*: Promise<{}>*/ = exec(createTemp, {})
+            .then(_r => exec('truncate table stmttrn', {}))
+            .then(_r => exec(insertRemote, {}, [txValues]))
+            .then(_r => exec(matchByFid, {}, [acctCode]))
+            .then(_r => exec(genIds, {}));
+
+        // flow thinks there's a type error here, but I can't find it.
+        return prepare.then(_r => action());
+    }
+
+
+    return Object.freeze({
+        query: exec,
+        begin: begin,
+        withOFX: withOFX,
+        subscribe: subscribe,
+        end: err => connP.then(c => c.end(err))
+    });
+}
+
+
+function makeChartOfAccounts(db /*:DB*/)
+{
+    function filterSeen(acctCode, remoteTxns) {
+        // console.log('filterSeen:', acctCode, remoteTxns.length);
+
+        const selectNew = `
+          select unix_timestamp(ofx.dtposted) * 1000 post_date
+             , ofx.name description
+             , ofx.checknum
+             , ofx.trnamt amount, ofx.memo
+             , ofx.fitid fid, ofx.trntype
+          from stmttrn ofx
+          where tx_guid is not null
+        `;
+        const rowEx = { post_date: 0, description : '', checknum: '',
+                        amount: 1.10, memo: '', fid: '', trntype: ''};
+        return db.withOFX(
+            acctCode, remoteTxns,
+            () => db.query(selectNew, [rowEx], [acctCode]));
+    }
+
+    function importRemote(acctCode, remoteTxns) {
+        const other = '9001';  // Imbalance-USD
+
+        const addTxns = `
+          insert into transactions (
+            guid, currency_guid, num, post_date, enter_date, description)
+          select
+              ofx.tx_guid guid
+            , (select guid from commodities
+               where namespace='CURRENCY' and mnemonic = 'USD') currency_guid
+            , ofx.checknum num
+            , ofx.dtposted post_date
+            , current_timestamp enter_date
+            , ofx.name description
+          from stmttrn ofx where tx_guid is not null`;
+
+        const addSplits = `
+          insert into splits (
+             guid, tx_guid, account_guid, memo, action
+           , reconcile_state, reconcile_date
+           , value_num, value_denom
+           , quantity_num, quantity_denom)
+          select
+              ofx.credit_guid guid
+            , ofx.tx_guid
+            , (select guid
+               from accounts acct
+               where acct.code = ?) account_guid
+            , ofx.memo
+            , '' action
+            , 'c' reconcile_state, current_timestamp reconcile_date
+            , ofx.trnamt * 100 value_num, 100 value_denom
+            , ofx.trnamt * 100 quantity_num, 100 quantity_denom
+          from stmttrn ofx where tx_guid is not null
+
+          union all
+
+          select
+              ofx.debit_guid guid
+            , ofx.tx_guid
+            , (select guid
+               from accounts acct
+               -- Imbalance-USD
+               where acct.code = ?) account_guid
+            , '' memo
+            , '' action
+            , 'n' reconcile_state, null reconcile_date
+            , - ofx.trnamt * 100 value_num, 100 value_denom
+            , - ofx.trnamt * 100 quantity_num, 100 quantity_denom
+          from stmttrn ofx where tx_guid is not null`;
+
+        const addSlots = `
+          insert into slots (
+                 obj_guid, name
+               , slot_type, string_val, gdate_val)
+          select credit_guid obj_guid
+               , 'online_id' name, 4 slot_type, ofx.fitid string_val, null
+          from stmttrn ofx where tx_guid is not null
+
+          union all
+          select credit_guid obj_guid
+              , 'notes' name, 4 slot_type
+              , concat('OFX ext. info: |Memo:', ofx.memo) string_val, null
+          from stmttrn ofx where tx_guid is not null
+
+          union all
+          select credit_guid obj_guid
+              , 'date-posted' name, 10 slot_type, null, ofx.dtposted gdate_val
+          from stmttrn ofx where tx_guid is not null
+        `;
+
+        return db.begin()
+            .then(tx => db.withOFX(
+                acctCode, remoteTxns,
+                () => tx.update(addTxns, {})
+                    .then(_r => tx.update(addSplits, {}, [acctCode, other]))
+                    .then(_r => tx.update(addSlots, {}))
+                    .then(_r => tx.commit())));
     }
 
     function guids(objs) {
@@ -283,11 +344,12 @@ function makeChartOfAccounts(db /*:DB*/)
 
     function subAccounts(acctP) {
         function recur(parents, generations, resolve, reject) {
+            const rowEx = { guid: '', name: '' };
             db.query(
                 `select child.guid, child.name
                 from accounts child
                 join accounts parent on child.parent_guid = parent.guid
-                where parent.guid in (${guids(parents)})`
+                where parent.guid in (${guids(parents)})`, [rowEx]
             ).then(
                 children => {
                     if (children.length == 0) {
@@ -308,6 +370,9 @@ function makeChartOfAccounts(db /*:DB*/)
 
     function currentAccounts() {
         console.log('computing account balances...');
+
+        const rowEx = { guid: '', code: '', name: '',
+                        account_type: '', balance: 1.10 };
         return db.query(
             `
             select cur.*, ofx.latest
@@ -334,11 +399,14 @@ function makeChartOfAccounts(db /*:DB*/)
                 join transactions tx on s.tx_guid = tx.guid
                 group by a.guid
             ) ofx on cur.guid = ofx.guid
-            order by cur.code`);
+            order by cur.code`, [rowEx]);
     }
 
     function acctBalance(acctName, since) {
         const sinceWhen = parseDate(since);
+
+        const rowEx = { balance: 1.10, name: '', since: new Date(0) };
+
         return subAccounts(acctByName(acctName)).then(
             accts =>
                 db.query(
@@ -348,13 +416,18 @@ function makeChartOfAccounts(db /*:DB*/)
                     join accounts a on a.guid = s.account_guid
                     join transactions tx on tx.guid = s.tx_guid
                     where a.guid in (${guids(accts)})
-                    and tx.post_date >= ?`,
+                    and tx.post_date >= ?`, [rowEx],
                     [acctName, sinceWhen, sinceWhen]).then(first)
         );
     }
 
     function getLedger(acctName, since) {
         const sinceWhen = parseDate(since);
+
+        const rowEx = { post_date: 0, description: '',
+                        amount: 1.10, memo: '', fid: '',
+                        guid: '', tx_guid: ''};
+
         return acctByName(acctName).then(
             acct =>
                 db.query(
@@ -371,7 +444,8 @@ function makeChartOfAccounts(db /*:DB*/)
                                        and fid.name = 'online_id'
                     where sa.guid = ?
                       and tx.post_date > ?
-                    order by tx.post_date desc`, [acct.guid, sinceWhen]));
+                    order by tx.post_date desc
+                    `, [rowEx], [acct.guid, sinceWhen]));
     }
 
     function parseDate(ymd) {
@@ -401,13 +475,15 @@ function makeChartOfAccounts(db /*:DB*/)
 }
 
 if (require.main === module) {
-    main(
-        process.argv,
-        process.env,
-        process.stdout,
-        require('child_process').spawn,
-        require('mysql-events'),
-        require('mysql'));
+    main({
+        argv: process.argv,
+        LOGNAME: process.env.LOGNAME,
+        stdout: process.stdout,
+        pid: process.pid,
+        hostname: require('os').hostname,
+        spawn: require('child_process').spawn,
+        mkEvents: require('mysql-events'),
+        mysql: require('mysql')});
 }
 
 // TODO: move mysql decls to lib/mysql.js
@@ -416,6 +492,7 @@ interface MySql {
   createConnection(config: IConnectionConfig): IConnection;
 }
 
+type MySQLEvents = any; // TODO
 
 interface IConnection {
     query(sql: string,
