@@ -20,8 +20,11 @@ const OFX = require('./asOFX').OFX;
 const Simple = require('./asOFX').Simple;
 const makeHistoryRd = require('./bbv').makeHistoryRd;
 const makeSimpleRd = require('./simpn').makeSimpleRd;
+const paypal = require('./paypalSite');
 
 const debug = true;
+
+const hr = 60 * 60 * 1000;
 
 const cfg = {
     ssl_key: 'ssl/server.key',
@@ -34,7 +37,7 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
     // console.log('Ofxies...');
     const keyStore = freedesktop.makeSecretTool(proc.spawn);
 
-    const cache = mkCache(time.clock);
+    const cache = mkCache(time.clock, 18 * hr);
 
     function getStatement(start, now, creds, info) {
         const banking = new net.Banking(Object.assign({}, creds, info));
@@ -49,9 +52,9 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
         { pid: proc.pid, hostname: proc.hostname },
         optsP);
     const bbvAux = (creds) =>
-        makeHistoryRd(net.nightmare({show: debug}), creds);
+        makeHistoryRd(net.browser({show: debug}), creds);
     const simpleAux = (creds) =>
-        makeSimpleRd(net.nightmare({show: debug}), creds);
+        makeSimpleRd(net.browser({show: debug}), creds);
     const sitePassword = realm =>
         keyStore.lookup({signon_realm: realm});
     const saveOFX = (code, xml) =>
@@ -59,8 +62,11 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
     const mkSocket = socketMaker({ createServer: net.createServer,
                                    SocketServer: net.SocketServer},
                                  { readFile: fs.readFile}, cfg);
+    const mkUA = () => net.browser({show: debug});
 
     return Object.freeze({
+        makePayPal: makeOFXSiteMaker(
+            sitePassword, cache, mkUA, paypal.driver()),
         makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX),
         makeBankBV: makeBankBVmaker(keyStore, bbvAux, cache),
         makeSimple: makeSimplemaker(sitePassword, simpleAux, cache),
@@ -77,30 +83,28 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
     { SocketServer: require('ws').Server,
       createServer: require('https').createServer,
       Banking: require('banking'),
-      nightmare: require('nightmare')},
+      browser: require('nightmare')},
     // TODO: we only need mysql.createConnection
     { mysql: require('mysql'),
       events: require('mysql-events')});
 
 
-const hr = 60 * 60 * 1000;
-
-function mkCache(clock) {
+function mkCache(clock, maxAgeDefault) {
     return cache;
 
-    function cache(f, mem, field, maxAgeDefault) {
+    function cache(f, mem) {
         return function (x, maxAge /*: ?number */) {
             const now = clock();
-            maxAge = maxAge !== null ? maxAge : maxAgeDefault;
+            maxAge = maxAge > 0 ? maxAge : maxAgeDefault;
             if (mem.timestamp && (new Date(mem.timestamp + maxAge) > now)) {
-                return Q(mem[field]);
+                return Q(mem.cache);
             }
             // TODO: return cache, filter details to UI
             console.log('min. cache stale:',
                         (now - new Date(mem.timestamp + maxAge)) / (1000 * 60),
                         'maxAge (hr):', maxAge / (1000 * 60 * 60));
             return f(x, now).then(result => {
-                mem[field] = result;
+                mem.cache = result;
                 mem.timestamp = now.valueOf();
                 return result;
             });
@@ -136,6 +140,11 @@ function makeOFXmaker(keyStore, getStatement, cache) {
 
     function makeOFX(context) {
         const mem = context.state;
+        // @@transition
+        if (mem.stmttrn) {
+            mem.cache = mem.stmttrn;
+            mem.stmttrn = '';
+        }
 
         // Discover gives bogus <TRNAMT>-0</TRNAMT> transactions.
         const notBogus = tx => {
@@ -186,17 +195,59 @@ function makeOFXmaker(keyStore, getStatement, cache) {
             institution: () => mem.info,
             name: () => mem.keyAttrs.object,
             ofx: () => mem.xml,
-            fetch: cache(fetch, mem, 'stmttrn', 18 * hr)
+            fetch: cache(fetch, mem)
         });
     }
 }
 
+
+function makeOFXSiteMaker(sitePassword, cache, mkUserAgent, driver) {
+    return makeOFXSite;
+
+    function makeOFXSite(context) {
+        const mem = context.state;
+
+        function init(login, code, realm) {
+            mem.login = login;
+            mem.code = code;
+            mem.realm = realm || driver.realm();
+        }
+
+        const creds = {
+            login: () => Q(mem.login),
+            password: () => sitePassword(mem.realm)
+        };
+
+        function download(start /*: number*/, now /*: Date*/) {
+            const ua = mkUserAgent();
+
+            return driver.download(ua, creds, start, now).then(
+                data => Q.async(function*() {
+                    yield ua.end();
+                })().then(() => data));
+        }
+        const download_ = cache(download, mem);
+
+        return Object.freeze({
+            init: init,
+            download: download_,
+            fetch: (startMS, maxAge) => download_(startMS, maxAge)
+                .then(driver.toOFX)
+        });
+    }
+}
 
 function makeBankBVmaker(keyStore, makeBankRd, cache) {
     return makeBankBV;
 
     function makeBankBV(context) {
         const mem = context.state;
+        // @@transition
+        if (mem.stmttrn) {
+            mem.cache = mem.stmttrn;
+            mem.stmttrn = '';
+        }
+
         let sessionP = null;
 
         const creds = {
@@ -246,7 +297,7 @@ function makeBankBVmaker(keyStore, makeBankRd, cache) {
                 mem.code = code;
             },
             ofx: () => mem.xml,
-            fetch: cache(fetch, mem, 'stmttrn', 18 * hr)
+            fetch: cache(fetch, mem)
         });
     }
 }
@@ -258,6 +309,11 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
     function makeSimple(context) {
         const mem = context.state;
         let simple = null;
+        // @@transition
+        if (mem.transactions) {
+            mem.cache = mem.transactions;
+            mem.transactions = '';
+        }
 
         const creds = {
             username: () => Q(mem.username),
@@ -271,7 +327,7 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
 
             return simple.transactions();
         }
-        const transactions_ = cache(transactions, mem, 'transactions', 18 * hr);
+        const transactions_ = cache(transactions, mem);
 
         // TODO: move this STMTRN extraction stuff to asOFX
         function toOFX(txns) {
@@ -287,7 +343,8 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
                 mem.realm = realm || 'https://bank.simple.com/';
             },
             transactions: transactions_,
-            fetch: (_startMS, _maxAge) => transactions_().then(toOFX)
+            fetch: (startMS, maxAge) => transactions_(startMS, maxAge)
+                .then(toOFX)
         });
     }
 }

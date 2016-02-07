@@ -8,17 +8,20 @@ const docopt = require('docopt').docopt;
 
 const freedesktop = require('./secret-tool');
 
+const REALM = 'https://www.paypal.com/';
 const usage = `
 Usage:
-  paypalSite.js activity --login=EMAIL --output=FILE [-r URL]
+  paypalSite.js download --login=EMAIL --output=FILE [-r URL] [-q] [-w N]
   paypalSite.js -h | --help
 
 Options:
  -l M --login=EMAIL     Login email
  -r URL --realm=URL     Realm of Chrome password entry in freedesktop
                         secret store (aka gnome keychain)
-                        [default: https://www.paypal.com/]
+                        [default: ${REALM}]
  -o FILE --output=FILE  where to save CSV data
+ -q                     quiet: do not show browser window
+ -w N                   timeout in seconds [default: 20]
  -h --help              show usage
 
 We look up the login password using the 'signon_realm' attribute,
@@ -26,34 +29,38 @@ following Chrome conventions.
 
 `;
 
-function main(argv /*:Array<string>*/, access) {
+
+
+function main(argv, time, proc, fs, net) {
     'use strict';
     const cli = docopt(usage, { argv: argv.slice(2) });
 
-    const keyChain = freedesktop.makeSecretTool(access.spawn);
+    const keyChain = freedesktop.makeSecretTool(proc.spawn);
     const creds = {
         login: () => Q(cli['--login']),
         password: () => keyChain.lookup({signon_realm: cli['--realm']})
     };
+    const ua = net.browser(
+        { show: !cli['-q'],
+          waitTimeout: parseInt(cli['-w']) * 1000 });
+    const save = data => Q.nfcall(fs.writeFile, cli['--output'], data);
 
-    const debug = true;
-    const nightmare = access.nightmare({ show: debug, waitTimeout: 20 * 1000 });
-    const activityExport = makeActivityExport(nightmare, creds);
-    activityExport.login()
-        .then(session => session.downloadActivity())
-        .then(csv => Q.nfcall(access.writeFile, cli['--output'], csv))
-        .then(() => nightmare.end())
+    const d = driver();
+    d.download(ua, creds, 0, time.clock())
+        .then(save)
+        .then(() => ua.end())
         .done();
 }
 
 /*::
-type Site = {
-  login(): Promise<Session>;
+type Driver = {
+  realm(): string;
+  download(ua: Nightmare, creds: Creds,
+           start: number, now: Date): Promise<string>;
+  toOFX(data: string): Array<STMTTRN>
 }
 
-type Session = {
-  downloadActivity(): Promise<string>
-}
+type STMTTRN = any; // TODO
 
 type Creds = {
   login(): Promise<string>;
@@ -63,13 +70,21 @@ type Creds = {
 type Nightmare = any; // TODO
 */
 
-function makeActivityExport(userAgent /*: Nightmare*/,
-                            creds /*: Creds*/) /*: Site */ {
-    const login = Q.async(function*(){
+function driver() /*: Driver */ {
+    function download(ua, creds, start, now) {
+        return login(ua, creds)
+            .then(session => session.downloadActivity(start, now));
+    }
+
+    function toOFX(data) {
+        throw '@@TODO';
+    }
+
+    const login = Q.async(function*(userAgent, creds){
         console.log('login()...');
 
         yield userAgent
-            .goto('https://www.paypal.com/signin/')
+            .goto(REALM + 'signin/')
             .wait(1 * 1000)
             .wait('section#login')
             .insert('#login input[name="login_email"]', '')
@@ -83,8 +98,8 @@ function makeActivityExport(userAgent /*: Nightmare*/,
             .wait('body');
 
 
-        const downloadActivity = Q.async(function*(startDate, endDate) {
-            console.log('downloadActivity() TODO:', startDate, endDate);
+        const downloadActivity = Q.async(function*(_startDate, _endDate) {
+            console.log('downloadActivity() TODO:', _startDate, _endDate);
 
             const exportItem =
                 '.nemo_statementsLinkMenu li:nth-child(2) a';
@@ -123,9 +138,12 @@ function makeActivityExport(userAgent /*: Nightmare*/,
     });
 
     return Object.freeze({
-        login: login
+        realm: () => REALM,
+        download: download,
+        toOFX: toOFX
     });
 }
+
 
 // ugh:
 // Cannot download a file #151
@@ -174,11 +192,10 @@ const requestDownload = function () {
 if (require.main === module) {
     main(
         process.argv,
-        { clock: () => new Date(),
-          spawn: require('child_process').spawn,
-          writeFile: require('fs').writeFile,
-          nightmare: require('nightmare')
-        });
+        { clock: () => new Date() },
+        { spawn: require('child_process').spawn },
+        { writeFile: require('fs').writeFile },
+        { browser: require('nightmare') });
 }
 
-exports.makeActivityExport = makeActivityExport;
+exports.driver = driver;
