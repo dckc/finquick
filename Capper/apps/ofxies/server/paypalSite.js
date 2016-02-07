@@ -5,8 +5,11 @@
 'use strict';
 const Q    = require('q');
 const docopt = require('docopt').docopt;
+const csvp = require('csv-parse');
 
 const freedesktop = require('./secret-tool');
+const asOFX = require('./asOFX');
+const OFX = asOFX.OFX;
 
 const REALM = 'https://www.paypal.com/';
 const usage = `
@@ -57,10 +60,30 @@ type Driver = {
   realm(): string;
   download(ua: Nightmare, creds: Creds,
            start: number, now: Date): Promise<string>;
-  toOFX(data: string): Array<STMTTRN>
+  toOFX(data: string): Promise<Array<STMTTRN>>
 }
 
-type STMTTRN = any; // TODO
+
+// TODO: move this to lib file so it can be shared
+type STMTTRN = {
+    TRNTYPE: Array<'CREDIT' | 'DEBIT'>;
+    DTPOSTED: Array<DateString>;
+    DTUSER?: Array<DateString>;
+    TRNAMT: Array<number>;
+    FITID: Array<string>;
+    CHECKNUM?: Array<string>,
+    NAME: Array<string>
+}
+type DateString = string;
+
+type Transaction = {
+  ID: string,
+  Date: Date,
+  Name: string,
+  Status: string,
+  Note: string,
+  Net: number
+};
 
 type Creds = {
   login(): Promise<string>;
@@ -74,10 +97,6 @@ function driver() /*: Driver */ {
     function download(ua, creds, start, now) {
         return login(ua, creds)
             .then(session => session.downloadActivity(start, now));
-    }
-
-    function toOFX(data) {
-        throw '@@TODO';
     }
 
     const login = Q.async(function*(userAgent, creds){
@@ -142,6 +161,60 @@ function driver() /*: Driver */ {
         download: download,
         toOFX: toOFX
     });
+}
+
+
+function toOFX(data) {
+    /*:: type TxMaker = (row: Array<string>) => Transaction */
+    function record(hd /*: Array<string>*/) /*: TxMaker*/{
+        const field = name => (row => {
+            const ix = hd.indexOf(name);
+            if (ix < 0 || ix + 1 > row.length) {
+                throw Error([name, ix, hd, row.length]);
+            }
+            return row[ix];
+        });
+        
+        const ID = field('Transaction ID');
+        const Date = field('Date');
+        const Name = field('Name');
+        const Status = field('Status');
+        const Note = field('Note');
+        const Net = field('Net');
+
+        return row => ({
+            ID: ID(row),
+            Date: parseDate(Date(row)),
+            Name: Name(row),
+            Status: Status(row),
+            Note: Note(row),
+            Net: parseFloat(Net(row))
+        });
+    }
+
+    function mkTrn(r) /*: STMTTRN*/ {
+        return {
+            TRNTYPE: ['CREDIT'], // hmm...
+            DTPOSTED: [OFX.fmtDate(r.Date)],
+            TRNAMT: [r.Net],
+            FITID: [r.ID],
+            NAME: [r.Name],
+            MEMO: [r.Note]
+        };
+    }
+
+    return Q.nfcall(csvp, data)
+        .then(rows => {
+            const hd = rows[0].map(n => n.trim());
+            const records = rows.slice(1).map(record(hd));
+            return records.map(mkTrn);
+        });
+}
+
+function parseDate(mm_dd_yyyy) {
+    const parts = /(\d+)\/(\d+)\/(\d+)/.exec(mm_dd_yyyy);
+    const mdy = parts.slice(1, 4).map(s => parseInt(s));
+    return new Date(mdy[2], mdy[0] - 1, mdy[1]);
 }
 
 

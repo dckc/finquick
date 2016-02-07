@@ -54,7 +54,7 @@ type SimpleTrx = {
 
 const Simple = function() {
 
-    const transaction = (tx /*: SimpleTrx*/) => {
+    const transaction = (tx /*: SimpleTrx*/) /*: STMTTRN */=> {
         const recorded = new Date(tx.times.when_recorded);
         const dtposted = nopunct(recorded.toISOString());
         // console.log(dtposted, ' from ', recorded, ' from ', tx.times.when_recorded);
@@ -64,7 +64,7 @@ const Simple = function() {
         const trnamt = ((tx.bookkeeping_type == 'credit' ? 1 : -1) *
                         Simple.toUSD(tx.amounts.amount));
         return {
-            TRNTYPE: [tx.bookkeeping_type.toUpperCase()],
+            TRNTYPE: [tx.bookkeeping_type == 'credit' ? 'CREDIT' : 'DEBIT'],
             DTPOSTED: [dtposted],
             DTUSER: [dtuser],
             TRNAMT: [trnamt],
@@ -92,30 +92,9 @@ const Simple = function() {
         const start_date = min(txdates);
         const end_date = max(txdates);
 
-        return {BANKMSGSRSV1: [
-            {STMTTRNRS: [
-                {TRNUID: '0',
-                 STATUS: [
-                    {CODE: '0',
-                     SEVERITY: 'INFO'}],
-                
-                 STMTRS: [
-                    {CURDEF: Simple.currency,
-                    // sometimes CCACCTFROM
-                     BANKACCTFROM: [
-                        {BANKID: bank_id},
-                        {ACCTID: account_id},
-                        {ACCTTYPE: Simple.account_type}],
-                    
-                     BANKTRANLIST: [
-                        {DTSTART: start_date,
-                         DTEND: end_date,
-                         STMTTRN: txs}],
-                    
-                     LEDGERBAL: [
-                        {BALAMT: end_balance,
-                         DTASOF: end_date}]
-                     }]}]}]};
+        return OFX.bankStatement(bank_id, account_id,
+                                 start_date, end_date, end_balance,
+                                 txs);
     };
 
     return Object.freeze({
@@ -134,15 +113,19 @@ function nopunct(iso /*:string*/) {
 
 
 /*::
-type Transaction = {
-    TRNTYPE: 'CREDIT' | 'DEBIT';
-    DTPOSTED: Date;
-    DTUSER: Date;
-    TRNAMT: number;
-    FITID: string;
-    CHECKNUM: ?string,
-    NAME: string
+// TODO: move this to lib file so it can be shared
+type STMTTRN = {
+    TRNTYPE: Array<'CREDIT' | 'DEBIT'>;
+    DTPOSTED: Array<DateString>;
+    DTUSER?: Array<DateString>;
+    TRNAMT: Array<number>;
+    FITID: Array<string>;
+    CHECKNUM?: Array<string>,
+    NAME: Array<string>
 }
+
+type DateString = string; //@@ see fmtDate
+
 */
 
 const OFX = function() {
@@ -206,11 +189,45 @@ const OFX = function() {
         return new Date(d0.getTime() + offset);
     }
 
+    function bankStatement(bank_id, account_id,
+                           start_date, end_date, end_balance,
+                           txs /*: Array<STMTTRN>*/) {
+        return {BANKMSGSRSV1: [
+            {STMTTRNRS: [
+                {TRNUID: '0',
+                 STATUS: [
+                    {CODE: '0',
+                     SEVERITY: 'INFO'}],
+                
+                 STMTRS: [
+                    {CURDEF: Simple.currency,
+                    // TODO: CCACCTFROM
+                     BANKACCTFROM: [
+                        {BANKID: bank_id},
+                        {ACCTID: account_id},
+                        {ACCTTYPE: Simple.account_type}],
+                    
+                     BANKTRANLIST: [
+                        {DTSTART: start_date,
+                         DTEND: end_date,
+                         STMTTRN: txs}],
+                    
+                     LEDGERBAL: [
+                        {BALAMT: end_balance,
+                         DTASOF: end_date}]
+                     }]}]}]};
+    }
+
+    function fmtDate(d /*: Date*/) {
+        return d.toISOString().substring(0, 20).replace(/[^0-9]/g, '');
+    }
+
     return Object.freeze({
         institutionInfo: institutionInfo,
         header: header,
         signOn: signOn,
-        fmtDate: d => d.toISOString().substring(0, 20).replace(/[^0-9]/g, ''),
+        bankStatement: bankStatement,
+        fmtDate: fmtDate,
         parseDate: parseDate,
         OFX: (clock, stmt) => {
             const document = {

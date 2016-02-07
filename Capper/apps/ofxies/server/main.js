@@ -332,8 +332,8 @@ function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
         // TODO: move this STMTRN extraction stuff to asOFX
         function toOFX(txns) {
             const stmt = Simple.statement(txns.data);
-            return stmt.BANKMSGSRSV1[0].STMTTRNRS[0].STMTRS[0]
-                .BANKTRANLIST[0].STMTTRN;
+            return Q(stmt.BANKMSGSRSV1[0].STMTTRNRS[0].STMTRS[0]
+                .BANKTRANLIST[0].STMTTRN);
         }
 
         return Object.freeze({
