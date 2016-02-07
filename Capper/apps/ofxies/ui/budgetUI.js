@@ -23,6 +23,7 @@ export function ui(budget, $) {
 
     const interesting = a => a.balance != 0 || a.latest > 0;
     const currentAccounts = Bacon.once(null).concat(splitEdit)
+        .debounce(0.3 * 1000)
 	.flatMap(edit => Bacon.fromPromise(budget.post('currentAccounts')))
         .map(accounts => accounts.filter(interesting))
 	.skipDuplicates(_.isEqual);
@@ -109,8 +110,7 @@ export function ui(budget, $) {
 
 function Try(thunk) {
     try {
-        const v = thunk();
-        return new Bacon.Next(v);
+        return new Bacon.Next(thunk());
     } catch (e) {
         return new Bacon.Error(e);
     }
@@ -122,7 +122,7 @@ const bal = new Intl.NumberFormat("en-US",
 				    minimumFractionDigits: 2 });
 
 function elt(tag, children, attrs) {
-    const e = $(document.createElement(tag));
+    const e = $(document.createElement(tag)); // AMBIENT global document
     e.append(children);
     for (let a in attrs) {
 	e.attr(a, attrs[a]);
