@@ -11,15 +11,13 @@ requires: Capper express app
 require('object-assign-shim'); // ES6 Object.assign
 
 const Q = require('q');
-const parseOFX = require('banking').parse;
 
 const caplib = require('../../../caplib');
 const freedesktop = require('./secret-tool');
 const budget = require('./budget');
 const OFX = require('./asOFX').OFX;
-const Simple = require('./asOFX').Simple;
-const makeHistoryRd = require('./bbv').makeHistoryRd;
-const makeSimpleRd = require('./simpn').makeSimpleRd;
+const bbv = require('./bbv');
+const simpn = require('./simpn');
 const paypal = require('./paypalSite');
 
 const debug = true;
@@ -51,12 +49,12 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
         db.mysql, db.events,
         { pid: proc.pid, hostname: proc.hostname },
         optsP);
-    const bbvAux = (creds) =>
-        makeHistoryRd(net.browser({show: debug}), creds);
-    const simpleAux = (creds) =>
-        makeSimpleRd(net.browser({show: debug}), creds);
-    const sitePassword = realm =>
-        keyStore.lookup({signon_realm: realm});
+    const secrets = {
+        sitePassword: realm =>
+            keyStore.lookup({signon_realm: realm}),
+        challenge: (code, question) =>
+            keyStore.lookup({code: code, question: question})
+    };
     const saveOFX = (code, xml) =>
         Q.nfcall(fs.writeFile, code + '.ofx', xml);
     const mkSocket = socketMaker({ createServer: net.createServer,
@@ -65,11 +63,13 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
     const mkUA = () => net.browser({show: debug});
 
     return Object.freeze({
-        makePayPal: makeOFXSiteMaker(
-            sitePassword, cache, mkUA, paypal.driver()),
         makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX),
-        makeBankBV: makeBankBVmaker(keyStore, bbvAux, cache),
-        makeSimple: makeSimplemaker(sitePassword, simpleAux, cache),
+        makePayPal: makeOFXSiteMaker(
+            secrets, cache, mkUA, paypal.driver()),
+        makeBankBV: makeOFXSiteMaker(
+            secrets, cache, mkUA, bbv.driver()),
+        makeSimple: makeOFXSiteMaker(
+            secrets, cache, mkUA, simpn.driver()),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
 })(
@@ -95,7 +95,7 @@ function mkCache(clock, maxAgeDefault) {
     function cache(f, mem) {
         return function (x, maxAge /*: ?number */) {
             const now = clock();
-            maxAge = maxAge > 0 ? maxAge : maxAgeDefault;
+            maxAge = maxAge >= 0 ? maxAge : maxAgeDefault;
             if (mem.timestamp && (new Date(mem.timestamp + maxAge) > now)) {
                 return Q(mem.cache);
             }
@@ -140,11 +140,6 @@ function makeOFXmaker(keyStore, getStatement, cache) {
 
     function makeOFX(context) {
         const mem = context.state;
-        // @@transition
-        if (mem.stmttrn) {
-            mem.cache = mem.stmttrn;
-            mem.stmttrn = '';
-        }
 
         // Discover gives bogus <TRNAMT>-0</TRNAMT> transactions.
         const notBogus = tx => {
@@ -155,6 +150,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
             const start = startMS ? daysBefore(3, new Date(startMS))
                 : daysBefore(45, now);
 
+            // TODO: attenuate keystore? do we really need access to all of it?
             return keyStore.lookup(mem.keyAttrs).then(secret => {
                 const parts = secret.trim().split(' ');
                 return { accId: parts[0],
@@ -201,7 +197,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
 }
 
 
-function makeOFXSiteMaker(sitePassword, cache, mkUserAgent, driver) {
+function makeOFXSiteMaker(secrets, cache, mkUserAgent, driver) {
     return makeOFXSite;
 
     function makeOFXSite(context) {
@@ -215,7 +211,8 @@ function makeOFXSiteMaker(sitePassword, cache, mkUserAgent, driver) {
 
         const creds = {
             login: () => Q(mem.login),
-            password: () => sitePassword(mem.realm)
+            password: () => secrets.sitePassword(mem.realm),
+            challenge: question => secrets.challenge(mem.code, question)
         };
 
         function download(start /*: number*/, now /*: Date*/) {
@@ -233,118 +230,6 @@ function makeOFXSiteMaker(sitePassword, cache, mkUserAgent, driver) {
             download: download_,
             fetch: (startMS, maxAge) => download_(startMS, maxAge)
                 .then(driver.toOFX)
-        });
-    }
-}
-
-function makeBankBVmaker(keyStore, makeBankRd, cache) {
-    return makeBankBV;
-
-    function makeBankBV(context) {
-        const mem = context.state;
-        // @@transition
-        if (mem.stmttrn) {
-            mem.cache = mem.stmttrn;
-            mem.stmttrn = '';
-        }
-
-        let sessionP = null;
-
-        const creds = {
-            username: () => Q(mem.login),
-            password: () => keyStore.lookup({signon_realm: mem.realm}),
-            challenge: (question) => keyStore.lookup(
-                {code: mem.code, question: question})
-        };
-
-        function stmttrn(res) {
-            const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
-            const status = trnrs.STATUS[0];
-            if (status.CODE[0] != '0') {
-                console.log('bank error:', status);
-                throw new Error(status);
-            }
-            return trnrs.STMTRS[0]
-                .BANKTRANLIST[0].STMTTRN;
-        }
-        
-        function fetch(startMS /*: ?number */, now /*: Date*/) {
-            let ofx_markup;
-
-            if (!sessionP) {
-                sessionP = makeBankRd(creds).login();
-            }
-
-            return sessionP
-                .then(session => session.getHistory(new Date(startMS), now))
-                .then(markup => {
-                    ofx_markup = markup;
-                    return Q.promise(
-                        (resolve) => parseOFX(markup, resolve));
-                })
-                .then(
-                    ofx => {
-                        const txns = stmttrn(ofx);
-                        mem.xml = ofx_markup;
-                        return txns;
-                    });
-        }
-        
-        return Object.freeze({
-            init: (login, code, realm) => {
-                mem.login = login;
-                mem.realm = realm || 'https://pib.secure-banking.com/';
-                mem.code = code;
-            },
-            ofx: () => mem.xml,
-            fetch: cache(fetch, mem)
-        });
-    }
-}
-
-
-function makeSimplemaker(sitePassword, makeSimpleRd, cache) {
-    return makeSimple;
-
-    function makeSimple(context) {
-        const mem = context.state;
-        let simple = null;
-        // @@transition
-        if (mem.transactions) {
-            mem.cache = mem.transactions;
-            mem.transactions = '';
-        }
-
-        const creds = {
-            username: () => Q(mem.username),
-            password: () => sitePassword(mem.realm)
-        };
-
-        function transactions(_x, _now /*: Date*/) {
-            if (!simple) {
-                simple = makeSimpleRd(creds);
-            }
-
-            return simple.transactions();
-        }
-        const transactions_ = cache(transactions, mem);
-
-        // TODO: move this STMTRN extraction stuff to asOFX
-        function toOFX(txns) {
-            const stmt = Simple.statement(txns.data);
-            return Q(stmt.BANKMSGSRSV1[0].STMTTRNRS[0].STMTRS[0]
-                .BANKTRANLIST[0].STMTTRN);
-        }
-
-        return Object.freeze({
-            init: (username, code, realm) => {
-                mem.username = username;
-                mem.code = code;
-                mem.realm = realm || 'https://bank.simple.com/';
-            },
-            transactions: transactions_,
-            fetch: (startMS, maxAge) => transactions_(startMS, maxAge)
-                .then(toOFX)
         });
     }
 }

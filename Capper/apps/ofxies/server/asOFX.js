@@ -8,104 +8,6 @@
 'use strict';
 
 const xml = require('xml');
-const docopt = require('docopt');
-
-const doc = `
-Usage:
-  asOFX IN OUT
-`;
-
-
-/*::
-type Access = {
-    read(which: string): stream$Readable;
-    write(which: string): stream$Writable
-};
-*/
-
-function main(cli/*: Access*/, clock/*: () => Date*/) {
-    const input = cli.read('IN');
-    const output = cli.write('OUT');
-    let buf = '';
-    input.on('data', (chunk) => {
-        buf += chunk;
-    });
-    input.on('end', () => {
-        const data = JSON.parse(buf).data;
-        output.write(OFX.OFX(clock, Simple.statement(data)));
-    });
-}
-
-/*::
-type SimpleTrx = {
-    uuid: string;
-    description: string;
-    memo: string;
-    times: {
-      when_recorded: number;
-      when_recorded_local: string
-    };
-    bookkeeping_type: 'credit' | 'debit';
-    amounts: {
-        amount: number
-    }
-}
-*/
-
-const Simple = function() {
-
-    const transaction = (tx /*: SimpleTrx*/) /*: STMTTRN */=> {
-        const recorded = new Date(tx.times.when_recorded);
-        const dtposted = nopunct(recorded.toISOString());
-        // console.log(dtposted, ' from ', recorded, ' from ', tx.times.when_recorded);
-        const dtuser = nopunct(tx.times.when_recorded_local);
-        // console.log(dtuser, ' from ', tx.times.when_recorded_local);
-
-        const trnamt = ((tx.bookkeeping_type == 'credit' ? 1 : -1) *
-                        Simple.toUSD(tx.amounts.amount));
-        return {
-            TRNTYPE: [tx.bookkeeping_type == 'credit' ? 'CREDIT' : 'DEBIT'],
-            DTPOSTED: [dtposted],
-            DTUSER: [dtuser],
-            TRNAMT: [trnamt],
-            FITID: [tx.uuid],
-            //TODO? {CHECKNUM: check_no},
-            //TODO: {REFNUM: refnum}
-            //TODO? BANKACCTTO...
-            NAME: [tx.description || ''],
-            MEMO: [tx.memo || '']};
-    };
-
-
-    const statement = (stxs) => {
-        const last = (fallback, f) => {
-            return stxs.length === 0 ? fallback : f(stxs[stxs.length - 1]);
-        };
-
-        const bank_id = last('', function(t) { return t.user_id; });
-        const account_id = bank_id;
-        const end_balance = last(0, function(t) {
-            return Simple.toUSD(t.running_balance);
-        });
-        const txs = stxs.map(transaction);
-        const txdates = txs.map(function(tx) { return tx.DTPOSTED; });
-        const start_date = min(txdates);
-        const end_date = max(txdates);
-
-        return OFX.bankStatement(bank_id, account_id,
-                                 start_date, end_date, end_balance,
-                                 txs);
-    };
-
-    return Object.freeze({
-        currency: 'USD',  // Simple is a US bank
-        account_type: 'CHECKING', // As of this writing, that's all they offer.
-        toUSD: function(amt) { return amt / 10000; },
-        transaction: transaction,
-        statement: statement
-    });
-}();
-
 
 function nopunct(iso /*:string*/) {
     return iso.replace(/[: ZT-]/g, '');
@@ -200,12 +102,12 @@ const OFX = function() {
                      SEVERITY: 'INFO'}],
                 
                  STMTRS: [
-                    {CURDEF: Simple.currency,
+                    {CURDEF: 'USD',
                     // TODO: CCACCTFROM
                      BANKACCTFROM: [
                         {BANKID: bank_id},
                         {ACCTID: account_id},
-                        {ACCTTYPE: Simple.account_type}],
+                        {ACCTTYPE: 'CHECKING'}],
                     
                      BANKTRANLIST: [
                         {DTSTART: start_date,
@@ -240,46 +142,4 @@ const OFX = function() {
 }();
 
 
-// ack: Linus Unnebäck Nov 18 '12
-// http://stackoverflow.com/a/13440842
-function min(arr) {
-    return arr.reduce(function (p, v) {
-        return ( p < v ? p : v );
-    });
-}
-
-function max(arr) {
-    return arr.reduce(function (p, v) {
-        return ( p > v ? p : v );
-    });
-}
-
-
-function CLI(argv /*: Array<string> */,
-             createReadStream /*: (path: string) => stream$Readable */,
-             createWriteStream /*: (path: string) => stream$Writable */)/*: Access*/
-{
-    const opt = docopt.docopt(doc, {argv: argv.slice(2)});
-    return {
-        // TODO: refactor as creating a new object that has an openrd() method
-        read: function(which) {
-            return createReadStream(opt[which]);
-        },
-        write: function(which) {
-            return createWriteStream(opt[which]);
-        }
-    };
-}
-
-exports.Simple = Simple;
 exports.OFX = OFX;
-exports.CLI = CLI;
-exports.main = main;
-
-if (require.main === module) {
-    const fs = require('fs');
-    const clock = () => new Date();
-    const cli = CLI(process.argv,
-                    fs.createReadStream, fs.createWriteStream);
-    main(cli, clock);
-}
