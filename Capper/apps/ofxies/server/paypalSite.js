@@ -105,43 +105,10 @@ function makeActivityExport(userAgent /*: Nightmare*/,
                 .wait('form[name="form1"]');
             console.log('Evaluating XHR function...');
                 
-// ugh:
-// Cannot download a file #151
-// https://github.com/segmentio/nightmare/issues/151
-            const response = yield userAgent.evaluate(
-                function () {
-                    /*eslint-env browser */
-                    var form = document.querySelector('form[name="form1"]');
-
-                    // boo: FormData() turns into multipart,
-                    // but paypal expects urlencoded
-                    var buf = [];
-                    for (var i = 0; i < form.length; i++) {
-                        var ty = form[i].hasAttribute('type') ?
-                            form[i].getAttribute('type') : null;
-                        if ((ty === 'radio' || ty === 'checkbox')
-                            && ! form[i].checked) {
-                            continue;
-                        }
-
-                        buf.push(encodeURIComponent(form[i].name) +
-                                 '=' +
-                                 encodeURIComponent(form[i].value));
-                    }
-
-                    var xhr = new XMLHttpRequest();
-                    var synchronous = false;
-                    xhr.open('POST', form.getAttribute('action'), synchronous);
-                    xhr.overrideMimeType('text/plain');
-                    xhr.send(buf.join('&'));
-                    return {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseType: xhr.responseType,
-                        responseText: xhr.responseText
-                    };
-                    /*eslint-env node */
-                });
+            const response = yield userAgent.evaluate(requestDownload);
+            if (!response) {
+                throw 'no response from requestDownload!';
+            }
             console.log('XHR response:', response.status, response.statusText);
             if (response.status === 200) {
                 return response.responseText;
@@ -160,6 +127,49 @@ function makeActivityExport(userAgent /*: Nightmare*/,
     });
 }
 
+// ugh:
+// Cannot download a file #151
+// https://github.com/segmentio/nightmare/issues/151
+const requestDownload = function () {
+    /*eslint-env browser */
+    /*eslint-disable no-var*/
+
+    // Down-cast from HTMLElement to HTMLFormElement via any
+    var e /*: any*/ = document.querySelector('form[name="form1"]');
+    var form /*: HTMLFormElement */ = e;
+
+    // boo: FormData() turns into multipart,
+    // but paypal expects urlencoded
+    var buf = [];
+    for (var i = 0; i < form.length; i++) {
+        // flow doesn't seem to know that forms can be indexed by number.
+        var item = form[/*:: '' + */i];
+        var ty = item.hasAttribute('type') ?
+            item.getAttribute('type') : null;
+        if ((ty === 'radio' || ty === 'checkbox') && ! item.checked) {
+            continue;
+        }
+
+        buf.push(encodeURIComponent(item.name) +
+                 '=' +
+                 encodeURIComponent(item.value));
+    }
+
+    var xhr = new XMLHttpRequest();
+    var synchronous = false;
+    xhr.open('POST', form.getAttribute('action'), synchronous);
+    xhr.overrideMimeType('text/plain');
+    xhr.send(buf.join('&'));
+    return {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        responseType: xhr.responseType,
+        responseText: xhr.responseText
+    };
+
+    /*eslint-enable no-var*/
+    /*eslint-env node */
+};
 
 if (require.main === module) {
     main(
