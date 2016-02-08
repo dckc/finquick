@@ -191,7 +191,8 @@ function makeOFXmaker(keyStore, getStatement, cache) {
             institution: () => mem.info,
             name: () => mem.keyAttrs.object,
             ofx: () => mem.xml,
-            fetch: cache(fetch, mem)
+            fetch: cache(fetch, mem),
+            timestamp: () => mem.timestamp
         });
     }
 }
@@ -229,7 +230,8 @@ function makeOFXSiteMaker(secrets, cache, mkUserAgent, driver) {
             init: init,
             download: download_,
             fetch: (startMS, maxAge) => download_(startMS, maxAge)
-                .then(driver.toOFX)
+                .then(driver.toOFX),
+            timestamp: () => mem.timestamp
         });
     }
 }
@@ -297,13 +299,22 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
             if (!remote) {
                 throw new Error('no remote for account ' + code);
             }
-            return remote.fetch(start, maxAge);
+            return remote.fetch(start, maxAge)
+                .then(splits => ({
+                    fetchedAt: remote.timestamp(),
+                    splits: splits
+                }));
         };
 
         const fetchNew = (code, start, maxAge) => {
-            return fetch(code, start, maxAge).then(txns => {
-                console.log('fetchNew txns qty:', txns.length);
-                return theChart().filterSeen(code, txns, maxAge);
+            return fetch(code, start, maxAge).then(f => {
+                console.log('fetchNew txns qty:', f.splits.length);
+                return theChart().filterSeen(code, f.splits, maxAge)
+                    .then(splits => ({
+                        splits: splits,
+                        fetchedAt: f.fetchedAt,
+                        fetchedQty: f.splits.length
+                    }));
             });
         };
             
@@ -324,7 +335,12 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
             saveOFX: code => saveOFX(code, mem.remotes[code].ofx()),
             fetchNew: fetchNew,
             importRemote: (code, start, maxAge) => fetch(code, start, maxAge)
-                .then(txns => theChart().importRemote(code, txns)),
+                .then(f => theChart().importRemote(code, f.splits)
+                      .then(importQty => ({
+                          fetchedAt: f.fetchedAt,
+                          fetchedQty: f.splits.length,
+                          importQty: importQty
+                      }))),
             currentAccounts: () => theChart().currentAccounts(),
             destroy: function() {
                 theChart().destroy();

@@ -22,11 +22,17 @@ export function ui(budget, $) {
         }));
 
     const interesting = a => a.balance != 0 || a.latest > 0;
-    const currentAccounts = Bacon.once(null).concat(splitEdit)
-        .debounce(0.3 * 1000)
-	.flatMap(edit => Bacon.fromPromise(budget.post('currentAccounts')))
+    const currentAccounts = Bacon.once(null)
+        .concat(splitEdit.debounce(0.3 * 1000))
+        .flatMap(edit => Bacon.fromPromise(budget.post('currentAccounts')))
         .map(accounts => accounts.filter(interesting))
 	.skipDuplicates(_.isEqual);
+
+    Bacon.once(null).awaiting(currentAccounts).onValue(loading => {
+        if (! loading) {
+            $('#loading').modal('hide');
+        }
+    });
 
     const renderAcct = acct => elt('tr', [
         elt('td', acct.code),
@@ -62,7 +68,7 @@ export function ui(budget, $) {
 
         const hr = 60 * 60 * 1000;
         const maxAge =
-            () => parseInt($('input[name="maxAge"]:checked').val()) * hr;
+            () => parseInt($('input[name="maxAge"]').val()) * hr;
 
         const requests = button.asEventStream('click');
         const responses = Bacon.combineWith(
@@ -75,6 +81,10 @@ export function ui(budget, $) {
         const replies = responses.merge(responses.mapError(err => null));
         requests.awaiting(replies).onValue(loading => {
             button.attr('disabled', loading);
+            if (loading) {
+                $('#fetchInfo').hide();
+                $('#importInfo').hide();
+            }
         });
 
         responses.onError(
@@ -102,9 +112,20 @@ export function ui(budget, $) {
 	    {title: split.fid});
 
     previewSplits.merge(importSplits)
-        .onValue(splits => {
-            $('#splits').html(splits.map(renderSplit));
+        .onValue(info => {
+            const t = new Date(info.fetchedAt);
+            $('#fetchedAt').text(t.toString());
+            $('#fetchedQty').text(info.fetchedQty.toString());
+            $('#newQty').text(info.splits.length.toString());
+            $('#fetchInfo').show();
+
+            $('#splits').html(info.splits.map(renderSplit));
         });
+    importSplits.onValue(info => {
+        $('#importQty').text(info.importQty.toString());
+        $('#importInfo').show();
+    });
+
 }
 
 
@@ -139,9 +160,9 @@ function moneyElt(tag, amt, total) {
     return elt(tag, bal.format(amt), attrs);
 }
 
-function fmtDate(d) {
+function fmtDate(d, chop=10) {
     // const [ymd, y, m, d] = /(\d{4})(\d\d)(\d\d)/.exec(s);
-    return d > 0 ? d.toISOString().substr(0, 10) : '';
+    return d > 0 ? d.toISOString().substr(0, chop) : '';
 }
 
 

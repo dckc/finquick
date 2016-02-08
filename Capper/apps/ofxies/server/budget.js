@@ -254,7 +254,7 @@ function makeChartOfAccounts(db /*:DB*/)
             () => db.query(selectNew, [rowEx], [acctCode]));
     }
 
-    function importRemote(acctCode, remoteTxns) {
+    function importRemote(acctCode, remoteTxns) /*: Promise<int> */ {
         const other = '9001';  // Imbalance-USD
 
         const addTxns = `
@@ -329,9 +329,10 @@ function makeChartOfAccounts(db /*:DB*/)
             .then(tx => db.withOFX(
                 acctCode, remoteTxns,
                 () => tx.update(addTxns, {})
-                    .then(_r => tx.update(addSplits, {}, [acctCode, other]))
-                    .then(_r => tx.update(addSlots, {}))
-                    .then(_r => tx.commit())));
+                    .then(added => tx.update(addSplits, {}, [acctCode, other])
+                          .then(_r => tx.update(addSlots, {}))
+                          .then(_r => tx.commit())
+                          .then(_r => added.affectedRows))));
     }
 
     function guids(objs) {
