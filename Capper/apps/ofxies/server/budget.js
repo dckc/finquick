@@ -403,6 +403,28 @@ function makeChartOfAccounts(db /*:DB*/)
             order by cur.code`, [rowEx]);
     }
 
+    function recentTransactions(limit) {
+        const splitEx = { post_date: 0, num: '', description: '',
+                          name: '', reconcile_state: '',
+                          amount: 1.10, memo: '', tx_guid: '', guid: '' };
+        return db.query(
+            `
+            select unix_timestamp(tx.post_date)*1000 post_date
+                 , tx.num, tx.description
+                 , a.name
+                 , s.reconcile_state
+                 , s.value_num / s.value_denom amount
+                 , s.memo
+                 , tx.guid tx_guid
+                 , s.guid
+            from transactions tx
+            join splits s on s.tx_guid = tx.guid
+            join accounts a on s.account_guid = a.guid
+            order by tx.post_date desc, tx.guid
+            limit ?
+            `, [splitEx], [limit]);
+    }
+
     function acctBalance(acctName, since) {
         const sinceWhen = parseDate(since);
 
@@ -467,6 +489,7 @@ function makeChartOfAccounts(db /*:DB*/)
     return Object.freeze({
         subAccounts: acctName => subAccounts(acctByName(acctName)),
         acctBalance: acctBalance,
+        recentTransactions: recentTransactions,
         getLedger: getLedger,
         filterSeen: filterSeen,
         importRemote: importRemote,

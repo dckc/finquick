@@ -126,6 +126,71 @@ export function ui(budget, $) {
         $('#importInfo').show();
     });
 
+    registerUI(budget, $);
+}
+
+
+function registerUI(budget, $) {
+    function byTxn(splits) {
+        const step1 = splits.reduce(
+            (acc, split) =>
+                // new guid?
+                split.tx_guid != acc.tx_guid ? {
+                    // yes: start a new list of splits ...
+                    tx_guid: split.tx_guid,
+                    splits: [split],
+                    // ... and make a new txn
+                    txns: acc.txns ? acc.txns.concat([acc.splits]) : []
+                } : {
+                    // no: add to splits
+                    tx_guid: acc.tx_guid,
+                    splits: acc.splits.concat(split),
+                    txns: acc.txns
+                }, { });
+
+        return step1.txns.concat([step1.splits]);
+    }
+
+    const txns = Bacon.fromPromise(budget.post('recentTransactions', 50))
+        .map(byTxn);
+
+    crdb = amount => amount > 0 ? moneyElt('td', amount) : elt('td');
+
+    const txRows = tx => [
+        elt('tr', [
+            elt('td', fmtDate(new Date(tx[0].post_date)),
+                {style: 'white-space: nowrap'}),
+            elt('td', tx[0].num),
+            elt('td', tx[0].description),
+            elt('td', [],
+               {colspan: 4})],
+           {'class': 'table-success'})]
+        .concat(
+            tx.map(
+                (s, _ix) =>
+                    elt('tr', [
+                        elt('td', [], { colspan: 2 }),
+                        elt('td', s.memo),
+                        elt('td', s.reconcile_state),
+                        elt('td', s.name,
+                            {style: 'white-space: nowrap'}),
+                        crdb(s.amount),
+                        crdb(-s.amount)],
+                        // abusing warning. hm.
+                        {'class': 'table-warning'})));
+                    
+    txns.onValue(v => {
+        const rows = v.reduce((rows, tx) => rows.concat(txRows(tx)), []);
+        $('#txns').html(rows);
+    });
+
+    // TODO: factor out this error handler
+    txns.onError(
+        err => {
+            const msg = typeof err === 'string' ? err : JSON.stringify(err);
+            $('#errorMessage').text(msg);
+            $('#error').modal('show');
+        });
 }
 
 
