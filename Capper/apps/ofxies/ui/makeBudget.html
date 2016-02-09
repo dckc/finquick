@@ -39,10 +39,20 @@
   <body class="container">
     <h1>Budget</h1>
 
-    <div class='row'>
-    <div class="col-xs-10 card">
-      <h2>Current Accounts</h2>
+    <ul class="nav nav-tabs" role='tablist'>
+      <li class="nav-item">
+        <a class="nav-link active" data-toggle='tab'
+           href="#bal" role='tab'>Account Sync</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-toggle='tab'
+           href="#register" role='tab'>Register</a>
+      </li>
+    </ul>
 
+    <div class='tab-content'>
+    <div class='row tab-pane fade in active' id='bal'>
+    <div class="col-xs-10 card">
     <table class='table table-bordered table-sm table-hover table-striped'>
       <thead class="thead-inverse">
 	<tr>
@@ -141,9 +151,7 @@
       </div>
     </div>
 
-    <div class='row card'>
-      <h2>Transaction Register</h2>
-
+    <div class='row tab-pane fade' id='register'>
       <table class='table table-bordered table-sm table-hover'>
         <thead>
           <tr>
@@ -159,6 +167,7 @@
         <tbody id='txns'>
         </tbody>
       </table>
+    </div>
     </div>
 
       <div style="display: none">
