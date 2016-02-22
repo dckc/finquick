@@ -3,6 +3,7 @@
  * @flow
  *
  */
+/* jshint esversion: 6, node: true */
 'use strict';
 
 const Q = require('q');
@@ -71,7 +72,7 @@ function main(env)
 
 /*::
 
-TODO: pass 'stmttrn' table name in to makeDB?
+// TODO: pass 'stmttrn' table name in to makeDB?
 
 type DB = {
     query<T>(dml: string, t: T, params?: Array<any>): Promise<T>;
@@ -157,7 +158,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
     }
 
     function withOFX/*:: <T>*/(acctCode, remoteTxns,
-                               action /*: () => Promise<T>*/) {
+                               action /*: () => Promise<T>*/)
+                  /*: Promise<T>*/ {
         const createTemp = `
           create table if not exists stmttrn (
             fitid varchar(80),
@@ -254,7 +256,7 @@ function makeChartOfAccounts(db /*:DB*/)
             () => db.query(selectNew, [rowEx], [acctCode]));
     }
 
-    function importRemote(acctCode, remoteTxns) /*: Promise<int> */ {
+    function importRemote(acctCode, remoteTxns) /*: Promise<number> */ {
         const other = '9001';  // Imbalance-USD
 
         const addTxns = `
@@ -339,11 +341,11 @@ function makeChartOfAccounts(db /*:DB*/)
         return objs.map(o => o.guid).map(u => '\'' + u + '\'').join(', ');
     }
 
-    function first(rows) {
+    function first/*::<T>*/(rows/*: Array<T>*/) /*: T*/{
         return rows[0];
     }
 
-    function subAccounts(acctP) {
+    function subAccounts(acctP /*: Promise<Account> */) {
         function recur(parents, generations, resolve, reject) {
             const rowEx = { guid: '', name: '' };
             db.query(
@@ -353,9 +355,10 @@ function makeChartOfAccounts(db /*:DB*/)
                 where parent.guid in (${guids(parents)})`, [rowEx]
             ).then(
                 children => {
-                    if (children.length == 0) {
+                    if (children.length === 0) {
                         const acctIds = [].concat.apply([], generations);
-                        return resolve(acctIds);
+                        resolve(acctIds);
+                        return;
                     }
                     generations.push(children);
                     recur(children, generations, resolve, reject);
@@ -404,9 +407,11 @@ function makeChartOfAccounts(db /*:DB*/)
     }
 
     function recentTransactions(limit) {
-        const splitEx = { post_date: 0, num: '', description: '',
-                          name: '', reconcile_state: '',
-                          amount: 1.10, memo: '', tx_guid: '', guid: '' };
+        const splitEx /*: TxSplit */ = {
+            post_date: 0, num: '', description: '',
+            name: '', reconcile_state: '',
+            amount: 1.10, memo: '', tx_guid: '', guid: ''
+        };
         return db.query(
             `
             select unix_timestamp(tx.post_date)*1000 post_date
@@ -425,10 +430,19 @@ function makeChartOfAccounts(db /*:DB*/)
             `, [splitEx], [limit]);
     }
 
-    function acctBalance(acctName, since) {
+    /*::
+    type AcctBal = {
+        balance: number,
+        name: string,
+        since: Date
+    };
+     */
+    function acctBalance(acctName, since) /*: Promise<AcctBal> */{
         const sinceWhen = parseDate(since);
 
-        const rowEx = { balance: 1.10, name: '', since: new Date(0) };
+        const rowEx /*: AcctBal*/ = {
+            balance: 1.10, name: '', since: new Date(0)
+        };
 
         return subAccounts(acctByName(acctName)).then(
             accts =>
@@ -444,12 +458,24 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
-    function getLedger(acctName, since) {
+    /*::
+      type TxSplit = {
+          post_date: number,
+          description: string,
+          amount: number,
+          memo: string,
+          fid?: ?string,
+          guid: string,
+          tx_guid: string
+      }
+    */
+    function getLedger(acctName, since) /*: Promise<Array<TxSplit>> */ {
         const sinceWhen = parseDate(since);
 
-        const rowEx = { post_date: 0, description: '',
-                        amount: 1.10, memo: '', fid: '',
-                        guid: '', tx_guid: ''};
+        const rowEx /*: TxSplit */ = {
+            post_date: 0, description: '',
+            amount: 1.10, memo: '', fid: '',
+            guid: '', tx_guid: ''};
 
         return acctByName(acctName).then(
             acct =>
@@ -476,12 +502,28 @@ function makeChartOfAccounts(db /*:DB*/)
         return new Date(parts[0], parts[1]-1, parts[2]);
     }
 
+    /*::
+    type Account = {
+        guid: string,
+        name: string,
+        account_type: string, // TODO: enumeration
+        parent_guid: string,
+        code: string,
+        description: string,
+        hidden: number, // TODO: boolean
+        placeholder: number
+    }
+     */
     // KLUDGE: name or code
-    function acctByName(acctName) {
+    function acctByName(acctName) /*: Promise<Account> */ {
+        const rowEx /*: Account */= { guid: '', name: '', account_type: '',
+                        parent_guid: '', code: '', description: '',
+                        hidden: 0, placeholder: 0 };
         return db.query(
             `select guid, name, account_type, parent_guid
                   , code, description, hidden, placeholder
-             from accounts where name = ? or code = ?`,
+            from accounts where name = ? or code = ?`,
+            [rowEx],
             [acctName, acctName])
             .then(first);
     }
