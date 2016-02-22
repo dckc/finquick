@@ -151,8 +151,14 @@ function registerUI(budget, $) {
         return step1.txns.concat([step1.splits]);
     }
 
-    const txns = Bacon.fromPromise(budget.post('recentTransactions', 50))
-        .map(byTxn);
+    const searchAmt = $('#qAmount')
+          .asEventStream('keydown').debounce(300)
+          .map(event => parseFloat(event.target.value) || null);
+    const txns = searchAmt
+          .flatMap(amt =>
+                   Bacon.fromPromise(
+                       budget.post('recentTransactions', 50, amt)))
+          .map(byTxn);
 
     crdb = amount => amount > 0 ? moneyElt('td', amount) : elt('td');
 

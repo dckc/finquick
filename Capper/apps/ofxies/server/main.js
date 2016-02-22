@@ -342,7 +342,8 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
                           importQty: importQty
                       }))),
             currentAccounts: () => theChart().currentAccounts(),
-            recentTransactions: qty => theChart().recentTransactions(qty || 50),
+            recentTransactions: (qty, amt) => theChart()
+                .recentTransactions(qty || 50, amt || null),
             destroy: function() {
                 theChart().destroy();
                 context.destroy();

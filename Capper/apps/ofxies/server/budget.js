@@ -406,7 +406,7 @@ function makeChartOfAccounts(db /*:DB*/)
             order by cur.code`, [rowEx]);
     }
 
-    function recentTransactions(limit) {
+    function recentTransactions(limit, byAmt) {
         const splitEx /*: TxSplit */ = {
             post_date: 0, num: '', description: '',
             name: '', reconcile_state: '',
@@ -425,9 +425,10 @@ function makeChartOfAccounts(db /*:DB*/)
             from transactions tx
             join splits s on s.tx_guid = tx.guid
             join accounts a on s.account_guid = a.guid
+            where ? is null or ? = abs(s.value_num / s.value_denom)
             order by tx.post_date desc, tx.guid
             limit ?
-            `, [splitEx], [limit]);
+                `, [splitEx], [byAmt, byAmt, limit]);
     }
 
     /*::
