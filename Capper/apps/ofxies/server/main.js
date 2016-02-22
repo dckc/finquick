@@ -4,7 +4,7 @@ requires: Capper express app
 
 @flow
  */
-/*global console*/
+/* jshint esversion: 6, node: true */
 
 'use strict';
 

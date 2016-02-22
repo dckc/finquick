@@ -541,7 +541,7 @@ function makeChartOfAccounts(db /*:DB*/)
     });
 }
 
-if (require.main === module) {
+if (require.main == module) {
     main({
         argv: process.argv,
         LOGNAME: process.env.LOGNAME,

@@ -39,6 +39,10 @@
     "jspm": "^0.16.25",
     "mocha": "~1.19.0"
   },
+    "jshintConfig": {
+        "esversion": 6,
+        "strict": "global"
+    },
   "jspm": {
     "directories": {
       "test": "test"

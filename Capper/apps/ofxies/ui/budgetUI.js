@@ -1,4 +1,6 @@
 /*global CapperConnect */
+/* jshint esversion: 6, module: true */
+/* global Intl */
 
 import Bacon from 'baconjs';
 import _ from 'underscore';
@@ -21,7 +23,7 @@ export function ui(budget, $) {
             sink(Try(() => JSON.parse(txt)));
         }));
 
-    const interesting = a => a.balance != 0 || a.latest > 0;
+    const interesting = a => a.balance !== 0 || a.latest > 0;
     const currentAccounts = Bacon.once(null)
         .concat(splitEdit.debounce(0.3 * 1000))
         .flatMap(edit => Bacon.fromPromise(budget.post('currentAccounts')))
@@ -160,7 +162,7 @@ function registerUI(budget, $) {
                        budget.post('recentTransactions', 50, amt)))
           .map(byTxn);
 
-    crdb = amount => amount > 0 ? moneyElt('td', amount) : elt('td');
+    const crdb = amount => amount > 0 ? moneyElt('td', amount) : elt('td');
 
     const txRows = tx => [
         elt('tr', [
