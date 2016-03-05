@@ -12,7 +12,6 @@ require('object-assign-shim'); // ES6 Object.assign
 
 const Q = require('q');
 
-const caplib = require('../../../caplib');
 const freedesktop = require('./secret-tool');
 const budget = require('./budget');
 const OFX = require('./asOFX').OFX;
@@ -31,8 +30,10 @@ const cfg = {
 };
 
 
-module.exports = (function Ofxies(time, proc, fs, net, db) {
-    // console.log('Ofxies...');
+module.exports = Ofxies;
+function Ofxies(time /*: { clock: () => Date }*/,
+                proc, fs, net, db,
+                unique /*: () => string*/) /*: Object*/{
     const keyStore = freedesktop.makeSecretTool(proc.spawn);
 
     const cache = mkCache(time.clock, 18 * hr);
@@ -63,7 +64,8 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
     const mkUA = () => net.browser({show: debug});
 
     return Object.freeze({
-        makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX),
+        makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket,
+                                    saveOFX, unique),
         makePayPal: makeOFXSiteMaker(
             secrets, cache, mkUA, paypal.driver()),
         makeBankBV: makeOFXSiteMaker(
@@ -72,21 +74,7 @@ module.exports = (function Ofxies(time, proc, fs, net, db) {
             secrets, cache, mkUA, simpn.driver()),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
-})(
-    // pass in ambient stuff here
-    { clock: () => new Date()},
-    { spawn: require('child_process').spawn,
-      pid: process.pid,
-      hostname: require('os').hostname },
-    { readFile: require('fs').readFile,
-      writeFile: require('fs').writeFile},
-    { SocketServer: require('ws').Server,
-      createServer: require('https').createServer,
-      Banking: require('banking'),
-      browser: require('nightmare')},
-    // TODO: we only need mysql.createConnection
-    { mysql: require('mysql'),
-      events: require('mysql-events')});
+}
 
 
 function mkCache(clock, maxAgeDefault) {
@@ -237,7 +225,7 @@ function makeOFXSiteMaker(secrets, cache, mkUserAgent, driver) {
 }
 
 
-function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
+function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
     return makeBudget;
 
     function makeBudget(context) {
@@ -252,9 +240,9 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX) {
         }
 
         const tableSubs = {
-            accounts: caplib.unique(),
-            transactions: caplib.unique(),
-            splits: caplib.unique()
+            accounts: unique(),
+            transactions: unique(),
+            splits: unique()
         };
         const findSubs = new Map([
             [tableSubs.accounts, 'accounts'],

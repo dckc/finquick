@@ -136,6 +136,13 @@ web browser on traditional platforms, but not on ocap platforms.
   - Get details on Discover transactions: which card? address?
   - account auto-complete with bacon FRP
 
+```
+~/projects/fincap$ npm install
+npm WARN engine zongji@0.3.2: wanted: {"node":"0.10"} (current: {"node":"5.5.0","npm":"3.3.12"})
+npm WARN deprecated bignumber.js@2.0.0: critical bug fixed in v2.0.4
+npm WARN deprecated graceful-fs@3.0.8: graceful-fs version 3 and before will fail on newer node releases. Please update to graceful-fs@^4.0.0 as soon as possible.
+```
+
 ## Dev Notes
 
  - ES6, flow: const, modules, arrow functions, template strings

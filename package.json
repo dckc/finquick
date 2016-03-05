@@ -1,30 +1,29 @@
 {
-  "name": "Capper",
-  "version": "0.0.1",
-  "description": "A web application server with built-in object capability security built on Node.js/Express",
+  "name": "finquick",
+  "version": "0.2.1",
+  "description": "web app access to gnucash financial data",
   "main": "server.js",
   "directories": {
     "test": "test",
     "packages": "jspm_packages"
   },
   "scripts": {
-    "test": "mocha --harmony",
-    "start": "node --harmony server.js"
+    "start": "node --harmony-proxies server.js"
   },
   "repository": {
-    "type": "git",
-    "url": "https://github.com/marcsAtSkyhunter/Capper"
+    "type": "hg",
+    "url": "https://bitbucket.org/DanC/finquick"
   },
-  "author": "Marc Stiegler",
-  "license": "LGPL",
+  "author": "Dan Connolly",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/marcsAtSkyhunter/Capper/issues"
+    "url": "https://bitbucket.org/DanC/finquick/issues"
   },
   "dependencies": {
+    "Capper": "dckc/Capper#package",
     "banking": "^1.0.0",
     "csv-parse": "^1.0.1",
     "docopt": "^0.6.2",
-    "express": "~3.4.1",
     "mysql": "^2.10.0",
     "mysql-events": "0.0.7",
     "nightmare": "^2.1.6",
@@ -35,13 +34,9 @@
     "xml": "^1.0.0"
   },
   "devDependencies": {
-    "jspm": "^0.16.25",
-    "mocha": "~1.19.0"
+    "eslint": "^2.3.0",
+    "jspm": "^0.16.25"
   },
-    "jshintConfig": {
-        "esversion": 6,
-        "strict": "global"
-    },
   "jspm": {
     "directories": {
       "test": "test"
