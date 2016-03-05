@@ -92,6 +92,7 @@ type Creds = {
 type Nightmare = any; // TODO
 */
 
+exports.driver = driver;
 function driver() /*: Driver */ {
     const login = Q.async(function*(userAgent, creds /*: Creds*/){
         console.log('login()...');
@@ -216,7 +217,7 @@ const requestDownload = function (name) {
 /*eslint-env node */
 
 
-if (require.main === module) {
+if (require.main == module) {
     main(
         process.argv,
         { clock: () => new Date() },
@@ -224,5 +225,3 @@ if (require.main === module) {
         { writeFile: require('fs').writeFile },
         { browser: require('nightmare') });
 }
-
-exports.driver = driver;
