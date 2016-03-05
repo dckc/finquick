@@ -23,7 +23,7 @@ used for lookup:
 
 For `discover` or `amex`:
 
-    $ alias node=node --harmony-proxies
+    $ alias node="node --harmony-proxies"
     $ discover=@`node server -make ofxies.makeOFX discover protocol=OFX object=disc1 | tail -1`
 
 ### Fetch OFX data
