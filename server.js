@@ -10,18 +10,18 @@ const makeOFXies = require('./ofxies/server/main');
 
 
 function main(argv, crypto, fs, path, time, proc, net, db) {
-    const unique = makeUnique(crypto);
+    const unique = makeUnique(crypto.randomBytes);
     const apps = { ofxies: makeOFXies(time, proc, fs, net, db, unique) };
     const dbfile = Capper.fsSyncAccess(fs, path.join, 'capper.db');
     const rd = p => Capper.fsReadAccess(fs, path.join, p);
     const configFile = rd('capper.config');
     const sslDir = rd('./ssl');
     const reviver = makeReviver();
+    const saver = Capper.makeSaver(unique, dbfile, reviver.toMaker)
 
     Capper.makeConfig(configFile).then(config => {
-        Capper.run(argv, config, reviver,
-                   unique, sslDir, dbfile,
-                   net.createServer, net.express);
+        Capper.run(argv, config, reviver, saver,
+                   sslDir, net.createServer, net.express);
     });
 
     function makeReviver() {
