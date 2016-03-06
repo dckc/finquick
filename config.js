@@ -1,4 +1,5 @@
 System.config({
+  baseURL: "/apps/ofxies/ui/",
   defaultJSExtensions: true,
   transpiler: "babel",
   babelOptions: {
