@@ -46,7 +46,6 @@ function main(argv, crypto, fs, path, time, proc, net, db) {
                 return maker;
             },
             sendUI: (res, name, path) => {
-                console.log('sendUI', name, path);
                 if (path) {
                     res.sendfile(`./${name}/ui/${path}`);
                 } else {
