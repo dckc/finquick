@@ -1,0 +1,56 @@
+{
+  "name": "finquick",
+  "version": "0.2.1",
+  "description": "web app access to gnucash financial data",
+  "main": "server.js",
+  "directories": {
+    "test": "test",
+    "packages": "jspm_packages"
+  },
+  "scripts": {
+    "start": "node --harmony-proxies server.js"
+  },
+  "repository": {
+    "type": "hg",
+    "url": "https://bitbucket.org/DanC/finquick"
+  },
+  "author": "Dan Connolly",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://bitbucket.org/DanC/finquick/issues"
+  },
+  "dependencies": {
+    "Capper": "dckc/Capper#package",
+    "banking": "^1.0.0",
+    "csv-parse": "^1.0.1",
+    "docopt": "^0.6.2",
+    "mysql": "^2.10.0",
+    "mysql-events": "0.0.7",
+    "nightmare": "^2.1.6",
+    "object-assign-shim": "^1.0.0",
+    "q": "~1.0.1",
+    "ws": "^1.0.1",
+    "xkeychain": "0.0.6",
+    "xml": "^1.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^2.3.0",
+    "jspm": "^0.16.25"
+  },
+  "jspm": {
+    "directories": {
+      "test": "test"
+    },
+    "dependencies": {
+      "baconjs": "npm:baconjs@^0.7.83",
+      "bootstrap": "github:twbs/bootstrap@^3.3.6",
+      "jquery": "npm:jquery@^2.2.0",
+      "underscore": "npm:underscore@^1.8.3"
+    },
+    "devDependencies": {
+      "babel": "npm:babel-core@^5.8.24",
+      "babel-runtime": "npm:babel-runtime@^5.8.24",
+      "core-js": "npm:core-js@^1.1.4"
+    }
+  }
+}

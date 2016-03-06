@@ -1,0 +1,217 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <!-- When following links, don't grant destination access to this. -->
+    <meta name="referrer" content="never">
+
+    <title>Budget</title>
+
+    <link rel="stylesheet"
+          href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/css/bootstrap.min.css"
+          integrity="sha384-y3tfxAZXuh4HwSYylfB+J125MxIs6mR5FOHamPBG064zB+AFeWH94NdvaCBm8qnd"
+          crossorigin="anonymous">
+
+    <!-- TODO module-ize capperConnect -->
+    <script type="text/javascript" src="/views/libs/q.js"></script>
+    <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.2/js/bootstrap.min.js" integrity="sha384-vZ2WRJMwsjRMW/8U7i6PWi6AlO1L79snBrmgiDpgIWJ82z8eA5lenwvxbMV1PAh7" crossorigin="anonymous"></script>
+
+    <script type="text/javascript">
+      $(window).load(function(){
+          $('#loading').modal('show');
+      });
+    </script>
+
+    <!-- see README.md#TODO re symlink -->
+    <script src="/apps/ofxies/ui/jspm_packages/system.js"></script>
+    <script src="/apps/ofxies/ui/config.js"></script>
+    <script>
+      System.import('/apps/ofxies/ui/budgetUI.js').then(function(budget) {
+        budget.ui(CapperConnect.home, $);
+      });
+    </script>
+  </head>
+  <body class="container">
+    <h1>Budget</h1>
+
+    <ul class="nav nav-tabs" role='tablist'>
+      <li class="nav-item">
+        <a class="nav-link active" data-toggle='tab'
+           href="#bal" role='tab'>Account Sync</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-toggle='tab'
+           href="#register" role='tab'>Register</a>
+      </li>
+    </ul>
+
+    <div class='tab-content'>
+    <div class='row tab-pane fade in active' id='bal'>
+    <div class="col-xs-10 card">
+    <table class='table table-bordered table-sm table-hover table-striped'>
+      <thead class="thead-inverse">
+	<tr>
+          <th>Code</th> <th>Account</th> <th>Balance</th> <th>Sync</th>
+        </tr>
+        <tr>
+          <td>
+            <small data-toggle="tooltip"
+                title="TODO: allow user to set code ranges">
+              <i>1000-2199<br /><s>1500-1999</s></i></small>
+          </td>
+          <td></td>
+          <td class="text-xs-right">
+            <small><label data-toggle="tooltip"
+                title="TODO: allow showing $0 balances">
+              <input type="checkbox" disabled="disabled"/>
+              <i>Show $0</i>
+            </label></small>
+          </td>
+        </tr>
+      </thead>
+      <tbody id='accounts'>
+	<tr><td>stand by...</td></tr>
+      </tbody>
+    </table>
+    <fieldset>
+      <div class="form-group row">
+        <div class="col-sm-offset-2 col-sm-10">
+          <button id='fetchOFX' class="btn btn-secondary">Preview</button>
+          <button id='importOFX' class="btn btn-primary">Sync</button>
+        </div>
+      </div>
+      <div class="form-group row"
+               data-toggle="tooltip"
+               title="Use previously fetched data as long as
+                      it is not older than this many hours.">
+        <label for='maxAge' class='col-sm-2 form-control-label'>
+          Max Age:</label>
+        <div class='col-sm-6'>
+          0<input type="range" min="0" max="18" value="12" name="maxAge" />18
+        </div>
+      </div>
+    </fieldset>
+
+    <div class='card'>
+      <h3>Pending Imports</h3>
+      <!-- TODO: find something more idiomatic than display: none -->
+      <div id='fetchInfo' class='card alert-info fade in'
+           style='display: none'>
+        Fetched <b id="fetchedQty"></b> transactions at
+        <b id="fetchedAt"></b>. Of these, <b id='newQty'></b> are pending...
+        <br />
+        
+        <div id='importInfo'>
+          Imported <b id="importQty"></b> transactions.
+        </div>
+      </div>
+
+      <table class='table table-bordered table-sm table-hover'>
+        <thead>
+	  <tr>
+            <th>Date</th><th>Num</th><th>Amount</th><th>Type</th>
+            <th>Description</th><th>Memo</th>
+          </tr>
+        </thead>
+        <tbody id='splits'>
+        </tbody>
+      </table>
+    </div>
+    </div>
+      <div id="error" class="modal">
+        <div class="modal-dialog alert alert-danger" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <button type="button" class="close"
+                      data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+              <h4 class="modal-title">Error</h4>
+            </div>
+            <p class="modal-body" id="errorMessage">...</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="loading" class="modal fade">
+        <div class="modal-dialog XXalert alert-info" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title">Loading</h4>
+            </div>
+            <p class="modal-body" id="loadingMessage">
+              Loading account balances...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class='row tab-pane fade' id='register'>
+      <div><label>Amount: <input id='qAmount' /></label></div>
+      <table class='table table-bordered table-sm table-hover'>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Num</th>
+            <th>Description</th>
+            <th>R</th>
+            <th>Account</th>
+            <th>Deposit</th>
+            <th>Withdraw</th>
+          </tr>
+        </thead>
+        <tbody id='txns'>
+        </tbody>
+      </table>
+    </div>
+    </div>
+
+      <div style="display: none">
+    <p>@@@@@@@@@@</p>
+    <form class="form-horizontal">
+      <div class="form-group">
+	<label for="expenseName" class="col-sm-2 control-label">
+	  Expense account name:</label>
+	<div class="col-sm-6">
+	  <input id="expenseName" class="form-control" />
+	</div>
+      </div>
+      <div class="form-group">
+	<label for="since" class="col-sm-2 control-label">
+	  Start Date:</label>
+	<div class="col-sm-6">
+	  <input type=date id="since" />
+	</div>
+      </div>
+
+      <div class="form-group">
+	<div class="col-sm-offset-2 col-sm-10">
+	  <button onClick="getLedger(false)" class="btn">Get Ledger</button>
+	  <button onClick="getLedger(true)" class="btn">Fetch New OFX</button>
+	</div>
+      </div>
+      <div class="form-group">
+	<label for="balCode" class="col-sm-2 control-label">
+	  Balance account code:</label>
+	<div class="col-sm-6">
+	  <input id="balCode" />
+	</div>
+      </div>
+      <div class="form=group">
+	<div class="col-sm-offset-2 col-sm-10">
+	  <button onClick="fetch()" class="btn">Fetch OFX</button>
+	</div>
+      </div>
+    </form>
+
+    <div id="printlnarea">
+    </div>
+    </div>
+  </body>
+</html>

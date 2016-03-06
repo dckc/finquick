@@ -1,9 +1,8 @@
-cover/
-.coverage
-
-lib/
-man/
-include/
-bin/
-finquick.egg-info
-local
+syntax: glob
+node_modules/*
+jspm_packages/*
+capper.db
+capper.config
+ssl/server.crt
+ssl/server.key
+ssl/ca.crt
