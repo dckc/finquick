@@ -114,8 +114,8 @@ function driver() /*: Driver*/ {
                 .goto(REALM + 'signin')
                 .wait(0.5 * 1000)
                 .wait('input#login_username')
-                .type('input#login_username', yield creds.login())
-                .type('input#login_password', yield creds.password())
+                .insert('input#login_username', yield creds.login())
+                .insert('input#login_password', yield creds.password())
                 .click('input#signin-btn')
                 .wait(0.5 * 1000)
                 .wait(nameSel);

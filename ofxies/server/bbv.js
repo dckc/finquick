@@ -101,10 +101,10 @@ function driver() /*: Driver */ {
             .goto('https://www.bankbv.com/')
             .wait(0.5 * 1000)
             .wait('.online-banking form')
-            .type('.online-banking input[name="username"]',
-                  yield creds.login())
-            .type('.online-banking input[name="password"]',
-                  yield creds.password())
+            .insert('.online-banking input[name="username"]',
+                    yield creds.login())
+            .insert('.online-banking input[name="password"]',
+                    yield creds.password())
             .click('.online-banking input[type="submit"]')
             .wait(5 * 1000) // wait for page load
             .wait('body');
@@ -117,7 +117,7 @@ function driver() /*: Driver */ {
                 '.input_table tr:nth-child(2) .input_data');
             const a = yield creds.challenge(q);
 
-            yield userAgent.type('input[name="login_form:answer"]', a)
+            yield userAgent.insert('input[name="login_form:answer"]', a)
                 .click('.submission input[type="submit"]')
                 .wait(3 * 1000)
                 .wait('body');
@@ -132,8 +132,8 @@ function driver() /*: Driver */ {
                 .click(navExportHistory)
                 .wait(2 * 1000)
                 // pick account?
-                // .type('input[name="export_history:startDate"]', startDate)
-                // .type('input[name="export_history:endDate"]', endDate)
+                // .insert('input[name="export_history:startDate"]', startDate)
+                // .insert('input[name="export_history:endDate"]', endDate)
                 .wait('form#export_history_form ' + ofxFormat)
                 .click('form#export_history_form ' + ofxFormat)
                 .wait(0.5 * 1000)
