@@ -28,8 +28,9 @@
       });
     </script>
 
-    <script src="/views/jspm_packages/system.js"></script>
-    <script src="/views/config.js"></script>
+    <!-- see README.md#TODO re symlink -->
+    <script src="/apps/ofxies/ui/jspm_packages/system.js"></script>
+    <script src="/apps/ofxies/ui/config.js"></script>
     <script>
       System.import('/apps/ofxies/ui/budgetUI.js').then(function(budget) {
         budget.ui(CapperConnect.home, $);

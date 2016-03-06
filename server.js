@@ -45,9 +45,14 @@ function main(argv, crypto, fs, path, time, proc, net, db) {
                 check(name, maker);
                 return maker;
             },
-            sendUI: (res, name) => {
-                const n = parseName(name);
-                res.sendfile(`./${n.app}/${n.method}.html`);
+            sendUI: (res, name, path) => {
+                console.log('sendUI', name, path);
+                if (path) {
+                    res.sendfile(`./${name}/ui/${path}`);
+                } else {
+                    const n = parseName(name);
+                    res.sendfile(`./${n.app}/ui/${n.method}.html`);
+                }
             }
         });
     }

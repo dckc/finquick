@@ -135,6 +135,8 @@ web browser on traditional platforms, but not on ocap platforms.
   - during headless browsing, send progress to UI via websocket
   - Get details on Discover transactions: which card? address?
   - account auto-complete with bacon FRP
+  - figure out where to put jspm_packages and how to set up config.js
+
 
 ```
 ~/projects/fincap$ npm install
