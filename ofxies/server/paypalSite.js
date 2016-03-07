@@ -49,10 +49,16 @@ function main(argv, time, proc, fs, net) {
     const save = data => Q.nfcall(fs.writeFile, cli['--output'], data);
 
     const d = driver();
-    d.download(ua, creds, 0, time.clock())
+    d.download(ua, creds, daysBefore(90, time.clock()), time.clock())
         .then(save)
         .then(() => ua.end())
         .done();
+}
+
+
+function daysBefore(n, d) {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return new Date(d.getTime() - n * msPerDay);
 }
 
 /*::
@@ -117,9 +123,7 @@ function driver() /*: Driver */ {
             .wait('body');
 
 
-        const downloadActivity = Q.async(function*(_startDate, _endDate) {
-            console.log('downloadActivity() TODO:', _startDate, _endDate);
-
+        const downloadActivity = Q.async(function*(startDate, endDate) {
             const exportItem =
                 '.nemo_statementsLinkMenu li:nth-child(2) a';
             yield userAgent
@@ -132,9 +136,29 @@ function driver() /*: Driver */ {
                 .click(exportItem)
                 .wait(3 * 1000)
                 .wait('form[name="form1"]')
-                .click('form[name="form1"] input[value="custom_date_range"]')
                 .select('form[name="form1"] select[name="custom_file_type"]',
                         'comma_balaffecting')
+                .click('form[name="form1"] input[value="custom_date_range"]');
+
+            const dateBounds = { from: startDate, to: endDate };
+            const dateCol = { from: 3, to: 7 };
+            const dateSel = (bound /*: 'from' | 'to' */,
+                             field /*: 'month' | 'day' | 'year' */) =>
+                  `td.dateFields table tbody tr
+                   td:nth-child(${dateCol[bound]}) input.field_${field}`;
+            for (let which of ['from', 'to']) {
+                const d = new Date(dateBounds[which]);
+                const vals = { month: d.getMonth() + 1,
+                               day: d.getDate(),
+                               year: d.getFullYear() };
+                for (let field of ['month', 'day', 'year']) {
+                    yield userAgent
+                        .insert(dateSel(which, field), '')
+                        .insert(dateSel(which, field), vals[field]);
+                }
+            }
+
+            yield userAgent
                 .wait(2 * 1000)
                 .wait('form[name="form1"]');
             console.log('Evaluating XHR function...');
@@ -170,7 +194,7 @@ function toOFX(data) {
         const field = name => (row => {
             const ix = hd.indexOf(name);
             if (ix < 0 || ix + 1 > row.length) {
-                throw Error([name, ix, hd, row.length]);
+                throw new Error(name);
             }
             return row[ix];
         });
@@ -262,7 +286,7 @@ const requestDownload = function () {
     /*eslint-env node */
 };
 
-if (require.main === module) {
+if (require.main == module) {
     main(
         process.argv,
         { clock: () => new Date() },

@@ -161,6 +161,7 @@ Finquick provides a nice web UI for syncing all my sources.
     - on my wish-list for
       [a decade or so](http://dig.csail.mit.edu/breadcrumbs/node/96)
   - match imported transactions across accounts
+  - capture, verify new balance on transaction download
   - during headless browsing, send progress to UI via websocket
   - Get details on Discover transactions: which card? address?
   - figure out where to put jspm_packages and how to set up config.js
@@ -210,7 +211,7 @@ web browser on traditional platforms, but not on ocap platforms.
  - freedesktop secret store (gnome keyring)
  - npm banking for OFX from credit cards
    - use capper persistent state for caching
- - nightmare for headless browsing
+ - [nightmare][] for headless browsing
    - generator functions, yield, Q.async()
  - [CSS Bootstrap][bs] and [Bacon.js][frp] for UI
    - table style
@@ -222,3 +223,4 @@ web browser on traditional platforms, but not on ocap platforms.
  
 [bs]: http://getbootstrap.com/css/
 [frp]: https://baconjs.github.io/
+[nightmare]: http://www.nightmarejs.org/

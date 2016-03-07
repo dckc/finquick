@@ -1,5 +1,4 @@
 /*global CapperConnect */
-/* jshint esversion: 6, module: true */
 /* global Intl */
 
 import Bacon from 'baconjs';
@@ -68,9 +67,13 @@ export function ui(budget, $, makeWebSocket) {
             return accounts.filter(acct => codes.indexOf(acct.code) >= 0);
         }
 
-        const hr = 60 * 60 * 1000;
+        const hr = 60 * 60 * 1000, day = hr * 24;
         const maxAge =
             () => parseInt($('input[name="maxAge"]').val()) * hr;
+        function startDate(latest) {
+            const days = parseInt($('input[name="fetchDays"]').val());
+            return latest - days * day;
+        }
 
         const requests = button.asEventStream('click');
         const responses = Bacon.combineWith(
@@ -78,7 +81,8 @@ export function ui(budget, $, makeWebSocket) {
             currentAccounts, requests)
             .flatMap(Bacon.fromArray)
             .flatMap(acct => Bacon.fromPromise(
-                budget.post(method, acct.code, acct.latest, maxAge())));
+                budget.post(method, acct.code,
+                            startDate(acct.latest), maxAge())));
 
         const replies = responses.merge(responses.mapError(err => null));
         requests.awaiting(replies).onValue(loading => {
