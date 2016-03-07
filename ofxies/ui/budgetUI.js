@@ -5,14 +5,14 @@
 import Bacon from 'baconjs';
 import _ from 'underscore';
 
-export function ui(budget, $) {
+export function ui(budget, $, makeWebSocket) {
     const onSplit = handleText =>
         budget.post('subscriptions').then(ps => {
             const [port, tableSubs] = ps;
             const host = 'pav'; // @@get from window.url or something?
             const addr = `wss://${host}:${port}`;
             // TODO: handle disconnect / reconnect
-            const ws = new WebSocket(addr); // @@ambient
+            const ws = makeWebSocket(addr);
             ws.onopen = () => ws.send(tableSubs.splits);
             ws.onmessage = e => handleText(e.data);
         }).done();

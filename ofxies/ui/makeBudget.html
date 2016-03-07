@@ -33,7 +33,8 @@
     <script src="/apps/ofxies/ui/config.js"></script>
     <script>
       System.import('/apps/ofxies/ui/budgetUI.js').then(function(budget) {
-        budget.ui(CapperConnect.home, $);
+        budget.ui(CapperConnect.home, $,
+                  function(addr) { return new WebSocket(addr); });
       });
     </script>
   </head>
