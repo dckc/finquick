@@ -160,7 +160,6 @@ Finquick provides a nice web UI for syncing all my sources.
   - account auto-complete with bacon FRP
     - on my wish-list for
       [a decade or so](http://dig.csail.mit.edu/breadcrumbs/node/96)
-  - match imported transactions across accounts
   - capture, verify new balance on transaction download
   - during headless browsing, send progress to UI via websocket
   - Get details on Discover transactions: which card? address?

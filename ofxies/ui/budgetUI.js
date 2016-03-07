@@ -112,7 +112,7 @@ export function ui(budget, $, makeWebSocket) {
                 {style: 'white-space: nowrap'}),
 	    elt('td', split.checknum),
 	    moneyElt('td', split.amount),
-	    elt('td', split.trntype),
+	    elt('td', split.trntype +  (split.fitid_slot == 'N' ? '* ' : '')),
 	    elt('td', split.description),
 	    elt('td', split.memo)],
 	    {title: split.fid});

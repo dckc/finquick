@@ -159,7 +159,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
 
     function withOFX/*:: <T>*/(acctCode, remoteTxns,
                                action /*: () => Promise<T>*/)
-                  /*: Promise<T>*/ {
+                    /*: Promise<T>*/
+    {
         const createTemp = `
           create table if not exists stmttrn (
             fitid varchar(80),
@@ -172,7 +173,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             trntype enum ('CREDIT', 'DEBIT'),
             tx_guid varchar(32),
             credit_guid varchar(32),
-            debit_guid varchar(32)
+            debit_guid varchar(32),
+            fitid_slot enum ('Y', 'N')
           )`;
         const insertRemote = `
           insert into stmttrn (
@@ -199,13 +201,36 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
            select s.guid slot_guid, fid.string_val fitid
            from accounts acct
            join splits s on s.account_guid = acct.guid
+           join transactions tx on s.tx_guid = tx.guid
            join slots fid on fid.obj_guid = s.guid
            where fid.name = 'online_id'
            and acct.code = ?
+                  -- optimization: avoid searching all history
+           and tx.post_date > adddate(current_timestamp, interval - 120 day)
           ) gc on gc.fitid = ofx.fitid
           set credit_guid = slot_guid
+            , fitid_slot = 'Y'
         `;
 
+        const matchByAmtDate = `
+          update stmttrn ofx
+          join (
+            select tx.post_date
+                 , dup.value_num / dup.value_denom amount
+                 , dup.guid guid
+            from transactions tx
+            join splits dup on dup.tx_guid = tx.guid
+            join accounts acct on dup.account_guid = acct.guid
+            where acct.code = ?
+            and tx.post_date > adddate(current_timestamp, interval - 120 day)
+          ) dup on dup.amount = ofx.trnamt
+             -- within 60hrs, i.e. 2 1/2 days
+          and abs(timestampdiff(hour, ofx.dtposted, dup.post_date)) < 60
+          set credit_guid = dup.guid
+            , fitid_slot = 'N'
+          where ofx.credit_guid is null
+        `;
+        
         const genIds = `
           update stmttrn
           set tx_guid = replace(uuid(), '-', '')
@@ -218,9 +243,9 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             .then(_r => exec('truncate table stmttrn', {}))
             .then(_r => exec(insertRemote, {}, [txValues]))
             .then(_r => exec(matchByFid, {}, [acctCode]))
+            .then(_r => exec(matchByAmtDate, {}, [acctCode]))
             .then(_r => exec(genIds, {}));
 
-        // flow thinks there's a type error here, but I can't find it.
         return prepare.then(_r => action());
     }
 
@@ -246,11 +271,13 @@ function makeChartOfAccounts(db /*:DB*/)
              , ofx.checknum
              , ofx.trnamt amount, ofx.memo
              , ofx.fitid fid, ofx.trntype
+             , ofx.fitid_slot
           from stmttrn ofx
-          where tx_guid is not null
+          where tx_guid is not null or fitid_slot = 'N'
         `;
         const rowEx = { post_date: 0, description : '', checknum: '',
-                        amount: 1.10, memo: '', fid: '', trntype: ''};
+                        amount: 1.10, memo: '', fid: '', trntype: '',
+                        fitid_slot: ''};
         return db.withOFX(
             acctCode, remoteTxns,
             () => db.query(selectNew, [rowEx], [acctCode]));
@@ -313,7 +340,9 @@ function makeChartOfAccounts(db /*:DB*/)
                , slot_type, string_val, gdate_val)
           select credit_guid obj_guid
                , 'online_id' name, 4 slot_type, ofx.fitid string_val, null
-          from stmttrn ofx where tx_guid is not null
+          from stmttrn ofx
+          where tx_guid is not null
+          or fitid_slot = 'N'  -- matched existing split
 
           union all
           select credit_guid obj_guid
