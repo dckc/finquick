@@ -50,6 +50,10 @@
         <a class="nav-link" data-toggle='tab'
            href="#register" role='tab'>Register</a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" data-toggle='tab'
+           href="#cashFlow" role='tab'>Budget</a>
+      </li>
     </ul>
 
     <div class='tab-content'>
@@ -179,6 +183,29 @@
           </tr>
         </thead>
         <tbody id='txns'>
+        </tbody>
+      </table>
+    </div>
+
+    <div class='row tab-pane fade' id='cashFlow'>
+      <div id='cashFlowAcctMenu' class="dropdown">
+        <label>Account:
+          <input type="text" autocomplete="off" id='cashFlowAcct' />
+        </label>
+        <!-- cribbed from https://baconjs.github.io/ example -->
+        <div id="cashFlowAcctResults"
+             class="dropdown-menu"
+             ></div>
+      </div>
+      <table class='table table-bordered table-sm table-hover'>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Account</th>
+            <th>Subtot</th>
+          </tr>
+        </thead>
+        <tbody id='cashFlowPeriods'>
         </tbody>
       </table>
     </div>

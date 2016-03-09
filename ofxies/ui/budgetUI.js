@@ -5,6 +5,12 @@ import Bacon from 'baconjs';
 import _ from 'underscore';
 
 export function ui(budget, $, makeWebSocket) {
+    syncUI(budget, $, makeWebSocket);
+    registerUI(budget, $);
+    cashFlowUI(budget, $);
+}
+
+function syncUI(budget, $, makeWebSocket) {
     const onSplit = handleText =>
         budget.post('subscriptions').then(ps => {
             const [port, tableSubs] = ps;
@@ -131,8 +137,6 @@ export function ui(budget, $, makeWebSocket) {
         $('#importQty').text(info.importQty.toString());
         $('#importInfo').show();
     });
-
-    registerUI(budget, $);
 }
 
 
@@ -203,6 +207,68 @@ function registerUI(budget, $) {
             $('#errorMessage').text(msg);
             $('#error').modal('show');
         });
+}
+
+function cashFlowUI(it, $) {
+    const acctHint = $('#cashFlowAcct')
+          .asEventStream('keydown')
+          .debounce(300)
+          .map(event => event.target.value)
+          .skipDuplicates();
+
+    const budget = Object.freeze({
+        acctSearch: q => it.post('acctSearch', q),
+        cashFlow: acct => it.post('cashFlow', acct)
+    });
+
+    const acctSearch = q => (
+        q.length < 3 ? Bacon.once([]) :
+            Bacon.fromPromise(budget.acctSearch(q)));
+
+    const showAcct = result => $('<button/>')
+          .attr('class', 'dropdown-item')
+          .attr('type', 'button')
+          .attr('data-guid', result.guid)
+          .text(result.name);
+
+    const suggestions = acctHint.flatMapLatest(acctSearch)
+          .map(results => $.map(results, showAcct));
+
+    const acctChoice = suggestions
+          .flatMap(items => {
+              // kludge: This code should be pure, but
+              // we need to attach the 'click' handler
+              // here, so attach these elements now.
+              $('#cashFlowAcctResults').html(items);
+
+              return $('#cashFlowAcctMenu .dropdown-item')
+                  .asEventStream('click')
+                  .map(event => ({
+                      guid: event.target.getAttribute('data-guid'),
+                      name: event.target.textContent }));
+          });
+    const cashFlow = acctChoice
+          .flatMap(acct => Bacon.fromPromise(budget.cashFlow(acct)));
+    
+    acctHint.awaiting(suggestions).onValue(busy => {
+        if (busy) {
+            $('#cashFlowAcctResults').html('Searching...');
+        }
+    });
+
+    suggestions.onValue(items => {
+        $('#cashFlowAcctMenu').addClass('open');
+    });
+
+    acctChoice.onValue(_e => $('#cashFlowAcctMenu').removeClass('open'));
+
+    cashFlow.onValue(flows => {
+        $('#cashFlowPeriods').html(
+            $.map(flows,
+                  flow => elt('tr', [elt('td', `${flow.year} ${flow.t}`),
+                                     elt('td', flow.name),
+                                     elt('td', flow.subtot)])))
+    });
 }
 
 

@@ -488,6 +488,35 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
+    function cashFlow(acct) {
+        console.log('@@cashflow:', acct);
+        const q = accts => `
+        select year, t, sum(amount) subtot, code, name, guid
+        from (
+            select year(tx.post_date) year, week(tx.post_date) t
+                 , a.guid, a.code, a.name
+                 , s.value_num / s.value_denom amount
+            from transactions tx
+            join splits s on s.tx_guid = tx.guid
+            join accounts a on a.guid = s.account_guid
+            where tx.post_date >= (
+                -- current quarter
+                date_add(makedate(year(current_timestamp), 1),
+                         interval (quarter(current_timestamp) - 1) * 3 month))
+            and a.hidden = 0
+            and a.guid in (${guids(accts)})
+        )
+        ea
+        group by year, t, code, name, guid
+        order by year, t, code, name, guid
+        `;
+        const rowEx = { year: 2000, t: 1, subtot: 1.23,
+                        code: '1234', name: '', guid: '' };
+        return subAccounts(Q(acct))
+            .then(accts => db.query(q(accts), rowEx));
+    }
+    
+    
     /*::
       type TxSplit = {
           post_date: number,
@@ -558,9 +587,19 @@ function makeChartOfAccounts(db /*:DB*/)
             .then(first);
     }
 
+    function acctSearch(q) {
+        const sql = `
+        select guid, code, name
+        from accounts
+        where instr(name, ?) > 0`;
+        return db.query(sql, [{guid: '', code: '', name: ''}], [q]);
+    }
+
     return Object.freeze({
         subAccounts: acctName => subAccounts(acctByName(acctName)),
+        acctSearch: acctSearch,
         acctBalance: acctBalance,
+        cashFlow: cashFlow,
         recentTransactions: recentTransactions,
         getLedger: getLedger,
         filterSeen: filterSeen,

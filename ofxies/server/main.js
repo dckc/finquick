@@ -313,7 +313,9 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
                 chart = makeChart(mem.opts);
                 mem.remotes = {};
             },
+            acctSearch: q => theChart().acctSearch(q),
             acctBalance: (name, ymd) => theChart().acctBalance(name, ymd),
+            cashFlow: acct => theChart().cashFlow(acct),
             subscriptions: () => [cfg.port, tableSubs],
             getLedger: (name, ymd) => theChart().getLedger(name, ymd),
             setRemote: (code, remote) => {
