@@ -175,7 +175,7 @@ function driver() /*: Driver */ {
 
     return Object.freeze({
         download: (ua, creds, start, now) => login(ua, creds)
-            .then(session => session.getHistory(creds, start, now)),
+            .then(session => session.getHistory(start, now)),
         realm: () => REALM,
         toOFX: toOFX
     });
