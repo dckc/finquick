@@ -212,6 +212,9 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             , fitid_slot = 'Y'
         `;
 
+        const epoch = { sql: 'select min(dtposted) t0 from stmttrn',
+                        ex: {t0: ''}};
+        
         const matchByAmtDate = `
           update stmttrn ofx
           join (
@@ -222,7 +225,7 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             join splits dup on dup.tx_guid = tx.guid
             join accounts acct on dup.account_guid = acct.guid
             where acct.code = ?
-            and tx.post_date > adddate(current_timestamp, interval - 120 day)
+            and tx.post_date > adddate(?, interval - 15 day)
           ) dup on dup.amount = ofx.trnamt
              -- within 60hrs, i.e. 2 1/2 days
           and abs(timestampdiff(hour, ofx.dtposted, dup.post_date)) < 60
@@ -243,7 +246,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             .then(_r => exec('truncate table stmttrn', {}))
             .then(_r => exec(insertRemote, {}, [txValues]))
             .then(_r => exec(matchByFid, {}, [acctCode]))
-            .then(_r => exec(matchByAmtDate, {}, [acctCode]))
+            .then(_r => exec(epoch.sql, epoch.ex))
+            .then(agg => exec(matchByAmtDate, {}, [acctCode, agg[0].t0]))
             .then(_r => exec(genIds, {}));
 
         return prepare.then(_r => action());
