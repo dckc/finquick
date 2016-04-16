@@ -195,6 +195,9 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             varchar(trn.MEMO)
         ]);
 
+        const epoch = { sql: 'select min(dtposted) t0 from stmttrn',
+                        ex: {t0: ''}};
+        
         const matchByFid = `
           update stmttrn ofx
           join (
@@ -206,15 +209,12 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
            where fid.name = 'online_id'
            and acct.code = ?
                   -- optimization: avoid searching all history
-           and tx.post_date > adddate(current_timestamp, interval - 120 day)
+           and tx.post_date > adddate(?, interval - 15 day)
           ) gc on gc.fitid = ofx.fitid
           set credit_guid = slot_guid
             , fitid_slot = 'Y'
         `;
 
-        const epoch = { sql: 'select min(dtposted) t0 from stmttrn',
-                        ex: {t0: ''}};
-        
         const matchByAmtDate = `
           update stmttrn ofx
           join (
@@ -245,9 +245,9 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
         const prepare /*: Promise<{}>*/ = exec(createTemp, {})
             .then(_r => exec('truncate table stmttrn', {}))
             .then(_r => exec(insertRemote, {}, [txValues]))
-            .then(_r => exec(matchByFid, {}, [acctCode]))
             .then(_r => exec(epoch.sql, epoch.ex))
-            .then(agg => exec(matchByAmtDate, {}, [acctCode, agg[0].t0]))
+            .then(agg => exec(matchByFid, {}, [acctCode, agg[0].t0])
+                .then(_r => exec(matchByAmtDate, {}, [acctCode, agg[0].t0])))
             .then(_r => exec(genIds, {}));
 
         return prepare.then(_r => action());
