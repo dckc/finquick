@@ -96,13 +96,14 @@ exports.driver = driver;
 function driver() /*: Driver */ {
     const login = Q.async(function*(userAgent, creds /*: Creds*/){
         console.log('login()...');
+        const acctNum = yield creds.login();
 
         yield userAgent
             .goto('https://www.bankbv.com/')
             .wait(0.5 * 1000)
             .wait('.online-banking form')
             .insert('.online-banking input[name="username"]',
-                    yield creds.login())
+                    acctNum)
             .insert('.online-banking input[name="password"]',
                     yield creds.password())
             .click('.online-banking input[type="submit"]')
@@ -122,6 +123,8 @@ function driver() /*: Driver */ {
                 .wait(3 * 1000)
                 .wait('body');
         }
+
+        const table0 = yield userAgent.evaluate(accountTable);
 
         const getHistory = Q.async(function*(_start, _now) {
             console.log('getHistory() TODO:', _start, _now);
@@ -153,7 +156,16 @@ function driver() /*: Driver */ {
         });
 
         return Object.freeze({
-            getHistory: getHistory
+            getHistory: getHistory,
+            acctInfo: () => {
+                if (table0 != null) {
+                    const last4 = acctNum.substr(3, 4);
+                    return table0.filter(
+                        b => b.account.substr(3, 4) == last4);
+                } else {
+                    return [];
+                }
+            }
         });
     });
 
@@ -188,7 +200,33 @@ function driver() /*: Driver */ {
 const textContentOf = function (selector) {
     return document.querySelector(selector).textContent;
 };
-                
+
+
+/*::
+type AcctInfo = {
+  account: string,
+  name: string,
+  balance: number
+}
+*/
+const accountTable = function() {
+    var rows = document.querySelector(
+        '.account_group #DataTables_Table_0 tbody').children;
+    var data /*: Array<AcctInfo> */ = [];
+    function col(row, ix) {
+        return row.querySelector('td:nth-child(' + ix +')').textContent.trim();
+    }
+    for (var rowIx = 0; rowIx < rows.length; rowIx++) {
+        var row = rows[rowIx];
+        data.push({account: col(row, 2),
+                   name: col(row, 3),
+                   balance: parseFloat(col(row, 4)
+                                       .replace('$', '')
+                                       .replace(',', ''))});
+    }
+    return data;
+};
+
 
 // ack: azurelogic commented on Feb 17, 2015
 // Cannot download a file #151
