@@ -9,7 +9,7 @@ const parseOFX = require('banking').parse;
 
 const freedesktop = require('./secret-tool');
 
-const REALM = 'https://pib.secure-banking.com/';
+const REALM = 'https://www.bankbv.com/';
 const usage = `
 Usage:
   bbv.js history --login=ID --code=N --output=FILE [-r URL] [-q]
