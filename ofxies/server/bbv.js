@@ -225,3 +225,7 @@ if (require.main == module) {
         { writeFile: require('fs').writeFile },
         { browser: require('nightmare') });
 }
+
+// Local Variables:
+// flycheck-checker: javascript-eslint
+// End:
