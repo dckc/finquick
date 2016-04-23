@@ -128,12 +128,14 @@ function syncUI(budget, $, makeWebSocket) {
             const t = new Date(info.fetchedAt);
             $('#fetchedAt').text(t.toString());
             $('#fetchedQty').text(info.fetchedQty.toString());
-            $('#newQty').text(info.splits.length.toString());
             $('#fetchInfo').show();
-
-            $('#splits').html(info.splits.map(renderSplit));
         });
+    previewSplits.onValue(info => {
+        $('#newQty').text(info.splits.length.toString());
+        $('#splits').html(info.splits.map(renderSplit));
+    });
     importSplits.onValue(info => {
+        $('#splits').html('');
         $('#importQty').text(info.importQty.toString());
         $('#importInfo').show();
     });
