@@ -177,9 +177,33 @@ function driver() /*: Driver */ {
             throw new Error(status);
         }
         return trnrs.STMTRS[0]
-            .BANKTRANLIST[0].STMTTRN;
+            .BANKTRANLIST[0].STMTTRN.map(prettyTrx);
     }
+
+    /** clean up transaction descriptions before import */
+    function prettyTrx(trx) {
+        if (trx.NAME[0].match(/^\d+ BLUEWAVE /)) {
+            const parts = trx.MEMO[0].match(
+                    /(\d+) (BLUEWAVE .* (FROM|TO) (\d+))/);
+            trx.NAME[0] = parts[2];
+            trx.CHECKNUM = [parts[1]];
+        }
+        if (trx.NAME[0].match(/^POS /)) {
+            trx.NAME[0] = trx.MEMO[0].replace(
+                    /POS TARGET DEBIT CRD ACH TRAN (TARGET .*)/, '$1');
+        }
+        if (trx.NAME[0].match(/^XX\S* POS \w+/)) {
+            trx.NAME[0] = trx.MEMO[0].replace(
+                    /XX\S* POS \w+\.? (AT )?..... ..... (.*)/, '$2');
+        }
+        if (trx.NAME[0].match(/^XX\S* ATM WITHDRAWAL/)) {
+            trx.NAME[0] = trx.MEMO[0].replace(
+                    /XX\S* ATM WITHDRAWAL. ..... ..... (.*)/, '$1');
+        }
         
+        return trx;
+    }
+    
     function toOFX(markup) {
         return Q.promise(resolve => parseOFX(markup, resolve))
             .then(stmttrn);
