@@ -6,6 +6,7 @@
 const Q    = require('q');
 const docopt = require('docopt').docopt;
 const parseOFX = require('banking').parse;
+const OFX = require('./asOFX').OFX;
 
 const freedesktop = require('./secret-tool');
 
@@ -13,6 +14,7 @@ const REALM = 'https://www.bankbv.com/';
 const usage = `
 Usage:
   bbv.js history --login=ID --code=N --ofx=FILE --txfrs=FILE [-r URL] [-q]
+  bbv.js combine --login=ID --ofx=FILE --txfrs=FILE
   bbv.js -h | --help
 
 Options:
@@ -38,6 +40,16 @@ $ ssh-askpass | secret-tool store --label 'Challenge Question' \\
 function main(argv, time, proc, fs, net) {
     'use strict';
     const cli = docopt(usage, { argv: argv.slice(2) });
+
+    if (cli['combine']) {
+        return Q.all([
+            Q(cli['--login']),
+            Q.nfcall(fs.readFile, cli['--ofx'], 'utf8'),
+            Q.nfcall(fs.readFile, cli['--txfrs'], 'utf8')
+        ]).spread(combine)
+            .then(data => csv_export(proc.stdout, data.cols, data.records))
+            .done();
+    }
 
     const keyChain = freedesktop.makeSecretTool(proc.spawn);
     const creds = {
@@ -230,41 +242,6 @@ function driver() /*: Driver */ {
         });
     });
 
-    function stmttrn(res) {
-        const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
-        const status = trnrs.STATUS[0];
-        if (status.CODE[0] != '0') {
-            console.log('bank error:', status);
-            throw new Error(status);
-        }
-        return trnrs.STMTRS[0]
-            .BANKTRANLIST[0].STMTTRN.map(prettyTrx);
-    }
-
-    /** clean up transaction descriptions before import */
-    function prettyTrx(trx) {
-        if (trx.NAME[0].match(/^\d+ BLUEWAVE /)) {
-            const parts = trx.MEMO[0].match(
-                    /(\d+) (BLUEWAVE .* (FROM|TO) (\d+))/);
-            trx.NAME[0] = parts[2];
-            trx.CHECKNUM = [parts[1]];
-        }
-        if (trx.NAME[0].match(/^POS /)) {
-            trx.NAME[0] = trx.MEMO[0].replace(
-                    /POS TARGET DEBIT CRD ACH TRAN (TARGET .*)/, '$1');
-        }
-        if (trx.NAME[0].match(/^XX\S* POS \w+/)) {
-            trx.NAME[0] = trx.MEMO[0].replace(
-                    /XX\S* POS \w+\.? (AT )?..... ..... (.*)/, '$2');
-        }
-        if (trx.NAME[0].match(/^XX\S* ATM WITHDRAWAL/)) {
-            trx.NAME[0] = trx.MEMO[0].replace(
-                    /XX\S* ATM WITHDRAWAL. ..... ..... (.*)/, '$1');
-        }
-        
-        return trx;
-    }
-    
     function toOFX(history) {
         return Q.promise(resolve => parseOFX(history.ofx, resolve))
             .then(stmttrn);
@@ -278,6 +255,147 @@ function driver() /*: Driver */ {
     });
 }
 
+
+function stmttrn(res) {
+    const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
+    const status = trnrs.STATUS[0];
+    if (status.CODE[0] != '0') {
+        console.log('bank error:', status);
+        throw new Error(status);
+    }
+    return trnrs.STMTRS[0]
+        .BANKTRANLIST[0].STMTTRN.map(prettyTrx);
+}
+
+    /** clean up transaction descriptions before import */
+function prettyTrx(trx) {
+    if (trx.NAME[0].match(/^\d+ BLUEWAVE /)) {
+        const parts = trx.MEMO[0].match(
+                /(\d+) (BLUEWAVE .* (FROM|TO) (\d+))/);
+        trx.NAME[0] = parts[2];
+        trx.CHECKNUM = [parts[1]];
+    }
+    if (trx.NAME[0].match(/^POS /)) {
+        trx.NAME[0] = trx.MEMO[0].replace(
+                /POS TARGET DEBIT CRD ACH TRAN (TARGET .*)/, '$1');
+    }
+    if (trx.NAME[0].match(/^XX\S* POS \w+/)) {
+        trx.NAME[0] = trx.MEMO[0].replace(
+                /XX\S* POS \w+\.? (AT )?..... ..... (.*)/, '$2');
+    }
+    if (trx.NAME[0].match(/^XX\S* ATM WITHDRAWAL/)) {
+        trx.NAME[0] = trx.MEMO[0].replace(
+                /XX\S* ATM WITHDRAWAL. ..... ..... (.*)/, '$1');
+    }
+    
+    return trx;
+}
+
+function combine(ofxAcct, ofx, json) {
+    const txfrs = JSON.parse(json);
+    const from_mdy = mdy => {
+        const parts = mdy.match('([0-9]+)/([0-9]+)/([0-9]+)');
+        return new Date(parseInt(parts[3]),
+                        parseInt(parts[1]) - 1,
+                        parseInt(parts[2]));
+    };
+    const by_date_amt = (ta, tb) => (
+        Math.abs(ta.amount) < Math.abs(tb.amount) ? -1 :
+            Math.abs(ta.amount) > Math.abs(tb.amount) ? 1 :
+            ta.date.valueOf() - tb.date.valueOf()
+    );
+    return Q.promise(resolve => parseOFX(ofx, resolve))
+        .then(stmttrn)
+        .then(trns => {
+            const last4 = num => (num || '').substr(3, 4);
+            const field = (t, n) => t.fields
+                  .filter(f => f.label == n)
+                  .map(f => (f.title || f.value).replace(/^./, '')).join('');
+            const scraped = txfrs
+                  .map(t => ({
+                      date: from_mdy(t.date)
+                          .toISOString().substr(0, 'yyyy-mm-dd'.length),
+                      amount: parseFloat(t.amount.replace(/[$,]/g, '')),
+                      from4: last4(field(t, 'From Account:')),
+                      to4: last4(t.to),
+                      to: (t.to || '').replace(/^xxx.... - /, ''),
+                      from: field(t, 'From Account:').replace(/^xxx.... - /, ''),
+                      id: t.id.replace(/^tran_/, ''),
+                      memo: field(t, 'Memo:').replace(/ TRANSFER.*/, '')
+                  }));
+            const acctName = new Map(scraped.reduce(
+                (acc, t) => [].concat(acc,
+                                      t.to ? [[t.to4, t.to]] : [],
+                                      t.from ? [[t.from4, t.from]] : []),
+                []));
+
+            const ofx = trns
+                  .map(prettyTrx)
+                  .map(t => Object.assign(
+                      t, { txfr: t['NAME'][0].match(/BLUEWAVE (LOAN PAYMENT|TRANSFER) (FROM|TO) ([0-9]+)/) }))
+                  .filter(t => t.txfr)
+                  .map(t => {
+                      const any = f => t[f] ? t[f][0] : '';
+                      const the = f => t[f][0];
+                      const amount = parseFloat(the('TRNAMT'));
+                      const sign = t.txfr[2] == 'FROM' ? 1 : -1;
+                      const other = t.txfr[3];
+                      const accts = (sign > 0 ?
+                                     { from: other, to: ofxAcct } :
+                                     { from: ofxAcct, to: other });
+                      const posted = OFX.parseDate(the('DTPOSTED'));
+                      const fmtDate = d => d.toISOString().substr(0, 10);
+                      const scrapedMemo = scraped.filter(
+                          st => st.amount == Math.abs(amount) &&
+                              st.date <= fmtDate(posted) &&
+                              st.date >= fmtDate(
+                                  new Date(posted.valueOf() - 3 * msPerDay)) &&
+                              st.from4 == last4(accts.from) &&
+                              st.to4 == last4(accts.to))
+                            .map(st => st.memo).join(' / ')
+                            .replace(/^TRANSFER .*/, '');
+
+                      return {
+                          date: fmtDate(posted),
+                          time: posted.toLocaleTimeString(),
+                          amount: amount,
+                          trntype: the('TRNTYPE'),
+                          id: the('FITID'),
+                          description: (
+                              the('NAME') + ' ' +
+                                  (acctName.get(last4(other)) || '')).trim(),
+                          from4: last4(accts.from),
+                          to4: last4(accts.to),
+                          memo0: any('MEMO'),
+                          memo: scrapedMemo
+                      };
+                  });
+            return {
+                cols: ['id', 'date', 'time',
+                       'trntype', 'amount', 'from4', 'to4', 'to',
+                       'description', 'memo', 'memo0'],
+                // records: [].concat(ofx, scraped).sort(by_date_amt).reverse()
+                records: ofx.sort(by_date_amt).reverse()
+            };
+        });
+}
+
+function csv_export(out, cols, records) {
+    // header
+    cols.forEach((name, ix) => {
+        if (ix > 0) { out.write(','); }
+        out.write(`${name}`);
+    });
+    out.write('\n');
+    const quot = s => '"' + s.replace(/"/g, '""') + '"';
+    records.forEach((r, _ix) => {
+        cols.forEach((name, ix) => {
+            if (ix > 0) { out.write(','); }
+            out.write(quot(`${r[name] || ''}`));
+        });
+        out.write('\n');
+    });
+}
 
 // arrow functions don't seem to work inside Nightmare.evaluate()
 /*eslint-env browser */
@@ -369,8 +487,10 @@ if (require.main == module) {
     main(
         process.argv,
         { clock: () => new Date() },
-        { spawn: require('child_process').spawn },
-        { writeFile: require('fs').writeFile },
+        { spawn: require('child_process').spawn,
+          stdout: process.stdout },
+        { writeFile: require('fs').writeFile,
+          readFile: require('fs').readFile },
         { browser: require('nightmare') });
 }
 
