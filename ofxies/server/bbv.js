@@ -12,7 +12,7 @@ const freedesktop = require('./secret-tool');
 const REALM = 'https://www.bankbv.com/';
 const usage = `
 Usage:
-  bbv.js history --login=ID --code=N --output=FILE [-r URL] [-q]
+  bbv.js history --login=ID --code=N --ofx=FILE --txfrs=FILE [-r URL] [-q]
   bbv.js -h | --help
 
 Options:
@@ -52,7 +52,10 @@ function main(argv, time, proc, fs, net) {
     const now = time.clock();
 
     d.download(ua, creds, daysBefore(14, now).valueOf(), now)
-        .then(ofx => Q.nfcall(fs.writeFile, cli['--output'], ofx))
+        .then(h => Q.all([
+            Q.nfcall(fs.writeFile, cli['--ofx'], h.ofx),
+            Q.nfcall(fs.writeFile, cli['--txfrs'], JSON.stringify(h.txfrs))
+        ]))
         .then(() => ua.end())
         .done();
 }
@@ -67,8 +70,17 @@ function daysBefore(n, d) {
 type Driver = {
   realm(): string;
   download(ua: Nightmare, creds: Creds,
-           start: number, now: Date): Promise<string>;
-  toOFX(data: string): Promise<Array<STMTTRN>>
+           start: number, now: Date): Promise<History>;
+  toOFX(data: History): Promise<Array<STMTTRN>>
+}
+
+type History = {
+  ofx: string,
+  txfrs: Array<Txfr>,
+  accounts: Array<AcctInfo>
+}
+
+type Txfr = {
 }
 
 // TODO: move this to lib file so it can be shared
@@ -97,6 +109,7 @@ function driver() /*: Driver */ {
     const login = Q.async(function*(userAgent, creds /*: Creds*/){
         console.log('login()...');
         const acctNum = yield creds.login();
+        if(! acctNum) { throw('why does flow think this can fail?'); }
 
         yield userAgent
             .goto('https://www.bankbv.com/')
@@ -126,7 +139,13 @@ function driver() /*: Driver */ {
 
         const table0 = yield userAgent.evaluate(accountTable);
 
-        const getHistory = Q.async(function*(_start, _now) {
+        const getHistory = Q.async(function*(start, now) {
+            const ofx = yield getOFX(start, now);
+            const txfrs = yield getTransfers();
+            return { ofx: ofx, txfrs: txfrs, accounts: table0 };
+        });
+                                   
+        const getOFX = Q.async(function*(_start, _now) {
             console.log('getHistory() TODO:', _start, _now);
 
             const navExportHistory = 'div#bottom_nav ul li:nth-child(3) a';
@@ -153,6 +172,48 @@ function driver() /*: Driver */ {
             } else {
                 throw new Error(response.statusText);
             }
+        });
+
+        const getTransfers = Q.async(function*() {
+            console.log('getTransfers()');
+
+            const navTransfer = 'div#top_nav ul li:nth-child(2) a';
+            const navActivity = 'div#bottom_nav ul li:nth-child(2) a';
+            const txCount = yield userAgent
+                  .click(navTransfer)
+                  .wait(0.5 * 1000)
+                  .wait('#transfers_form')
+                  .click(navActivity)
+                  .wait(0.5 * 1000)
+                  .wait('h3#filter_header')
+                  .select('#transactions_table_length select', '100')
+                  .select('#search_dates', '60')
+                  .click('#search_apply')
+                  .wait(2 * 1000)
+                  .evaluate(
+                      childCount,
+                      '#transactions_table tbody');
+            console.log('txCount:', txCount);
+
+            // Open all the transfers
+            // last to first so that inserted rows don't interfere.
+            const txfrDetail = [];
+            for (let tr = (0 + txCount); tr > 0; tr--) {
+                const sel = (tr, rest) => `#transactions_table tbody tr:nth-child(${tr})${rest}`;
+                yield userAgent
+                    .click(sel(tr, ' a img'))
+                    .wait(0.2);
+
+                const detail = yield userAgent
+                      .wait(sel(tr + 1, ' td.snapshot'))
+                      .evaluate(txfrFields,
+                                sel(tr, ''),
+                                sel(tr + 1, ' td.snapshot'));
+
+                txfrDetail.push(detail);
+            }
+
+            return txfrDetail;
         });
 
         return Object.freeze({
@@ -204,8 +265,8 @@ function driver() /*: Driver */ {
         return trx;
     }
     
-    function toOFX(markup) {
-        return Q.promise(resolve => parseOFX(markup, resolve))
+    function toOFX(history) {
+        return Q.promise(resolve => parseOFX(history.ofx, resolve))
             .then(stmttrn);
     }
 
@@ -223,6 +284,31 @@ function driver() /*: Driver */ {
 /*eslint-disable no-var*/
 const textContentOf = function (selector) {
     return document.querySelector(selector).textContent;
+};
+
+const childCount = function (selector) {
+    return document.querySelector(selector).children.length;
+};
+
+var $ /*: any*/ = 'dummy-for-flow';  // in-page jquery
+
+const txfrFields = function (summary, snapshot) {
+    var tran = $(summary);
+    var tran_details = $(snapshot).find('div.tran_details');
+    return {
+        date: tran.find('td:nth-child(3)').text(),
+        from: tran.find('td:nth-child(4) span').attr('title'),
+        to: tran.find('td:nth-child(5) span').attr('title'),
+        amount: tran.find('td:nth-child(6)').text(),
+        ref: $(snapshot).find('h4').text(),
+        id: tran_details.attr('id'),
+        fields: $.map(tran_details.find('.field'), function(div) {
+            return { label: $(div).find('.label').text(),
+                     value: $(div).find('.value').text(),
+                     title: $(div).find('.value span').attr('title')
+                   };
+        })
+    };
 };
 
 
