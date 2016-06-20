@@ -89,11 +89,11 @@ type Driver = {
 type History = {
   ofx: string,
   txfrs: Array<Txfr>,
+  acctNum: string,
   accounts: Array<AcctInfo>
-}
+};
 
-type Txfr = {
-}
+type Txfr = Object;
 
 // TODO: move this to lib file so it can be shared
 type STMTTRN = {
@@ -154,7 +154,8 @@ function driver() /*: Driver */ {
         const getHistory = Q.async(function*(start, now) {
             const ofx = yield getOFX(start, now);
             const txfrs = yield getTransfers();
-            return { ofx: ofx, txfrs: txfrs, accounts: table0 };
+            return { ofx: ofx, txfrs: txfrs,
+                     acctNum: acctNum, accounts: table0 };
         });
                                    
         const getOFX = Q.async(function*(_start, _now) {
@@ -243,8 +244,12 @@ function driver() /*: Driver */ {
     });
 
     function toOFX(history) {
+        const scraped = transferActivity(history.acctNum, history.txfrs);
         return Q.promise(resolve => parseOFX(history.ofx, resolve))
-            .then(stmttrn);
+            .then(stmttrn)
+            .then(trxs => trxs
+                  .map(prettyTrx)
+                  .map(scraped.with_matching_memo));
     }
 
     return Object.freeze({
@@ -264,7 +269,7 @@ function stmttrn(res) {
         throw new Error(status);
     }
     return trnrs.STMTRS[0]
-        .BANKTRANLIST[0].STMTTRN.map(prettyTrx);
+        .BANKTRANLIST[0].STMTTRN;
 }
 
     /** clean up transaction descriptions before import */
@@ -291,94 +296,101 @@ function prettyTrx(trx) {
     return trx;
 }
 
-function combine(ofxAcct, ofx, json) {
-    const txfrs = JSON.parse(json);
+
+function transferActivity(ofxAcct, scraped) {
     const from_mdy = mdy => {
         const parts = mdy.match('([0-9]+)/([0-9]+)/([0-9]+)');
         return new Date(parseInt(parts[3]),
                         parseInt(parts[1]) - 1,
                         parseInt(parts[2]));
     };
-    const by_date_amt = (ta, tb) => (
-        Math.abs(ta.amount) < Math.abs(tb.amount) ? -1 :
-            Math.abs(ta.amount) > Math.abs(tb.amount) ? 1 :
-            ta.date.valueOf() - tb.date.valueOf()
-    );
+    const fmt_date = dt => dt.toISOString().substr(0, 'yyyy-mm-dd'.length);
+    const from_dollars = txt => parseFloat(txt.replace(/[$,]/g, ''));
+    const last4 = (num /*: string */) => (num || '').trim().substr(3, 4);
+    const parse_acct = txt => ({
+        num4: last4(txt),
+        name: (txt || '').trim().replace(/^xxx.... - /, '')
+    });
+    const novel = txt => txt.replace(/TRANSFER.*/, '');
+    const scrapedData = scraped
+          .map(t => ({
+              tran: t.details.id.replace(/^tran_/, ''),
+              date: fmt_date(from_mdy(t['Send Date'].text)),
+              amount: from_dollars(t['Amount'].text),
+              from: parse_acct(t.details['From Account:'].value),
+              to: parse_acct(t.details['To Account:'].value),
+              memo: novel((t.details['Memo:'].title ||
+                           t.details['Memo:'].value).trim())
+          }));
+
+    const byNum4 = new Map(scrapedData.reduce(
+        (acc, t) => [].concat(
+            acc,
+            t.to ? [[t.to.num4, t.to.name]] : [],
+            t.from ? [[t.from.num4, t.from.name]] : []),
+        []));
+
+    const matches = (t, from_to, other) => {
+        const the = f => t[f][0];
+        const accts = (from_to == 'FROM' ?
+                       { from: other, to: ofxAcct } :
+                       { from: ofxAcct, to: other });
+        const posted = OFX.parseDate(the('DTPOSTED'));
+
+        return scrapedData.filter(
+            st => st.amount == Math.abs(parseFloat(the('TRNAMT'))) &&
+                st.date <= fmt_date(posted) &&
+                st.date >= fmt_date(daysBefore(3, posted)) &&
+                st.from.num4 == last4(accts.from) &&
+                st.to.num4 == last4(accts.to));
+    };
+
+    const with_matching_memo = t => {
+        const txfr = t['NAME'][0]
+              .match(/BLUEWAVE (LOAN PAYMENT|TRANSFER) (FROM|TO) ([0-9]+)/);
+        if (txfr) {
+            const name = byNum4.get(last4(txfr[3]));
+            if (name) {
+                t['NAME'] = [t['NAME'][0] + ' ' + name]; 
+            }
+            t['MEMO'] = [matches(t, txfr[2], txfr[3])
+                         .map(st => st.memo).join(' / ')];
+        }
+        return t;
+    };
+
+    return Object.freeze({
+        with_matching_memo: with_matching_memo
+    });
+}
+
+
+function combine(ofxAcct, ofx, json) {
+    const scraped = transferActivity(ofxAcct, JSON.parse(json));
     return Q.promise(resolve => parseOFX(ofx, resolve))
         .then(stmttrn)
+        .then(trns => trns
+              .map(prettyTrx)
+              .map(scraped.with_matching_memo))
         .then(trns => {
-            const last4 = num => (num || '').substr(3, 4);
-            const field = (t, n) => t.fields
-                  .filter(f => f.label == n)
-                  .map(f => (f.title || f.value).replace(/^./, '')).join('');
-            const scraped = txfrs
-                  .map(t => ({
-                      date: from_mdy(t.date)
-                          .toISOString().substr(0, 'yyyy-mm-dd'.length),
-                      amount: parseFloat(t.amount.replace(/[$,]/g, '')),
-                      from4: last4(field(t, 'From Account:')),
-                      to4: last4(t.to),
-                      to: (t.to || '').replace(/^xxx.... - /, ''),
-                      from: field(t, 'From Account:').replace(/^xxx.... - /, ''),
-                      id: t.id.replace(/^tran_/, ''),
-                      memo: field(t, 'Memo:').replace(/ TRANSFER.*/, '')
-                  }));
-            const acctName = new Map(scraped.reduce(
-                (acc, t) => [].concat(acc,
-                                      t.to ? [[t.to4, t.to]] : [],
-                                      t.from ? [[t.from4, t.from]] : []),
-                []));
-
-            const ofx = trns
-                  .map(prettyTrx)
-                  .map(t => Object.assign(
-                      t, { txfr: t['NAME'][0].match(/BLUEWAVE (LOAN PAYMENT|TRANSFER) (FROM|TO) ([0-9]+)/) }))
-                  .filter(t => t.txfr)
-                  .map(t => {
-                      const any = f => t[f] ? t[f][0] : '';
-                      const the = f => t[f][0];
-                      const amount = parseFloat(the('TRNAMT'));
-                      const sign = t.txfr[2] == 'FROM' ? 1 : -1;
-                      const other = t.txfr[3];
-                      const accts = (sign > 0 ?
-                                     { from: other, to: ofxAcct } :
-                                     { from: ofxAcct, to: other });
-                      const posted = OFX.parseDate(the('DTPOSTED'));
-                      const fmtDate = d => d.toISOString().substr(0, 10);
-                      const scrapedMemo = scraped.filter(
-                          st => st.amount == Math.abs(amount) &&
-                              st.date <= fmtDate(posted) &&
-                              st.date >= fmtDate(
-                                  new Date(posted.valueOf() - 3 * msPerDay)) &&
-                              st.from4 == last4(accts.from) &&
-                              st.to4 == last4(accts.to))
-                            .map(st => st.memo).join(' / ')
-                            .replace(/^TRANSFER .*/, '');
-
-                      return {
-                          date: fmtDate(posted),
-                          time: posted.toLocaleTimeString(),
-                          amount: amount,
-                          trntype: the('TRNTYPE'),
-                          id: the('FITID'),
-                          description: (
-                              the('NAME') + ' ' +
-                                  (acctName.get(last4(other)) || '')).trim(),
-                          from4: last4(accts.from),
-                          to4: last4(accts.to),
-                          memo0: any('MEMO'),
-                          memo: scrapedMemo
-                      };
-                  });
+            const records = trns.map(
+                t => ({
+                    fitid: t['FITID'][0],
+                    posted: t['DTPOSTED'][0],
+                    trntype: t['TRNTYPE'][0],
+                    trnamt: t['TRNAMT'][0],
+                    name: t['NAME'][0],
+                    memo: (t['MEMO'] || [''])[0]
+                }));
             return {
-                cols: ['id', 'date', 'time',
-                       'trntype', 'amount', 'from4', 'to4', 'to',
-                       'description', 'memo', 'memo0'],
-                // records: [].concat(ofx, scraped).sort(by_date_amt).reverse()
-                records: ofx.sort(by_date_amt).reverse()
+                cols: ['fitid', 'posted',
+                       'trntype', 'trnamt',
+                       'name', 'memo'],
+                records: records
             };
         });
 }
+
 
 function csv_export(out, cols, records) {
     // header
@@ -410,23 +422,32 @@ const childCount = function (selector) {
 
 var $ /*: any*/ = 'dummy-for-flow';  // in-page jquery
 
-const txfrFields = function (summary, snapshot) {
-    var tran = $(summary);
-    var tran_details = $(snapshot).find('div.tran_details');
-    return {
-        date: tran.find('td:nth-child(3)').text(),
-        from: tran.find('td:nth-child(4) span').attr('title'),
-        to: tran.find('td:nth-child(5) span').attr('title'),
-        amount: tran.find('td:nth-child(6)').text(),
-        ref: $(snapshot).find('h4').text(),
+const txfrFields = function (tr, td_snapshot) {
+    var thead = [null, 'Type', 'Send Date', 'From', 'To', 'Amount'];
+    // for each column, get the text and title
+    var tran = {};
+    $(tr).find('td').each((ix, td) => {
+        var th = thead[ix];
+        if (th) {
+            tran[th] = { text: $(td).text(),
+                         title: $(td).find('span').attr('title') };
+        }
+    });
+
+    var tran_details = $(td_snapshot).find('div.tran_details');
+    tran.details = {
         id: tran_details.attr('id'),
-        fields: $.map(tran_details.find('.field'), function(div) {
-            return { label: $(div).find('.label').text(),
-                     value: $(div).find('.value').text(),
-                     title: $(div).find('.value span').attr('title')
-                   };
-        })
+        h4: $(td_snapshot).find('h4').text()  // Reference number:
     };
+    tran_details.find('.field').each((_ix, div) => {
+        var label = $(div).find('.label').text(); // e.g. From Account:
+        tran.details[label] = {
+            value: $(div).find('.value').text(),
+            title: $(div).find('.value span').attr('title')
+        };
+    });
+
+    return tran;
 };
 
 
