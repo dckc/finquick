@@ -37,6 +37,8 @@ $ ssh-askpass | secret-tool store --label 'Challenge Question' \\
     question "What is your mother's maiden name?"
 `;
 
+/*eslint-disable no-console*/
+
 function main(argv, time, proc, fs, net) {
     'use strict';
     const cli = docopt(usage, { argv: argv.slice(2) });
