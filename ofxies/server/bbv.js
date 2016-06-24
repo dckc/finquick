@@ -99,13 +99,14 @@ type Txfr = Object;
 
 // TODO: move this to lib file so it can be shared
 type STMTTRN = {
-    TRNTYPE: Array<'CREDIT' | 'DEBIT'>;
+    TRNTYPE: Array<'CREDIT' | 'DEBIT' | 'CHECK'>;
     DTPOSTED: Array<DateString>;
     DTUSER?: Array<DateString>;
     TRNAMT: Array<number>;
     FITID: Array<string>;
     CHECKNUM?: Array<string>,
-    NAME: Array<string>
+    NAME: Array<string>,
+    MEMO?: Array<string>
 }
 type DateString = string;
 
@@ -263,7 +264,7 @@ function driver() /*: Driver */ {
 }
 
 
-function stmttrn(res) {
+function stmttrn(res) /*: Array<STMTTRN> */ {
     const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
     const status = trnrs.STATUS[0];
     if (status.CODE[0] != '0') {
@@ -377,12 +378,12 @@ function combine(ofxAcct, ofx, json) {
         .then(trns => {
             const records = trns.map(
                 t => ({
-                    fitid: t['FITID'][0],
-                    posted: t['DTPOSTED'][0],
-                    trntype: t['TRNTYPE'][0],
-                    trnamt: t['TRNAMT'][0],
-                    name: t['NAME'][0],
-                    memo: (t['MEMO'] || [''])[0]
+                    fitid: t.FITID[0],
+                    posted: t.DTPOSTED[0],
+                    trntype: t.TRNTYPE[0],
+                    trnamt: t.TRNAMT[0],
+                    name: t.NAME[0],
+                    memo: (t.MEMO || [''])[0]
                 }));
             return {
                 cols: ['fitid', 'posted',
