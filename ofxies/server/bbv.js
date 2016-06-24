@@ -14,6 +14,7 @@ const REALM = 'https://www.bankbv.com/';
 const usage = `
 Usage:
   bbv.js history --login=ID --code=N --ofx=FILE --txfrs=FILE [-r URL] [-q]
+  bbv.js checks --login=ID --code=N --storage=DIR <num>...
   bbv.js combine --login=ID --ofx=FILE --txfrs=FILE
   bbv.js -h | --help
 
@@ -65,13 +66,21 @@ function main(argv, time, proc, fs, net) {
     const ua = net.browser({ show: !cli['-q'] });
     const now = time.clock();
 
-    d.download(ua, creds, daysBefore(14, now).valueOf(), now)
-        .then(h => Q.all([
-            Q.nfcall(fs.writeFile, cli['--ofx'], h.ofx),
-            Q.nfcall(fs.writeFile, cli['--txfrs'], JSON.stringify(h.txfrs))
-        ]))
-        .then(() => ua.end())
-        .done();
+    if (cli['checks']) {
+        return d.checkImages(ua, creds, cli['--storage'], cli['<num>'])
+            .then(() => ua.end())
+            .done();
+    }
+
+    if (cli['history']) {
+        d.download(ua, creds, daysBefore(14, now).valueOf(), now)
+            .then(h => Q.all([
+                Q.nfcall(fs.writeFile, cli['--ofx'], h.ofx),
+                Q.nfcall(fs.writeFile, cli['--txfrs'], JSON.stringify(h.txfrs))
+            ]))
+            .then(() => ua.end())
+            .done();
+    }
 }
 
 const msPerDay = 24 * 60 * 60 * 1000;
@@ -85,6 +94,8 @@ type Driver = {
   realm(): string;
   download(ua: Nightmare, creds: Creds,
            start: number, now: Date): Promise<History>;
+  checkImages(ua: Nightmare, creds: Creds,
+              storage: string, nums: Array<string>): Promise<void>;
   toOFX(data: History): Promise<Array<STMTTRN>>
 }
 
@@ -232,8 +243,28 @@ function driver() /*: Driver */ {
             return txfrDetail;
         });
 
+        const checkImages = Q.async(function*(storage, nums) {
+            const navViewChecks = 'div#bottom_nav ul li:nth-child(5) a';
+            yield userAgent
+                .click(navViewChecks)
+                .wait(2 * 1000);
+            for (let num of nums) {
+                console.log(`${storage}/${num}.png`);
+                yield userAgent
+                    .insert('input[name="view_checks:checkNumber"]', num)
+                    .wait()
+                    .click('input.input_submit')
+                    .wait()
+                    .wait('img.check_image')
+                    .screenshot(`${storage}/${num}.png`)
+                    .click('input.input_submit')  // Back
+                    .wait();
+            }
+        });
+
         return Object.freeze({
             getHistory: getHistory,
+            checkImages: checkImages,
             acctInfo: () => {
                 if (table0 != null) {
                     const last4 = acctNum.substr(3, 4);
@@ -258,6 +289,8 @@ function driver() /*: Driver */ {
     return Object.freeze({
         download: (ua, creds, start, now) => login(ua, creds)
             .then(session => session.getHistory(start, now)),
+        checkImages: (ua, creds, storage, nums) => login(ua, creds)
+            .then(session => session.checkImages(storage, nums)),
         realm: () => REALM,
         toOFX: toOFX
     });
