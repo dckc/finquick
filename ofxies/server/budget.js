@@ -111,8 +111,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
                 (resolve, reject) =>
                     c.query(dml, params, (err, rows) => {
                         if (err) {
-                            // console.log('SQL error: ',
-                            //             c.format(dml, params));
+                            console.log('SQL error: ',
+                                        c.format(dml, params));
                             return reject(err);
                         }
                         // console.log('DEBUG: db.query result: ',
@@ -130,12 +130,16 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
     }
 
     function begin() /*: Promise<Transaction> */ {
+        const rollback = () => exec('rollback', {})
+              .then(_r => exec('delete from gnclock', {}));
         const mkTx = _r => Object.freeze({
-            update: exec,
+            update: (d, o, p) => exec(d, o, p).catch(error => {
+                rollback();
+                throw error;
+            }),
             commit: () => exec('commit', {})
                 .then(_r => exec('delete from gnclock', {})),
-            rollback: () => exec('rollback', {})
-                .then(_r => exec('delete from gnclock', {}))
+            rollback: rollback
         });
 
         return exec('select hostname, pid from gnclock',
@@ -164,10 +168,10 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
         const createTemp = `
           create table if not exists stmttrn (
             fitid varchar(80),
-            checknum varchar(80),
+            checknum varchar(80) not null,
             dtposted datetime not null,
             dtuser datetime,
-            memo varchar(80),
+            memo varchar(1024),
             name varchar(80) not null,
             trnamt decimal(7, 2) not null,
             trntype enum ('CREDIT', 'DEBIT', 'CHECK'),
@@ -180,7 +184,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
           insert into stmttrn (
             trntype, checknum, dtposted, dtuser, fitid
           , trnamt, name, memo) values ? `;
-        const varchar = v => v ? v[0] : null;
+        const varchar = v => v ? v[0] : '';
+        const varcharOpt = v => v ? v[0] : null;
         const date = v => v ? OFX.parseDate(v[0]) : null;
         const num = v => v ? Number(v[0]) : null;
         const txValues = remoteTxns.map(trn => [
@@ -191,8 +196,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             varchar(trn.FITID),
             // REFNUM?
             num(trn.TRNAMT),
-            varchar(trn.NAME),
-            varchar(trn.MEMO)
+            varcharOpt(trn.NAME),
+            varcharOpt(trn.MEMO)
         ]);
 
         const epoch = { sql: 'select min(dtposted) t0 from stmttrn',
@@ -227,8 +232,8 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             where acct.code = ?
             and tx.post_date > adddate(?, interval - 15 day)
           ) dup on dup.amount = ofx.trnamt
-             -- within 60hrs, i.e. 2 1/2 days
-          and abs(timestampdiff(hour, ofx.dtposted, dup.post_date)) < 60
+             -- within 72hrs, i.e. 3 days
+          and abs(timestampdiff(hour, ofx.dtposted, dup.post_date)) < 72
           set credit_guid = dup.guid
             , fitid_slot = 'N'
           where ofx.credit_guid is null
