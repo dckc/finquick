@@ -130,9 +130,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
         const mem = context.state;
 
         // Discover gives bogus <TRNAMT>-0</TRNAMT> transactions.
-        const notBogus = tx => {
-            return tx.TRNAMT[0] != '-0';
-        };
+        const notBogus = tx => tx.TRNAMT[0] != '-0';
 
         const fetch = function (startMS /*: ?number */, now /*: Date*/) {
             const start = startMS ? daysBefore(3, new Date(startMS))
