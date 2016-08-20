@@ -39,6 +39,14 @@ const OFX = function() {
             , bankId: null /* not a bank account */
             , accType: 'CREDITCARD'
         },
+        // http://www.ofxhome.com/index.php/institution/view/629
+        citi: {
+            fid: 24909
+            , fidOrg: 'Citigroup'
+            , url: 'https://www.accountonline.com/cards/svc/CitiOfxManager.do'
+            , bankId: null /* not a bank account */
+            , accType: 'CREDITCARD'
+        },
         amex: {
             fid: 3101
             , fidOrg: 'AMEX'
