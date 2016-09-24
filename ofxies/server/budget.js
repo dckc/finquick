@@ -197,7 +197,7 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             // REFNUM?
             num(trn.TRNAMT),
             varcharOpt(trn.NAME),
-            varcharOpt(trn.MEMO)
+            varchar(trn.MEMO)
         ]);
 
         const epoch = { sql: 'select min(dtposted) t0 from stmttrn',
