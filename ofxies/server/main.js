@@ -81,7 +81,7 @@ function mkCache(clock, maxAgeDefault) {
     return cache;
 
     function cache(f, mem) {
-        return function (x, maxAge /*: ?number */) {
+        return function (x, maxAge /*: number */) {
             const now = clock();
             maxAge = maxAge >= 0 ? maxAge : maxAgeDefault;
             if (mem.timestamp && (new Date(mem.timestamp + maxAge) > now)) {
