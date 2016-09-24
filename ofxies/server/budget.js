@@ -146,8 +146,11 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
                     [{hostname: '', pid: 0}])
             .then(locks => {
                 if (locks.length > 0) {
-                    console.log('locked!', locks);
+                    console.log('locked!', locks, 'we are', proc.pid);
                     const l = locks[0];
+                    if (l.pid === proc.pid) {
+                        return Q(mkTx);
+                    }
                     const p = `process ${l.pid} on ${l.hostname}`;
                     return optsP.then(opts => {
                         throw `Database ${opts.database} locked by ${p}`;

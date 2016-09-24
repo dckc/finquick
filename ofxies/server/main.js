@@ -150,7 +150,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
                         const status = trnrs.STATUS[0];
                         if (status.CODE[0] != '0') {
                             console.log('fetch error:', status);
-                            throw new Error(status);
+                            throw status.MESSAGE[0];
                         }
                         mem.xml = reply.xml;
                         return trnrs.CCSTMTRS[0]
@@ -295,6 +295,13 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
         const fetchNew = (code, start, maxAge) => {
             return fetch(code, start, maxAge).then(f => {
                 console.log('fetchNew txns qty:', f.splits.length);
+                if (f.splits.length === 0) {
+                    return {
+                        splits: f.splits,
+                        fetchedAt: f.fetchedAt,
+                        fetchedQty: f.splits.length
+                    };
+                }
                 return theChart().filterSeen(code, f.splits, maxAge)
                     .then(splits => ({
                         splits: splits,
