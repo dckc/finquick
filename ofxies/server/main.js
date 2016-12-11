@@ -130,7 +130,7 @@ function makeOFXmaker(keyStore, getStatement, cache) {
         const mem = context.state;
 
         // Discover gives bogus <TRNAMT>-0</TRNAMT> transactions.
-        const notBogus = tx => tx.TRNAMT[0] != '-0';
+        const notBogus = tx => tx.TRNAMT != '-0';
 
         const fetch = function (startMS /*: ?number */, now /*: Date*/) {
             const start = startMS ? daysBefore(3, new Date(startMS))
@@ -146,15 +146,15 @@ function makeOFXmaker(keyStore, getStatement, cache) {
                 return getStatement(start, now, creds, mem.info)
                     .then(reply => {
                         const trnrs = reply.body.OFX
-                            .CREDITCARDMSGSRSV1[0].CCSTMTTRNRS[0];
-                        const status = trnrs.STATUS[0];
-                        if (status.CODE[0] != '0') {
+                            .CREDITCARDMSGSRSV1.CCSTMTTRNRS;
+                        const status = trnrs.STATUS;
+                        if (status.CODE != '0') {
                             console.log('fetch error:', status);
-                            throw status.MESSAGE[0];
+                            throw status.MESSAGE;
                         }
                         mem.xml = reply.xml;
-                        return trnrs.CCSTMTRS[0]
-                            .BANKTRANLIST[0].STMTTRN
+                        return trnrs.CCSTMTRS
+                            .BANKTRANLIST.STMTTRN
                             .filter(notBogus);
                     });
             });
