@@ -110,14 +110,14 @@ type Txfr = Object;
 
 // TODO: move this to lib file so it can be shared
 type STMTTRN = {
-    TRNTYPE: Array<'CREDIT' | 'DEBIT' | 'CHECK'>;
-    DTPOSTED: Array<DateString>;
-    DTUSER?: Array<DateString>;
-    TRNAMT: Array<number>;
-    FITID: Array<string>;
-    CHECKNUM?: Array<string>,
-    NAME: Array<string>,
-    MEMO?: Array<string>
+    TRNTYPE: 'CREDIT' | 'DEBIT' | 'CHECK';
+    DTPOSTED: DateString;
+    DTUSER?: DateString;
+    TRNAMT: number;
+    FITID: string;
+    CHECKNUM?: string,
+    NAME: string,
+    MEMO?: string
 }
 type DateString = string;
 
@@ -298,34 +298,36 @@ function driver() /*: Driver */ {
 
 
 function stmttrn(res) /*: Array<STMTTRN> */ {
-    const trnrs = res.body.OFX.BANKMSGSRSV1[0].STMTTRNRS[0];
-    const status = trnrs.STATUS[0];
-    if (status.CODE[0] != '0') {
+    const trnrs = res.body.OFX.BANKMSGSRSV1.STMTTRNRS;
+    const status = trnrs.STATUS;
+    if (status.CODE != '0') {
         console.log('bank error:', status);
         throw new Error(status);
     }
-    return trnrs.STMTRS[0]
-        .BANKTRANLIST[0].STMTTRN;
+    return trnrs.STMTRS
+        .BANKTRANLIST.STMTTRN;
 }
 
     /** clean up transaction descriptions before import */
-function prettyTrx(trx) {
-    if (trx.NAME[0].match(/^\d+ BLUEWAVE /)) {
-        const parts = trx.MEMO[0].match(
+function prettyTrx(trx /*: STMTTRN*/) {
+    if (trx.NAME.match(/^\d+ BLUEWAVE /)) {
+        const parts = (trx.MEMO || '').match(
                 /(\d+) (BLUEWAVE .* (FROM|TO) (\d+))/);
-        trx.NAME[0] = parts[2];
-        trx.CHECKNUM = [parts[1]];
+        if (parts) {
+            trx.NAME = parts[2];
+            trx.CHECKNUM = parts[1];
+        }
     }
-    if (trx.NAME[0].match(/^POS /)) {
-        trx.NAME[0] = trx.MEMO[0].replace(
+    if (trx.NAME.match(/^POS /)) {
+        trx.NAME = (trx.MEMO || '').replace(
                 /POS TARGET DEBIT CRD ACH TRAN (TARGET .*)/, '$1');
     }
-    if (trx.NAME[0].match(/^XX\S* POS \w+/)) {
-        trx.NAME[0] = trx.MEMO[0].replace(
+    if (trx.NAME.match(/^XX\S* POS \w+/)) {
+        trx.NAME = (trx.MEMO || '').replace(
                 /XX\S* POS \w+\.? (AT )?..... ..... (.*)/, '$2');
     }
-    if (trx.NAME[0].match(/^XX\S* ATM WITHDRAWAL/)) {
-        trx.NAME[0] = trx.MEMO[0].replace(
+    if (trx.NAME.match(/^XX\S* ATM WITHDRAWAL/)) {
+        trx.NAME = (trx.MEMO || '').replace(
                 /XX\S* ATM WITHDRAWAL. ..... ..... (.*)/, '$1');
     }
     
@@ -367,7 +369,7 @@ function transferActivity(ofxAcct, scraped) {
         []));
 
     const matches = (t, from_to, other) => {
-        const the = f => t[f][0];
+        const the = f => t[f];
         const accts = (from_to == 'FROM' ?
                        { from: other, to: ofxAcct } :
                        { from: ofxAcct, to: other });
@@ -382,15 +384,15 @@ function transferActivity(ofxAcct, scraped) {
     };
 
     const with_matching_memo = t => {
-        const txfr = t['NAME'][0]
+        const txfr = t['NAME']
               .match(/BLUEWAVE (LOAN PAYMENT|TRANSFER) (FROM|TO) ([0-9]+)/);
         if (txfr) {
             const name = byNum4.get(last4(txfr[3]));
             if (name) {
-                t['NAME'] = [t['NAME'][0] + ' ' + name]; 
+                t['NAME'] = t['NAME'] + ' ' + name; 
             }
-            t['MEMO'] = [matches(t, txfr[2], txfr[3])
-                         .map(st => st.memo).join(' / ')];
+            t['MEMO'] = matches(t, txfr[2], txfr[3])
+                .map(st => st.memo).join(' / ');
         }
         return t;
     };
@@ -411,12 +413,12 @@ function combine(ofxAcct, ofx, json) {
         .then(trns => {
             const records = trns.map(
                 t => ({
-                    fitid: t.FITID[0],
-                    posted: t.DTPOSTED[0],
-                    trntype: t.TRNTYPE[0],
-                    trnamt: t.TRNAMT[0],
-                    name: t.NAME[0],
-                    memo: (t.MEMO || [''])[0]
+                    fitid: t.FITID,
+                    posted: t.DTPOSTED,
+                    trntype: t.TRNTYPE,
+                    trnamt: t.TRNAMT,
+                    name: t.NAME,
+                    memo: (t.MEMO || [''])
                 }));
             return {
                 cols: ['fitid', 'posted',

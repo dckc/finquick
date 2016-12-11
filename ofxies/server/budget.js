@@ -187,10 +187,10 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
           insert into stmttrn (
             trntype, checknum, dtposted, dtuser, fitid
           , trnamt, name, memo) values ? `;
-        const varchar = v => v ? v[0] : '';
-        const varcharOpt = v => v ? v[0] : null;
-        const date = v => v ? OFX.parseDate(v[0]) : null;
-        const num = v => v ? Number(v[0]) : null;
+        const varchar = v => v ? v : '';
+        const varcharOpt = v => v
+        const date = v => v ? OFX.parseDate(v) : null;
+        const num = v => v ? Number(v) : null;
         const txValues = remoteTxns.map(trn => [
             varchar(trn.TRNTYPE),
             varchar(trn.CHECKNUM),
