@@ -43,7 +43,6 @@ The secret store attributes GnuCash uses are `protocol`, `server`,
 with `host`, `user`, and `database` properties. The `server`,
 `protocol`, and `object` attributes have sensible defaults:
 
-    $ alias node="node --harmony-proxies"
     $ budget=@`node server -make ofxies.makeBudget database=db1 user=me | tail -1`
 
 Now we can check the balance of an account since some date:
