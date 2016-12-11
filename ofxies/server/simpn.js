@@ -117,7 +117,7 @@ function driver() /*: Driver*/ {
                 .insert('input#login_username', yield creds.login())
                 .insert('input#login_password', yield creds.password())
                 .click('input#signin-btn')
-                .wait(0.5 * 1000)
+                .wait(1.0 * 1000)
                 .wait(nameSel);
             visited = true;
         }
