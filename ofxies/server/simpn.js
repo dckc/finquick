@@ -68,13 +68,13 @@ type Driver = {
 
 // TODO: move this to lib file so it can be shared
 type STMTTRN = {
-    TRNTYPE: Array<'CREDIT' | 'DEBIT'>;
-    DTPOSTED: Array<DateString>;
-    DTUSER?: Array<DateString>;
-    TRNAMT: Array<number>;
-    FITID: Array<string>;
-    CHECKNUM?: Array<string>,
-    NAME: Array<string>
+    TRNTYPE: 'CREDIT' | 'DEBIT';
+    DTPOSTED: DateString;
+    DTUSER?: DateString;
+    TRNAMT: number;
+    FITID: string;
+    CHECKNUM?: string,
+    NAME: string
 }
 type DateString = string;
 
@@ -148,16 +148,16 @@ function transaction(tx /*: SimpleTrx*/) /*: STMTTRN */ {
     const trnamt = ((tx.bookkeeping_type == 'credit' ? 1 : -1) *
                     toUSD(tx.amounts.amount));
     return {
-        TRNTYPE: [tx.bookkeeping_type == 'credit' ? 'CREDIT' : 'DEBIT'],
-        DTPOSTED: [dtposted],
-        DTUSER: [dtuser],
-        TRNAMT: [trnamt],
-        FITID: [tx.uuid],
+        TRNTYPE: tx.bookkeeping_type == 'credit' ? 'CREDIT' : 'DEBIT',
+        DTPOSTED: dtposted,
+        DTUSER: dtuser,
+        TRNAMT: trnamt,
+        FITID: tx.uuid,
         //TODO? {CHECKNUM: check_no},
         //TODO: {REFNUM: refnum}
         //TODO? BANKACCTTO...
-        NAME: [tx.description || ''],
-        MEMO: [tx.memo || '']};
+        NAME: tx.description || '',
+        MEMO: tx.memo || ''};
 }
 
 
@@ -167,13 +167,13 @@ function statement(stxs /*: Array<SimpleTrx>*/) {
         return stxs.length === 0 ? fallback : f(stxs[stxs.length - 1]);
     };
 
-    const bank_id = last('', function(t) { return t.user_id; });
+    const bank_id = last('', t => t.user_id);
     const account_id = bank_id;
     const end_balance = last(0, function(t) {
         return toUSD(t.running_balance);
     });
     const txs = stxs.map(transaction);
-    const txdates = txs.map(function(tx) { return tx.DTPOSTED; });
+    const txdates = txs.map(tx => tx.DTPOSTED);
     const start_date = min(txdates);
     const end_date = max(txdates);
     // console.log('converted to: ', txs.slice(0, 3));
