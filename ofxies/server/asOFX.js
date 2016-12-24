@@ -7,7 +7,8 @@
 /* globals require, exports */
 'use strict';
 
-const xml = require('xml');
+const xml2js = require('xml2js');
+const xmlb = new xml2js.Builder();
 
 function nopunct(iso /*:string*/) {
     return iso.replace(/[: ZT-]/g, '');
@@ -74,7 +75,7 @@ const OFX = function() {
                     ''].join('\n');
 
     const signOn = (clock) => ({
-        'SIGNONMSGSRSV1': [
+        'SIGNONMSGSRSV1':
             {'SONRS': [
                 {'STATUS': [
                     {'CODE': '0'},
@@ -82,7 +83,7 @@ const OFX = function() {
                 ]},
                 {'DTSERVER': nopunct(clock().toISOString())},
                 {'LANGUAGE': 'ENG'}
-            ]}]});
+            ]}});
 
     function parseDate(s) {
         // '20160108170000.000'
@@ -102,30 +103,32 @@ const OFX = function() {
     function bankStatement(bank_id, account_id,
                            start_date, end_date, end_balance,
                            txs /*: Array<STMTTRN>*/) {
-        return {BANKMSGSRSV1: [
-            {STMTTRNRS: [
-                {TRNUID: '0',
-                 STATUS: [
-                    {CODE: '0',
-                     SEVERITY: 'INFO'}],
-                
-                 STMTRS: [
-                    {CURDEF: 'USD',
+        return {BANKMSGSRSV1: {
+            STMTTRNRS: {
+                TRNUID: '0',
+                STATUS: {
+                    CODE: '0',
+                    SEVERITY: 'INFO'
+                },
+                STMTRS: {
+                    CURDEF: 'USD',
                     // TODO: CCACCTFROM
-                     BANKACCTFROM: [
-                        {BANKID: bank_id},
-                        {ACCTID: account_id},
-                        {ACCTTYPE: 'CHECKING'}],
+                    BANKACCTFROM: {
+                        BANKID: bank_id,
+                        ACCTID: account_id,
+                        ACCTTYPE: 'CHECKING'
+                    },
                     
-                     BANKTRANLIST: [
-                        {DTSTART: start_date,
-                         DTEND: end_date,
-                         STMTTRN: txs}],
+                    BANKTRANLIST: {
+                        DTSTART: start_date,
+                        DTEND: end_date,
+                        STMTTRN: txs
+                    },
                     
-                     LEDGERBAL: [
-                        {BALAMT: end_balance,
-                         DTASOF: end_date}]
-                     }]}]}]};
+                    LEDGERBAL: {
+                        BALAMT: end_balance,
+                        DTASOF: end_date
+                    }}}}};
     }
 
     function fmtDate(d /*: Date*/) {
@@ -141,9 +144,10 @@ const OFX = function() {
         parseDate: parseDate,
         OFX: (clock, stmt) => {
             const document = {
-                'OFX': [signOn(clock)].concat(stmt)
+                // Note the order; we don't mutate stmt arg.
+                'OFX': Object.assign(signOn(clock), stmt)
             };
-            return header + xml(document);
+            return header + xmlb.buildObject(document);
         }
     });
 

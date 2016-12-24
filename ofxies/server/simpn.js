@@ -12,6 +12,8 @@ const doc = `
 Usage:
   simpn download [-q]
   simpn convert IN OUT
+  simpn json2ofx JSON OFX
+  simpn debugOFX OFX JSON
 
 Options:
   -q      quiet: do not show browser window
@@ -52,6 +54,33 @@ function main(argv, stdout, env, time, fs, getNet) {
             const pgModel = JSON.parse(buf);
             const s = statement(pgModel.data);
             write(OFX.OFX(time.clock, s));
+        });
+    } else if (cli.json2ofx) {
+        const input = fs.createReadStream(cli.JSON);
+        const write = content => fs.createWriteStream(cli.OFX).write(content);
+
+        let buf = '';
+        input.on('data', (chunk) => {
+            buf += chunk;
+        });
+        input.on('end', () => {
+            const exported = JSON.parse(buf);
+            const s = statement(exported.transactions);
+            write(OFX.OFX(time.clock, s));
+        });
+    } else if (cli.debugOFX) {
+        const parseOFX = require('banking').parse;
+        const input = fs.createReadStream(cli.OFX);
+        const write = content => fs.createWriteStream(cli.JSON).write(content);
+
+        let buf = '';
+        input.on('data', (chunk) => {
+            buf += chunk;
+        });
+        input.on('end', () => {
+            Q.promise(resolve => parseOFX(buf, resolve))
+                .then(data => write(JSON.stringify(data)))
+                .done();
         });
     }
 }
