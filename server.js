@@ -70,6 +70,7 @@ if (require.main == module) {
          { SocketServer: require('ws').Server,
            createServer: require('https').createServer,
            express: require('express'),
+           account: require('bank').account,
            Banking: require('banking'),
            browser: require('nightmare')},
          // TODO: we only need mysql.createConnection

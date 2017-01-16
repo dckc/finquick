@@ -11,16 +11,11 @@ const REALM = 'https://www.simple.com/';
 const doc = `
 Usage:
   simpn download [-q]
-  simpn convert IN OUT
   simpn json2ofx JSON OFX
-  simpn debugOFX OFX JSON
-
-Options:
-  -q      quiet: do not show browser window
 `;
 
 
-function main(argv, stdout, env, time, fs, getNet) {
+function main(argv, stdout, env, time, fs, mkAccount) {
     const cli = docopt.docopt(doc, {argv: argv.slice(2)});
 
     const creds = {
@@ -29,32 +24,14 @@ function main(argv, stdout, env, time, fs, getNet) {
         challenge: q => { throw q; }
     };
 
-    const debug = !cli['-q'];
-
     if (cli.download) {
-        const net = getNet();
         const d = driver();
-        const ua = net.browser({ show: debug });
         const now = time.clock();
         const start = 0;
 
-        d.download(ua, creds, start, now)
-            .then(pgData => stdout.write(JSON.stringify(pgData)))
-            .then(() => ua.end())
+        d.download({ account: mkAccount }, creds, start, now)
+            .then(exported => stdout.write(JSON.stringify(exported)))
             .done();
-    } else if (cli.convert) {
-        const input = fs.createReadStream(cli.IN);
-        const write = content => fs.createWriteStream(cli.OUT).write(content);
-
-        let buf = '';
-        input.on('data', (chunk) => {
-            buf += chunk;
-        });
-        input.on('end', () => {
-            const pgModel = JSON.parse(buf);
-            const s = statement(pgModel.data);
-            write(OFX.OFX(time.clock, s));
-        });
     } else if (cli.json2ofx) {
         const input = fs.createReadStream(cli.JSON);
         const write = content => fs.createWriteStream(cli.OFX).write(content);
@@ -68,20 +45,6 @@ function main(argv, stdout, env, time, fs, getNet) {
             const s = statement(exported.transactions);
             write(OFX.OFX(time.clock, s));
         });
-    } else if (cli.debugOFX) {
-        const parseOFX = require('banking').parse;
-        const input = fs.createReadStream(cli.OFX);
-        const write = content => fs.createWriteStream(cli.JSON).write(content);
-
-        let buf = '';
-        input.on('data', (chunk) => {
-            buf += chunk;
-        });
-        input.on('end', () => {
-            Q.promise(resolve => parseOFX(buf, resolve))
-                .then(data => write(JSON.stringify(data)))
-                .done();
-        });
     }
 }
 
@@ -90,7 +53,7 @@ function main(argv, stdout, env, time, fs, getNet) {
 // TODO: factor out and share Driver type
 type Driver = {
   realm(): string;
-  download(ua: Nightmare, creds: Creds,
+  download({ account: () => Object }, creds: Creds,
            start: number, now: Date): Promise<string>;
   toOFX(data: any): Promise<Array<STMTTRN>>
 }
@@ -117,55 +80,29 @@ type Nightmare = any; // TODO
 */
 
 function driver() /*: Driver*/ {
-    const transactions = Q.async(function *(userAgent, _start, _now){
-        // note document below refers to the user agent's document
-        console.log('fetching simple.com transactions');
-        return yield userAgent
-            .evaluate(pageTransactions);
-    });
 
-    // Interrogating the page before we have visited it hangs.
-    let visited = false;
-
-    const login = Q.async(function*(userAgent, creds /*: Creds*/){
-        const nameSel = '.masthead-username';
-        // getName is evaluated in the browser; nameSel isn't in scope there.
-        const getName =
-            () => document.querySelector('.masthead-username').innerText;
-
-        const viz = visited &&
-            (yield userAgent.exists(nameSel)) &&
-            (yield userAgent.visible(nameSel));
-
-        if (! viz) {
-            console.log('logging in to simple.com');
-            yield userAgent
-                .goto(REALM + 'signin')
-                .wait(0.5 * 1000)
-                .wait('input#login_username')
-                .insert('input#login_username', yield creds.login())
-                .insert('input#login_password', yield creds.password())
-                .click('input#signin-btn')
-                .wait(1.0 * 1000)
-                .wait(nameSel);
-            visited = true;
-        }
-        const name = yield userAgent.evaluate(getName);
-        console.log('logged in as: ', name);
-        return name;
-    });
+    function download(aa, creds, start, now) {
+        console.log('logging in to ', REALM);
+        return creds.login().then(
+            user => creds.password().then(
+                pass => {
+                    const acct = aa.account({username: user, password: pass});
+                    console.log('fetching transactions as', user);
+                    return Q.ninvoke(acct, "login").then(
+                        _ => Q.ninvoke(acct, "transactions"))
+                }))
+    }
 
     return Object.freeze({
         currency: 'USD',  // Simple is a US bank
         account_type: 'CHECKING', // As of this writing, that's all they offer.
-        download: (ua, creds, start, now) => login(ua, creds)
-            .then(_ => transactions(ua, start, now)),
+        download: download,
         toOFX: toOFX,
         realm: () => REALM
     });
 }
 
-const toOFX = pgModel => Q(pgModel.data.map(transaction));
+const toOFX = txinfo => Q(txinfo.transactions.map(transaction));
 
 function transaction(tx /*: SimpleTrx*/) /*: STMTTRN */ {
     const recorded = new Date(tx.times.when_recorded);
@@ -227,12 +164,6 @@ function max/*:: <T>*/(arr /*: Array<T>*/) {
 }
 
 
-/*eslint-env browser*/
-const pageTransactions = function() {
-    return window.Butcher.models.Transactions;
-};
-/*eslint-env node*/
-
 /*::
 type SimpleTrx = {
     user_id: string;
@@ -265,7 +196,7 @@ if (require.main === module) {
         { clock: () => new Date() },
         { createReadStream: fs.createReadStream,
           createWriteStream: fs.createWriteStream },
-        () => ({ browser: require('nightmare') }));
+        require('bank').account);
 }
 
 exports.transaction = transaction;

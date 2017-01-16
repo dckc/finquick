@@ -33,7 +33,8 @@ const cfg = {
 module.exports = Ofxies;
 function Ofxies(time /*: { clock: () => Date }*/,
                 proc, fs, net, db,
-                unique /*: () => string*/) /*: Object*/{
+                unique /*: () => string*/) /*: Object*/
+{
     const keyStore = freedesktop.makeSecretTool(proc.spawn);
 
     const cache = mkCache(time.clock, 18 * hr);
@@ -62,6 +63,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
                                    SocketServer: net.SocketServer},
                                  { readFile: fs.readFile}, cfg);
     const mkUA = () => net.browser({show: debug});
+    const mkAA = () => ({ account: net.account, end: () => null });
 
     return Object.freeze({
         makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket,
@@ -71,7 +73,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
         makeBankBV: makeOFXSiteMaker(
             secrets, cache, mkUA, bbv.driver()),
         makeSimple: makeOFXSiteMaker(
-            secrets, cache, mkUA, simpn.driver()),
+            secrets, cache, mkAA, simpn.driver()),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
 }
