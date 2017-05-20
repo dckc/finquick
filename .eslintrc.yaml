@@ -1,11 +1,11 @@
 parserOptions:
-  # Trying to match node 5.5.x ES6 support
+  # Trying to match node 6.4.0 ES6 support per http://node.green/
   ecmaVersion: 6
   ecmaFeatures:
     arrowFunctions: true
     blockBindings: true
     templateStrings: true
-    destructuring: false  # @@GRR! doesn't seem to work
+    destructuring: true
   sourceType: script  # TODO: module in client side
 
 root: true

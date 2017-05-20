@@ -27,7 +27,7 @@
     "docopt": "^0.6.2",
     "mysql": "^2.10.0",
     "mysql-events": "0.0.7",
-    "nightmare": "^2.1.6",
+    "nightmare": "^2.10.0",
     "object-assign-shim": "^1.0.0",
     "q": "~1.0.1",
     "ws": "^1.0.1",
@@ -39,8 +39,8 @@
     "eslint": "^2.3.0",
     "jspm": "^0.16.25"
   },
-  "engines" : {
-    "node" : ">=6.0.0"
+  "engines": {
+    "node": ">=6.9.5"
   },
   "jspm": {
     "directories": {
