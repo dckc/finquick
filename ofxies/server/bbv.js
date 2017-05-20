@@ -89,15 +89,8 @@ function daysBefore(n, d) {
 }
 
 /*::
-// TODO: factor out and share Driver type
-type Driver = {
-  realm(): string;
-  download(ua: Nightmare, creds: Creds,
-           start: number, now: Date): Promise<History>;
-  checkImages(ua: Nightmare, creds: Creds,
-              storage: string, nums: Array<string>): Promise<void>;
-  toOFX(data: History): Promise<Array<STMTTRN>>
-}
+import type {Driver, Creds} from './dldriver';
+import type {STMTTRN} from './asOFX';
 
 type History = {
   ofx: string,
@@ -107,25 +100,6 @@ type History = {
 };
 
 type Txfr = Object;
-
-// TODO: move this to lib file so it can be shared
-type STMTTRN = {
-    TRNTYPE: 'CREDIT' | 'DEBIT' | 'CHECK';
-    DTPOSTED: DateString;
-    DTUSER?: DateString;
-    TRNAMT: number;
-    FITID: string;
-    CHECKNUM?: string,
-    NAME: string,
-    MEMO?: string
-}
-type DateString = string;
-
-type Creds = {
-  login(): Promise<string>;
-  password(): Promise<string>;
-  challenge(question?: string): Promise<string>;
-}
 
 type Nightmare = any; // TODO
 */
@@ -497,11 +471,13 @@ type AcctInfo = {
 }
 */
 const accountTable = function() {
-    var rows = document.querySelector(
-        '.account_group #DataTables_Table_0 tbody').children;
+    var rows_ = document.querySelector(
+        '.account_group #DataTables_Table_0 tbody');
+    var rows = rows_ ? rows_.children : [];
     var data /*: Array<AcctInfo> */ = [];
     function col(row, ix) {
-        return row.querySelector('td:nth-child(' + ix +')').textContent.trim();
+        var td = row.querySelector('td:nth-child(' + ix +')');
+        return td ? td.textContent.trim() : '';
     }
     for (var rowIx = 0; rowIx < rows.length; rowIx++) {
         var row = rows[rowIx];
@@ -529,7 +505,7 @@ const requestDownload = function (name) {
     var fd = new FormData(form);
     var xhr = new XMLHttpRequest();
     var synchronous = false;
-    xhr.open('POST', form.getAttribute('action'), synchronous);
+    xhr.open('POST', form.getAttribute('action') || '', synchronous);
     xhr.overrideMimeType('text/ofx');
     xhr.send(fd);
     return {

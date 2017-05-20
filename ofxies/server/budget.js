@@ -4,9 +4,11 @@
  *
  */
 /* jshint esversion: 6, node: true */
+/*eslint-disable no-console*/
 'use strict';
 
 const Q = require('q');
+/*:: import type {Promise} from 'q' */
 const docopt = require('docopt').docopt;
 
 const makeSecretTool = require('./secret-tool').makeSecretTool;
@@ -60,7 +62,7 @@ function main(env)
     const chart = makeChartOfAccounts(db);
 
     chart.getLedger(cli.ACCOUNT, cli.SINCE).then(
-        info => env.stdout.write(`ledger: ${info}\n`)
+        info => env.stdout.write(`ledger: ${info.toString()}\n`)
     ).done();
     chart.acctBalance(cli.ACCOUNT, cli.SINCE).then(
         info => env.stdout.write(`balance: ${info.balance}\n`)
@@ -74,6 +76,8 @@ function main(env)
 
 // TODO: pass 'stmttrn' table name in to makeDB?
 
+import type {STMTTRN} from './asOFX';
+
 type DB = {
     query<T>(dml: string, t: T, params?: Array<any>): Promise<T>;
     begin(): Promise<Transaction>;
@@ -83,8 +87,6 @@ type DB = {
     subscribe(path: string, handler: (oldRow: any, newRow: any) => void): void;
     end(): void
 }
-
-type STMTTRN = any; // TODO
 
 type Transaction = {
     update<T>(dml: string, t: T, params?: Array<any>): Promise<T>;
@@ -188,7 +190,7 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
             trntype, checknum, dtposted, dtuser, fitid
           , trnamt, name, memo) values ? `;
         const varchar = v => v ? v : '';
-        const varcharOpt = v => v
+        const varcharOpt = v => v;
         const date = v => v ? OFX.parseDate(v) : null;
         const num = v => v ? Number(v) : null;
         const txValues = remoteTxns.map(trn => [

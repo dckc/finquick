@@ -1,7 +1,7 @@
 /**
 @flow
 */
-
+/*eslint-disable no-console*/
 'use strict';
 const Q    = require('q');
 const docopt = require('docopt').docopt;
@@ -62,25 +62,10 @@ function daysBefore(n, d) {
 }
 
 /*::
-type Driver = {
-  realm(): string;
-  download(ua: Nightmare, creds: Creds,
-           start: number, now: Date): Promise<string>;
-  toOFX(data: string): Promise<Array<STMTTRN>>
-}
 
+import type {Driver} from './dldriver';
 
-// TODO: move this to lib file so it can be shared
-type STMTTRN = {
-    TRNTYPE: 'CREDIT' | 'DEBIT';
-    DTPOSTED: DateString;
-    DTUSER?: DateString;
-    TRNAMT: number;
-    FITID: string;
-    CHECKNUM?: string,
-    NAME: string
-}
-type DateString = string;
+import type {STMTTRN} from './asOFX';
 
 type Transaction = {
   ID: string,
@@ -91,10 +76,7 @@ type Transaction = {
   Net: number
 };
 
-type Creds = {
-  login(): Promise<string>;
-  password(): Promise<string>;
-}
+
 
 type Nightmare = any; // TODO
 */
@@ -272,7 +254,7 @@ const requestDownload = function () {
 
     var xhr = new XMLHttpRequest();
     var synchronous = false;
-    xhr.open('POST', form.getAttribute('action'), synchronous);
+    xhr.open('POST', form.getAttribute('action') || '', synchronous);
     xhr.overrideMimeType('text/plain');
     xhr.send(buf.join('&'));
     return {

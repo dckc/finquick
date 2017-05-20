@@ -148,7 +148,8 @@ function makeOFXmaker(keyStore, getStatement, cache) {
                 return getStatement(start, now, creds, mem.info)
                     .then(reply => {
                         const trnrs = reply.body.OFX
-                            .CREDITCARDMSGSRSV1.CCSTMTTRNRS;
+                              .CREDITCARDMSGSRSV1.CCSTMTTRNRS;
+                        console.log('got ', trnrs.length);
                         const status = trnrs.STATUS;
                         if (status.CODE != '0') {
                             console.log('fetch error:', status);

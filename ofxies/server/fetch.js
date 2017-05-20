@@ -30,12 +30,14 @@ function daysBefore(n, d) {
   return new Date(d.getTime() - n * msPerDay);
 }
 
-var myCard = new Banking(Object.assign(
+var info = Object.assign(
     {
 	accId: process.env.CARDNUM
 	, user: process.env.OFX_USERNAME
 	, password: process.env.OFX_PASSWORD},
-    institutions.discover));
+    institutions.discover);
+console.log('myCard', info);
+var myCard = new Banking(info);
 
 var clock = function() { return new Date() };
 var now = clock();

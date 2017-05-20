@@ -1,13 +1,14 @@
 /**
 @flow
 */
+/*eslint-disable no-console */
 
 'use strict';
 
 const Q = require('q');
 
 exports.makeSecretTool = makeSecretTool;
-function makeSecretTool(spawn) {
+function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
     // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
     const toolPath = 'secret-tool';
 

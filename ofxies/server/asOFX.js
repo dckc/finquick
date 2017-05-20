@@ -17,14 +17,15 @@ function nopunct(iso /*:string*/) {
 
 /*::
 // TODO: move this to lib file so it can be shared
-type STMTTRN = {
-    TRNTYPE: 'CREDIT' | 'DEBIT';
+export type STMTTRN = {
+    TRNTYPE: 'CREDIT' | 'DEBIT' | 'CHECK';
     DTPOSTED: DateString;
     DTUSER?: DateString;
     TRNAMT: number;
     FITID: string;
-    CHECKNUM?: string,
-    NAME: string
+    CHECKNUM?: string;
+    NAME: string;
+    MEMO?: string
 }
 
 type DateString = string; //@@ see fmtDate

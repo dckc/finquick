@@ -1,6 +1,7 @@
 /**
  * @flow
  */
+/*eslint-disable no-console*/
 'use strict';
 const Q    = require('q');
 const docopt = require('docopt');
@@ -50,47 +51,25 @@ function main(argv, stdout, env, time, fs, mkAccount) {
 
 
 /*::
-// TODO: factor out and share Driver type
-type Driver = {
-  realm(): string;
-  download({ account: () => Object }, creds: Creds,
-           start: number, now: Date): Promise<string>;
-  toOFX(data: any): Promise<Array<STMTTRN>>
-}
-
-// TODO: move this to lib file so it can be shared
-type STMTTRN = {
-    TRNTYPE: 'CREDIT' | 'DEBIT';
-    DTPOSTED: DateString;
-    DTUSER?: DateString;
-    TRNAMT: number;
-    FITID: string;
-    CHECKNUM?: string,
-    NAME: string
-}
-type DateString = string;
-
-type Creds = {
-  login(): Promise<string>;
-  password(): Promise<string>;
-  challenge(question?: string): Promise<string>;
-}
-
-type Nightmare = any; // TODO
+import type {Driver} from './dldriver';
+import type {STMTTRN} from './asOFX';
 */
 
 function driver() /*: Driver*/ {
 
-    function download(aa, creds, start, now) {
+    function download(aa, creds, _start, _now) {
         console.log('logging in to ', REALM);
         return creds.login().then(
             user => creds.password().then(
                 pass => {
                     const acct = aa.account({username: user, password: pass});
                     console.log('fetching transactions as', user);
-                    return Q.ninvoke(acct, "login").then(
-                        _ => Q.ninvoke(acct, "transactions"))
-                }))
+                    return Q.ninvoke(acct, 'login').then(
+                        _ => {
+                            console.log('logged in as', user);
+                            return Q.ninvoke(acct, 'transactions');
+                        });
+                }));
     }
 
     return Object.freeze({
@@ -155,11 +134,11 @@ function toUSD(amt) {
 
 // ack: Linus Unnebäck Nov 18 '12
 // http://stackoverflow.com/a/13440842
-function min/*:: <T>*/(arr /*: Array<T>*/) {
+function min(arr /*: Array<string>*/) {
     return arr.reduce((p, v) => p < v ? p : v );
 }
 
-function max/*:: <T>*/(arr /*: Array<T>*/) {
+function max(arr /*: Array<string>*/) {
     return arr.reduce((p, v) => p > v ? p : v );
 }
 
