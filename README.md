@@ -68,7 +68,12 @@ of current accounts.'_
 Another kind of webkey authorizes downloading transaction data from
 paypal using scripted browsing, provided you have signed in to paypal
 with a browser such as Google Chrome and allowed the browser to save
-your password. To create a PayPal webkey, give your paypal login.
+your password.
+
+The budget web UI has a Settings tab where you can set this up. But
+this is what's going underneath:
+
+To create a PayPal webkey, give your paypal login.
 
     $ paypal=@`node server -make ofxies.makePayPal login123 | tail -1`
 
@@ -81,7 +86,7 @@ console log.
 
 Then connect it to your GnuCash paypal account by account number:
 
-    $ node server -post $budget setRemote 1234 $discover
+    $ node server -post $budget setRemote 1234 $paypal
 
 If you `npm start` the server again, when you visit the `$budget`
 page, if you choose your PayPal account from the list and hit
@@ -89,19 +94,6 @@ page, if you choose your PayPal account from the list and hit
 not yet been imported into GnuCash. If you hit **Sync**, the pending
 transactions should get imported _unless the GnuCash DB is in use, in
 which case you'll get an error dialog._
-
-### Other scripted sites
-
-A couple other financial services, including **simple.com**, work
-similarly; see the source code for details.
-
-For challenge questions, we use 'code' and 'question' as in:
-
-    $ ssh-askpass | secret-tool store --label 'Challenge Question' \\
-        url https://www.bankbv.com/ code 1234 \\
-        question "What is your mother's maiden name?"
-
-    $ bankbv=@`node server -make ofxies.makeBankBV login123 1234 | tail -1`
 
 
 ## Sync with credit card OFX services
@@ -114,11 +106,12 @@ used for lookup:
 
     $ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
 
-Then make the OFX webkey:
+Then use the Settings tab in the budget web UI. Again, what happens
+underneath is we make the OFX webkey:
 
     $ discover=@`node server -make ofxies.makeOFX discover protocol=OFX object=disc1 | tail -1`
 
-Again, we can test access from the command line:
+We can test access from the command line:
 
     $ node server -post $discover fetch
 

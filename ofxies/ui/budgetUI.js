@@ -5,9 +5,10 @@ import Bacon from 'baconjs';
 import _ from 'underscore';
 
 export function ui(budget, $, makeWebSocket) {
-    syncUI(budget, $, makeWebSocket);
+    const currentAccounts = syncUI(budget, $, makeWebSocket);
     registerUI(budget, $);
     cashFlowUI(budget, $);
+    settingsUI(budget, $, currentAccounts);
 }
 
 function syncUI(budget, $, makeWebSocket) {
@@ -139,6 +140,8 @@ function syncUI(budget, $, makeWebSocket) {
         $('#importQty').text(info.importQty.toString());
         $('#importInfo').show();
     });
+
+    return currentAccounts;
 }
 
 
@@ -273,6 +276,55 @@ function cashFlowUI(it, $) {
     });
 }
 
+function settingsUI(budget, $, currentAccounts){
+    const textInput = name => (() => $(`input[name="${name}"]`).val());
+    const selection = selector => (() => $(selector).val());
+    const button = id => $('#' + id).asEventStream('click');
+
+    const acctCode = selection('#settingsAccount');
+    const login = textInput("login");
+    const secretObject = textInput("object");
+    const institutionKey = selection('#institutionKey');
+
+    currentAccounts.onValue(
+        accounts => {
+            $('#settingsAccount').html('');
+            $('#settingsAccount').append(accounts.map(
+                acct => elt('option', [acct.code + ': ' + acct.name],
+                            {value: acct.code}) ));
+        }
+    );
+    
+    const makeOFX = button('makeOFX').flatMap(_click => {
+        const so = secretObject(), ik = institutionKey();
+        $('status').html('setting up OFX remote...');
+        return Bacon.fromPromise(
+            budget.post('makeOFX', ik, `object=${so}`, 'protocol=OFX'));
+    });
+
+    const makeCustom = methodName => button(methodName).flatMap(_click => {
+        $('#status').html('setting up remote...');
+        const realm = $(methodName.replace('make', '#realm')).attr('href');
+        return Bacon.fromPromise(
+            budget.post(methodName, login(), acctCode(), realm));
+    });
+
+    const makeAcct = makeOFX
+          .merge(makeCustom('makePayPal'))
+          .merge(makeCustom('makeBankBV'))
+          .merge(makeCustom('makeSimple'));
+    const setRemote = makeAcct
+          .flatMap(remote => {
+              // console.log('makeOFX got remote:', remote);
+              const ac = acctCode();
+              return Bacon.fromPromise(
+                  budget.post('setRemote', ac, remote))
+                  .map(_ok => ac);
+          });
+    // ISSUE: injection
+    setRemote.onValue(ac => $('#status').html(`remote for ${ac} set.`));
+    setRemote.onError(err => $('#status').html(`cannot set remote: ${err}`));
+}
 
 function Try(thunk) {
     try {

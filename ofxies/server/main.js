@@ -65,9 +65,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
     const mkUA = () => net.browser({show: debug});
     const mkAA = () => ({ account: net.account, end: () => null });
 
-    return Object.freeze({
-        makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket,
-                                    saveOFX, unique),
+    const acctMakers = Object.freeze({
         makePayPal: makeOFXSiteMaker(
             secrets, cache, mkUA, paypal.driver()),
         makeBankBV: makeOFXSiteMaker(
@@ -76,8 +74,15 @@ function Ofxies(time /*: { clock: () => Date }*/,
             secrets, cache, mkAA, simpn.driver()),
         makeOFX: makeOFXmaker(keyStore, getStatement, cache)
     });
+    return defExtend({
+        makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket,
+                                    saveOFX, unique, acctMakers),
+    }, acctMakers);
 }
 
+function defExtend(overrides, base) {
+    return Object.freeze(Object.assign({}, base, overrides));
+}
 
 function mkCache(clock, maxAgeDefault) {
     return cache;
@@ -226,7 +231,7 @@ function makeOFXSiteMaker(secrets, cache, mkUserAgent, driver) {
 }
 
 
-function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
+function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique, acctMakers) {
     return makeBudget;
 
     function makeBudget(context) {
@@ -312,9 +317,21 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
                         fetchedQty: f.splits.length
                     }));
             });
-        };
-            
-        return Object.freeze({
+//@@                .catch(err => {
+//                    console.log('fetchNew fetch() error:', err);
+//                });
+       };
+
+        const contextAcctMakers = {};
+        for (let maker in acctMakers) {
+            contextAcctMakers[maker] = function(/*init args*/) {
+                const args = Array.prototype.slice.call(arguments, 0);
+                const makerName = 'ofxies.' + maker; // magic string
+                console.log('contextAcctMaker:', maker, [makerName].concat(args));
+                return context.make.apply(context, [makerName].concat(args));
+            };
+        }
+        return defExtend({
             init: function(arg0 /*, etc*/) {
                 const etc = Array.prototype.slice.call(arguments, 0);
                 mem.opts = freedesktop.args2props(arg0, etc);
@@ -346,7 +363,7 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique) {
                 theChart().destroy();
                 context.destroy();
             }
-        });
+        }, contextAcctMakers);
     }
 }
 

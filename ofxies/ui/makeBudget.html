@@ -54,6 +54,10 @@
         <a class="nav-link" data-toggle='tab'
            href="#cashFlow" role='tab'>Budget</a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" data-toggle='tab'
+           href="#settings" role='tab'>Settings</a>
+      </li>
     </ul>
 
     <div class='tab-content'>
@@ -208,6 +212,90 @@
         <tbody id='cashFlowPeriods'>
         </tbody>
       </table>
+    </div>
+
+    <div class='row tab-pane fade' id='settings'>
+      <legend>Transaction Download Setup</legend>
+
+      <p>To authorize downloading transactions, choose an account
+      (code) and supply parameters for <a href="#cred-lookup">looking
+      up passwords and such</a>.</p>
+      <fieldset>
+        <div><label>Account: <select id='settingsAccount'></select></label>
+        </div>
+
+        <div class="col-sm-offset-1 col-sm-10">
+          <div class='row'>
+            <strong class='col-sm-1'>OFX</strong>
+            <label class='col-sm-4'>Institution:
+              <select id="institutionKey">
+                <option value="discover">Discover Card</option>
+                <option value="citi">Citibank Visa</option>
+                <option value="amex">American Express</option>
+            </select></label>
+          </div>
+          <div class='row'>
+            <label class='col-sm-offset-1 col-sm-4'>object: <input name='object' /></label>
+            <button id='makeOFX' class="btn btn-primary btn-sm col-sm-2">Authorize</button>
+          </div>
+        </div>
+
+        <div class="col-sm-offset-1 col-sm-10 row">
+          <div class='row'>
+            <strong class='col-sm-1'><a id='realmPayPal' href='https://www.paypal.com/'>PayPal</a></strong>
+            <label class='col-sm-4'>login: <input name='login' /></label>
+            <button id='makePayPal' class="btn btn-primary btn-sm col-sm-2">Authorize</button>
+          </div>
+        </div>
+        <div class="col-sm-offset-1 col-sm-10 row">
+          <div class='row'>
+            <strong class='col-sm-1'><a id='realmBankBV' href='https://www.bankbv.com/'>BankBV</a></strong>
+            <label class='col-sm-4'>login: <input name='login' /></label>
+            <button id='makeBankBV' class="btn btn-primary btn-sm col-sm-2">Authorize</button>
+          </div>
+        </div>
+        <div class="col-sm-offset-1 col-sm-10 row">
+          <div class='row'>
+            <strong class='col-sm-1'><a id='realmSimple' href='https://www.paypal.com/'>Simple</a></strong>
+            <label class='col-sm-4'>login: <input name='login' /></label>
+            <button id='makeSimple' class="btn btn-primary btn-sm col-sm-2">Authorize</button>
+          </div>
+        </div>
+      </fieldset>
+      <div id='status'></div>
+
+      <div>
+        <h4 id='cred-lookup'>Setting up passwords</h4>
+
+        <p>To download credit card transaction data via OFX, store the
+          (credit card) account number, username, and password in the
+          <a href="https://specifications.freedesktop.org/secret-service/"
+             >freedesktop secret service</a>
+          (aka <a href="https://en.wikipedia.org/wiki/GNOME_Keyring"
+                  >GNOME Keyring</a>) under the protocol <code>OFX</code>
+          and an <code>object</code> attribute of your choosing
+          such as <code>disc1</code>:</p>
+<pre>
+$ echo 601.... con... sekret | secret-tool store --label='My Discover' protocol OFX object disc1
+</pre>
+
+        <p>For PayPal and such, use a browser such as google chrome to
+          save your password in the keyring.
+        </p>
+        <p>
+          To check, use
+            <code>secret-tool search signon_realm https://www.paypal.com/</code>
+        </p>
+        <p>
+          Save challenge questions using the <code>question</code> property
+          with the <code>code</code> property set to your gnucash account code:
+        </p>
+        <pre>
+$ ssh-askpass | secret-tool store --label 'Challenge Question' \
+    url https://www.bankbv.com/ code 1234 \
+    question "What is your mother's maiden name?"
+</pre>
+
     </div>
     </div>
 
