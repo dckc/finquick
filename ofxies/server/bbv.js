@@ -141,7 +141,12 @@ function driver() /*: Driver */ {
 
         const getHistory = Q.async(function*(start, now) {
             const ofx = yield getOFX(start, now);
-            const txfrs = yield getTransfers();
+            let txfrs = [];
+            try {
+                txfrs = yield getTransfers();
+            } catch (oops) {
+                console.warn('failed to get transfers:', oops);
+            }
             return { ofx: ofx, txfrs: txfrs,
                      acctNum: acctNum, accounts: table0 };
         });
