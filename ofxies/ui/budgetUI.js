@@ -277,53 +277,77 @@ function cashFlowUI(it, $) {
 }
 
 function settingsUI(budget, $, currentAccounts){
-    const textInput = name => (() => $(`input[name="${name}"]`).val());
-    const selection = selector => (() => $(selector).val());
-    const button = id => $('#' + id).asEventStream('click');
+    const setStatus = (elt => msg => elt.html(msg))($('#status'));
 
-    const acctCode = selection('#settingsAccount');
-    const login = textInput("login");
-    const secretObject = textInput("object");
-    const institutionKey = selection('#institutionKey');
+    const acctCode = currentAccounts
+        .map(accounts => accounts.map(acct => ({value: acct.code, html: acct.code + ': ' + acct.name})))
+        .map(options => setOptions($('#settingsAccount'), options)) // kludge: side-effect in map
+        .flatMap(_e => optionValue($('#settingsAccount')));
 
-    currentAccounts.onValue(
-        accounts => {
-            $('#settingsAccount').html('');
-            $('#settingsAccount').append(accounts.map(
-                acct => elt('option', [acct.code + ': ' + acct.name],
-                            {value: acct.code}) ));
-        }
-    );
-    
-    const makeOFX = button('makeOFX').flatMap(_click => {
-        const so = secretObject(), ik = institutionKey();
-        $('status').html('setting up OFX remote...');
+    const nonEmpty = x => x && x.length > 0;
+    const makeOFX = Bacon.combineTemplate({
+        object: textFieldValue($("#object")).filter(nonEmpty),
+        institutionKey: optionValue($('#institutionKey'))
+    }).sampledBy($('#makeOFX').asEventStream('click')).flatMap(ofx => {
+        setStatus('setting up OFX remote ${ofx}...');
         return Bacon.fromPromise(
-            budget.post('makeOFX', ik, `object=${so}`, 'protocol=OFX'));
+            budget.post('makeOFX', ofx.institutionKey, `object=${ofx.object}`, 'protocol=OFX'));
     });
 
-    const makeCustom = methodName => button(methodName).flatMap(_click => {
-        $('#status').html('setting up remote...');
-        const realm = $(methodName.replace('make', '#realm')).attr('href');
-        return Bacon.fromPromise(
-            budget.post(methodName, login(), acctCode(), realm));
-    });
+    const makeCustom = methodName => {
+        const realm = $(`#${methodName} a`).attr('href');
+        const login = textFieldValue($(`#${methodName} input`));
 
-    const makeAcct = makeOFX
+        const authorizeElt = $(`#${methodName} button`);
+        const authorize = authorizeElt.asEventStream('click');
+        login.map(nonEmpty).onValue(ok => authorizeElt.attr("disabled", !ok));
+
+        const input = Bacon.combineTemplate({
+            acctCode: acctCode,
+            login: login
+        })
+        return input.sampledBy(authorize).flatMap(input => {
+            setStatus(`${methodName}: making remote...`);
+            return Bacon.fromPromise(
+                budget.post(methodName, input.login, input.acctCode, realm));
+        });
+    };
+
+    const makeRemote = makeOFX
           .merge(makeCustom('makePayPal'))
           .merge(makeCustom('makeBankBV'))
           .merge(makeCustom('makeSimple'));
-    const setRemote = makeAcct
-          .flatMap(remote => {
+    const setRemote = Bacon.combineTemplate({
+        acct: acctCode,
+        remote: makeRemote
+    }).flatMap(e => {
               // console.log('makeOFX got remote:', remote);
-              const ac = acctCode();
               return Bacon.fromPromise(
-                  budget.post('setRemote', ac, remote))
-                  .map(_ok => ac);
+                  budget.post('setRemote', e.acct, e.remote))
+                  .map(_ok => e.acct);
           });
     // ISSUE: injection
-    setRemote.onValue(ac => $('#status').html(`remote for ${ac} set.`));
-    setRemote.onError(err => $('#status').html(`cannot set remote: ${err}`));
+    setRemote.onValue(ac => setStatus(`remote for ${ac} set.`));
+    setRemote.onError(err => setStatus(`cannot set remote: ${err}`));
+}
+
+// cribbed from Bacon.UI
+function textFieldValue(textField) {
+    function value() { return textField.val() }
+    return textField.asEventStream("keyup").map(value).toProperty(value())
+}
+function optionValue(option, initVal) {
+    if (initVal != null) {
+        option.val(initVal);
+    }
+    const getValue = () => option.val();
+    return option.asEventStream("change").map(getValue).toProperty(getValue());
+};
+
+function setOptions(select, options) {
+    const render = o => $('<option>', {html: o.html, value: o.value});
+    select.html('');
+    select.append(options.map(render));
 }
 
 function Try(thunk) {
