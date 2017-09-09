@@ -101,7 +101,17 @@ type Transaction = {
 function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
                 proc /*: { pid: number, hostname: () => string }*/,
                 optsP) /*: DB*/ {
-    const connP = optsP.then(opts => mysql.createConnection(opts));
+    let connP = reconnect();
+    function reconnect() {
+        return optsP.then(opts => {
+            const conn = mysql.createConnection(opts);
+            conn.on('error', err => {
+                console.log(err);
+                connP = reconnect();
+            });
+            return conn;
+        });
+    }
 
     function exec/*:: <T>*/(dml /*: string*/, _outType /*: T*/,
                          params /*: ?Array<any>*/) /*: Promise<T>*/{
@@ -647,6 +657,7 @@ interface IConnection {
     query(sql: string,
           values?: Array<any>,
           callback?: (err: IError, rows: Array<Array<any>>) => void): IQuery;
+    on(evt: string, callback: (err: IError) => void): void;
 };
 
 interface IError {};
