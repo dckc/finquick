@@ -212,7 +212,8 @@ function toOFX(data) {
     return Q.nfcall(csvp, data)
         .then(rows => {
             const hd = rows[0].map(n => n.trim());
-            const records = rows.slice(1).map(record(hd));
+            const records = rows.slice(1).map(record(hd))
+                  .filter(r => r.Status == 'Completed');
             return records.map(mkTrn);
         });
 }
