@@ -63,7 +63,10 @@ function main(argv, time, proc, fs, net) {
     };
 
     const d = driver();
-    const ua = net.browser({ show: !cli['-q'] });
+    const ua = net.browser({
+        show: !cli['-q'],
+        waitTimeout: 20 * 1000
+    });
     const now = time.clock();
 
     if (cli['checks']) {
