@@ -32,6 +32,9 @@ function main(argv, stdout, env, time, fs, mkAccount) {
 
         d.download({ account: mkAccount }, creds, start, now)
             .then(exported => stdout.write(JSON.stringify(exported)))
+            .catch(oops => {
+                console.error('failed to download:', oops);
+            })
             .done();
     } else if (cli.json2ofx) {
         const input = fs.createReadStream(cli.JSON);

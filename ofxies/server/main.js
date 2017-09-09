@@ -32,7 +32,7 @@ const cfg = {
 
 module.exports = Ofxies;
 function Ofxies(time /*: { clock: () => Date }*/,
-                proc, fs, net, db,
+                proc /*:any */, fs /*:any */, net /*:any */, db /*:any */, // TODO: types
                 unique /*: () => string*/) /*: Object*/
 {
     const keyStore = freedesktop.makeSecretTool(proc.spawn);
@@ -41,10 +41,9 @@ function Ofxies(time /*: { clock: () => Date }*/,
 
     function getStatement(start, now, creds, info) {
         const banking = new net.Banking(Object.assign({}, creds, info));
-
-        console.log('getStatement:', info.fidOrg, info.url);
-        return Q.ninvoke(banking, 'getStatement',
-                         { start: OFX.fmtDate(start), end: OFX.fmtDate(now) });
+        const interval = { start: OFX.fmtDate(start), end: OFX.fmtDate(now) };
+        console.log('getStatement:', info.fidOrg, info.url, interval);
+        return Q.ninvoke(banking, 'getStatement', interval);
     }
 
     const makeDB = (optsP) => budget.makeDB(

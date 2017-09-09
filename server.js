@@ -10,6 +10,7 @@ const makeOFXies = require('./ofxies/server/main');
 
 
 function main(argv, crypto, fs, path, time, proc, net, db) {
+    console.log('start: ', time.clock());
     const unique = makeUnique(crypto.randomBytes);
     const apps = { ofxies: makeOFXies(time, proc, fs, net, db, unique) };
     const dbfile = Capper.fsSyncAccess(fs, path.join, 'capper.db');
