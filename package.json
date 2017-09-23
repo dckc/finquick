@@ -21,9 +21,11 @@
   },
   "dependencies": {
     "Capper": "dckc/Capper#package",
+    "abstract-socket": "^2.0.0",
     "bank": "0.0.4",
     "banking": "^1.0.1",
     "csv-parse": "^1.0.1",
+    "dbus-native": "^0.2.3",
     "docopt": "^0.6.2",
     "mysql": "^2.10.0",
     "mysql-events": "0.0.7",
