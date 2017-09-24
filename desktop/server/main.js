@@ -10,9 +10,10 @@ const Q = require('q');
 const dbus = require('dbus-native');  // native JS, not bindings to native code
 
 function main(process, net) {
-    const sessionBus = makeSessionBus(process.env, net.connectAbstract);
+    const sessionBus = makeSessionBus(process.env.DBUS_SESSION_BUS_ADDRESS || '',
+                                      net.connectAbstract);
 
-    const attrs = argPairs(process.argv.slice(2));
+    const attrs = toPairs(process.argv.slice(2));
     console.log('searching with attrs:', attrs, process.argv);
     const space = secretSpace(sessionBus, []).subSpace(attrs);
     space.search()
@@ -31,14 +32,52 @@ function main(process, net) {
         .fail(oops => console.log('must be present to win', oops));
 }
 
-function argPairs(args) {
+function toPairs(items) {
     const out = [];
-    for (let ix = 0; ix < args.length; ix += 2) {
-        out.push(args.slice(ix, ix + 2));
+    for (let ix = 0; ix < items.length; ix += 2) {
+        out.push(items.slice(ix, ix + 2));
     }
     return out;
 }
 
+exports.makeAppMaker = makeAppMaker;
+function makeAppMaker(env /*: Object*/, connectAbstract /*: string => any */) {
+    return Object.freeze({
+        makeSecretSpace: makeSecretSpace
+    });
+
+    function makeSecretSpace(context /*: Object */) {
+        const mem = context.state;
+
+        // To facilitate creation from the command line, we take a flat list of attributes.
+        function init(...attributes) {
+            mem.attributes = attributes;
+            theSpace();
+        }
+
+        var cache = null;
+        function theSpace() {
+            if (!cache) {
+                const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '', connectAbstract);
+                cache = secretSpace(sessionBus, toPairs(mem.attrs));
+            }
+            return cache;
+        }
+
+        function subSpace(...attributes) {
+            const makerName = 'desktop.secretSpace'; // ISSUE: magic?
+            return context.make.apply(context, [makerName].concat(attributes));
+        }
+        return Object.freeze({
+            init: init,
+            search: theSpace().search,
+            lookup: theSpace().lookup,
+            subSpace: subSpace
+        });
+    }
+}
+
+      
 function onlyWhenPresent(bus, p) {
     let present = false;
 
@@ -48,10 +87,10 @@ function onlyWhenPresent(bus, p) {
             if(err) {
                 console.log(err)
             }
-            console.log('got interface: ', screensaver);
+            // console.log('got interface: ', screensaver);
             screensaver.GetActive((err, screenBlanked) => {
                 present = !screenBlanked;
-                console.log('initially blanked?', screenBlanked, 'present?', present);
+                // console.log('initially blanked?', screenBlanked, 'present?', present);
             });
 
             // dbus signals are EventEmitter events
@@ -62,7 +101,6 @@ function onlyWhenPresent(bus, p) {
         });
 
     return p.then(x => {
-        console.log('upstream resolved; present?', present);
         if (present) {
             return x;
         } else {
@@ -132,7 +170,7 @@ function secretSpace(bus, attrs) {
         return itemsP.then(([unlocked, locked]) => Q.all(unlocked.map(properties)));
 
         function properties(itemPath) {
-            console.log('item path?', itemPath);
+            // console.log('item path?', itemPath);
             const itemP = Q.ninvoke(secretService, 'getInterface',
                                     itemPath,
                                     'org.freedesktop.DBus.Properties');
@@ -178,16 +216,17 @@ function secretSpace(bus, attrs) {
 }
 
 
-function makeSessionBus(env, connectAbstract) {
-    const parts = (env.DBUS_SESSION_BUS_ADDRESS || '').match('([a-z]+):([a-z]+)=(.*)');
+function makeSessionBus(addr, connectAbstract) {
+    const parts = addr.match('([a-z]+):([a-z]+)=(.*)');
     if (!parts) throw('no DBus Session?');
 
-    const [_all, family, property, addr] = parts;
+    const [_all, family, property, path] = parts;
     if (family != 'unix' || property != 'abstract') throw(`expected unix:abstract=...; got $parts`)
 
-    console.log('DBus session addr:', addr)
+    // console.log('DBus session path:', path)
     const abstractSentinel = '\u0000';
-    return dbus.sessionBus({stream: connectAbstract(abstractSentinel + addr)});
+    const stream = connectAbstract(abstractSentinel + path);
+    return dbus.sessionBus({stream: stream});
 }
 
 
