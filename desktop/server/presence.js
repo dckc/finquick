@@ -14,7 +14,11 @@ function main(process, net) {
 
     const attrs = argPairs(process.argv.slice(2));
     console.log('searching with attrs:', attrs, process.argv);
-    secretSpace(sessionBus, []).subSpace(attrs).lookup()
+    const space = secretSpace(sessionBus, []).subSpace(attrs);
+    space.search()
+        .then(props => console.log('all about this space:', props))
+        .fail(oops => console.log('no props for you:', oops));
+    space.lookup()
         .then(secret => console.log('TADA!', secret))
         .fail(oops => console.log('no cookie for you:', oops));
 
@@ -38,7 +42,6 @@ function argPairs(args) {
 function onlyWhenPresent(bus, p) {
     let present = false;
 
-    // ISSUE: Somthing in here seems to cause node.js to run forever.
     bus.getService('org.gnome.ScreenSaver').getInterface(
         '/org/gnome/ScreenSaver',
         'org.gnome.ScreenSaver', function(err, screensaver) {
@@ -90,31 +93,13 @@ method return time=1506198592.257631 sender=:1.3 -> destination=:1.731 serial=31
     
 
 function secretSpace(bus, attrs) {
-    function itemsAndService() {
-        const svcP = Q.ninvoke(bus.getService('org.freedesktop.secrets'), 'getInterface',
-                               '/org/freedesktop/secrets', 'org.freedesktop.Secret.Service');
-        return [svcP.then(svc => Q.ninvoke(svc, 'SearchItems', attrs)), svcP];
-    }
+    const secretService = bus.getService('org.freedesktop.secrets');
 
-    function friendly(key_parts) {
-        // ISSUE: find out how properties work and get the label and such?
-
-        // we use 'plain', so output is always ''
-        let [key, [secretSession, _output, secret, mediaType]] = key_parts;
-        return {
-            item: key,
-            secretSession: secretSession,
-            secret: secret.toString(),
-            mediaType: mediaType
-        };
-    }
-    
     function lookup() {
         const [itemsP, svcP] = itemsAndService();
         const secretP = svcP.then(svc => {
             const emptyStringVariant = ['s', ''];
             const sessionP = Q.ninvoke(svc, 'OpenSession', 'plain', emptyStringVariant);
-            const itemsP = Q.ninvoke(svc, 'SearchItems', attrs);
             return sessionP.then(
                 ([_out, session]) => itemsP.then(
                     ([unlocked, locked]) => Q.ninvoke(svc, 'GetSecrets', unlocked, session)));
@@ -122,9 +107,72 @@ function secretSpace(bus, attrs) {
 
         return secretP;
     }
+    
+    function itemsAndService() {
+        const svcP = Q.ninvoke(secretService, 'getInterface',
+                               '/org/freedesktop/secrets', 'org.freedesktop.Secret.Service');
+        return [svcP.then(svc => Q.ninvoke(svc, 'SearchItems', attrs)), svcP];
+    }
+
+    function friendly(key_parts) {
+        // we use 'plain', so output is always ''
+        let [key, [_secretSession, _output, secret, mediaType]] = key_parts;
+        return {
+            item: key,
+            // secretSession: secretSession,  // let's not leak this
+            secret: secret.toString(),
+            mediaType: mediaType
+        };
+    }
+
+    
+    function search() {
+        const [itemsP, svcP] = itemsAndService();
+
+        return itemsP.then(([unlocked, locked]) => Q.all(unlocked.map(properties)));
+
+        function properties(itemPath) {
+            console.log('item path?', itemPath);
+            const itemP = Q.ninvoke(secretService, 'getInterface',
+                                    itemPath,
+                                    'org.freedesktop.DBus.Properties');
+            return itemP
+                .then(item => Q.ninvoke(item, 'GetAll', 'org.freedesktop.Secret.Item'))
+                .then(props => dict2object(props, 'v'))
+        }
+                  
+        function decode(val, ty, ch) {
+            switch (ty) {
+            case 'b':
+            case 's':
+            case 't':
+                return val;
+            case 'v':
+                const [[{"type": vtyp, "child": [vch]}], [vv]] = val;
+        return decode(vv, vtyp, vch);
+            case 'a':
+                if (ch.type == '{') {
+                    return dict2object(val, ch.child[1].type);
+                } else {
+                    throw(['@@TODO:', JSON.stringify([val, ty, ch])]);
+                }
+            default:
+                throw('what type is that?' + ty)
+            }
+        }
+        // We assume key type is atomic.
+        function dict2object(items, valty) {
+            const out = {};
+            for (let [k, v] of items) {
+                out[k] = decode(v, valty, {});
+            }
+            return out;
+        }
+    }
 
     return Object.freeze({
         lookup: lookup,
+        search: search,
         subSpace: subAttrs => secretSpace(bus, attrs.concat(subAttrs))
     });
 }
