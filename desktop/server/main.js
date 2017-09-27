@@ -15,7 +15,7 @@ function main(process, net) {
 
     const attrs = toPairs(process.argv.slice(2));
     console.log('searching with attrs:', attrs, process.argv);
-    const space = secretSpace(sessionBus, []).subSpace(attrs);
+    const space = secretSpace(sessionBus, {}).subSpace(DBusDict.toJS(attrs));
     space.search()
         .then(props => console.log('all about this space:', props))
         .fail(oops => console.log('no props for you:', oops));
@@ -40,38 +40,66 @@ function toPairs(items) {
     return out;
 }
 
+
+/**
+ * In DBus, a dictionary is an array of k, v structures.
+ * Here we limit ourselves to string keys and values, as in SecretStore attributes.
+ */
+const DBusDict = {
+    fromJS: (o /*: {[string]: string} */) => Object.keys(o).map(k => [k, o[k]]),
+    toJS: (akv /*: Array<Array<string>> */) /*: {[string]: string} */ => {
+        const out = {};
+        for (let [k, v] of akv) {
+            out[k] = v;
+        }
+        return out
+    }
+}
+
+/*::
+// TODO: move to Capper
+
+type Context = {
+  make(reviver: string, ...args: Array<any>): Object,
+  state: Object
+}
+ */
+
 exports.makeAppMaker = makeAppMaker;
-function makeAppMaker(env /*: Object*/, connectAbstract /*: string => any */) {
+function makeAppMaker(env /*: {[string]: string} */, connectAbstract /*: string => any */) {
     return Object.freeze({
         makeSecretSpace: makeSecretSpace
     });
 
-    function makeSecretSpace(context /*: Object */) {
+    function makeSecretSpace(context /*: Context */) {
         const mem = context.state;
 
-        // To facilitate creation from the command line, we take a flat list of attributes.
-        function init(...attributes) {
-            mem.attributes = attributes;
-            theSpace();
+        var cache = null;
+
+        function init(attributes /*: ?{[string]: string} */) {
+            mem.attributes = attributes || {};
         }
 
-        var cache = null;
         function theSpace() {
+            if (!mem.attributes) {
+                throw('Capper protocol requires init() before other methods.');
+            }
             if (!cache) {
                 const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '', connectAbstract);
-                cache = secretSpace(sessionBus, toPairs(mem.attrs));
+                cache = secretSpace(sessionBus, mem.attributes || {});
             }
             return cache;
         }
 
-        function subSpace(...attributes) {
+        function subSpace(attributes /*: {[string]: string} */) {
             const makerName = 'desktop.secretSpace'; // ISSUE: magic?
-            return context.make.apply(context, [makerName].concat(attributes));
+            const subAttrs = Object.assign({}, mem.attributes, attributes);
+            return context.make(makerName, subAttrs);
         }
         return Object.freeze({
             init: init,
-            search: theSpace().search,
-            lookup: theSpace().lookup,
+            search: () => theSpace().search(),
+            lookup: () => theSpace().lookup(),
             subSpace: subSpace
         });
     }
@@ -130,7 +158,7 @@ method return time=1506198592.257631 sender=:1.3 -> destination=:1.731 serial=31
 */
     
 
-function secretSpace(bus, attrs) {
+function secretSpace(bus, attrs /*: {[string]: string} */) {
     const secretService = bus.getService('org.freedesktop.secrets');
 
     function lookup() {
@@ -149,7 +177,7 @@ function secretSpace(bus, attrs) {
     function itemsAndService() {
         const svcP = Q.ninvoke(secretService, 'getInterface',
                                '/org/freedesktop/secrets', 'org.freedesktop.Secret.Service');
-        return [svcP.then(svc => Q.ninvoke(svc, 'SearchItems', attrs)), svcP];
+        return [svcP.then(svc => Q.ninvoke(svc, 'SearchItems', DBusDict.fromJS(attrs))), svcP];
     }
 
     function friendly(key_parts) {
@@ -208,10 +236,11 @@ function secretSpace(bus, attrs) {
         }
     }
 
+    console.log('new secret space with attrs:', attrs);
     return Object.freeze({
         lookup: lookup,
         search: search,
-        subSpace: subAttrs => secretSpace(bus, attrs.concat(subAttrs))
+        subSpace: subAttrs => secretSpace(bus, Object.assign({}, attrs, subAttrs))
     });
 }
 
