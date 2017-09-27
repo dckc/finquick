@@ -92,7 +92,7 @@ function makeAppMaker(env /*: {[string]: string} */, connectAbstract /*: string 
         }
 
         function subSpace(attributes /*: {[string]: string} */) {
-            const makerName = 'desktop.secretSpace'; // ISSUE: magic?
+            const makerName = 'desktop.makeSecretSpace'; // ISSUE: magic?
             const subAttrs = Object.assign({}, mem.attributes, attributes);
             return context.make(makerName, subAttrs);
         }
