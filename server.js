@@ -37,7 +37,6 @@ function main(argv, crypto, fs, path, time, proc, net, db) {
 
     Capper.makeConfig(configFile).then(config => {
         if (command(config)) {
-            console.log('@@command done.');
             return;
         } else {
             console.log('start: ', time.clock());
@@ -48,9 +47,6 @@ function main(argv, crypto, fs, path, time, proc, net, db) {
 
     function command(config) {
         const cli = docopt(usage, { argv: argv.slice(2) });
-        if (Object.keys(cli).length == 0) {
-            return false;
-        }
 
         const sturdy = Capper.makeSturdy(saver, config.domain);
         const parseArg = Capper.caplib.makeParseArg(sturdy.wkeyStringToLive);
@@ -74,6 +70,8 @@ function main(argv, crypto, fs, path, time, proc, net, db) {
                 sturdy.vowAnsToVowJSONString(vowAns).then(
                     answer => console.log(answer));
             }
+        } else {
+            return false;
         }
 
         return true;
