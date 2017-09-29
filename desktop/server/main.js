@@ -67,14 +67,24 @@ type Context = {
 
 exports.makeAppMaker = makeAppMaker;
 function makeAppMaker(env /*: {[string]: string} */, connectAbstract /*: string => any */) {
+    var busCache = null;
+
     return Object.freeze({
         makeSecretSpace: makeSecretSpace
     });
 
+    function theSessionBus() {
+        if (!busCache) {
+            busCache = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '', connectAbstract);
+            console.log('connected to DBUS.');
+        }
+        return busCache;
+    }
+
     function makeSecretSpace(context /*: Context */) {
         const mem = context.state;
 
-        var cache = null;
+        var spaceCache = null;
 
         function init(attributes /*: ?{[string]: string} */) {
             mem.attributes = attributes || {};
@@ -84,11 +94,10 @@ function makeAppMaker(env /*: {[string]: string} */, connectAbstract /*: string 
             if (!mem.attributes) {
                 throw('Capper protocol requires init() before other methods.');
             }
-            if (!cache) {
-                const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '', connectAbstract);
-                cache = secretSpace(sessionBus, mem.attributes || {});
+            if (!spaceCache) {
+                spaceCache = secretSpace(theSessionBus(), mem.attributes || {});
             }
-            return cache;
+            return spaceCache;
         }
 
         function subSpace(attributes /*: {[string]: string} */) {
