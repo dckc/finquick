@@ -15,6 +15,7 @@ const REALM = 'https://www.paypal.com/';
 const usage = `
 Usage:
   paypalSite.js download --login=EMAIL --output=FILE [-r URL] [-q] [-w N]
+  paypalSite.js convert --login=EMAIL CSV OFX
   paypalSite.js -h | --help
 
 Options:
@@ -38,7 +39,16 @@ function main(argv, time, proc, fs, net) {
     'use strict';
     const cli = docopt(usage, { argv: argv.slice(2) });
 
-    const keyChain = freedesktop.makeSecretTool(proc.spawn);
+    if (cli['download']) {
+        download(cli, time.clock(), net, fs,
+                 freedesktop.makeSecretTool(proc.spawn));
+    } else if (cli['convert']) {
+        convert(cli.CSV, cli.OFX, cli['--login'], time, fs)
+    }
+}
+
+
+function download(cli, now, net, fs, keyChain) {
     const creds = {
         login: () => Q(cli['--login']),
         password: () => keyChain.lookup({signon_realm: cli['--realm']})
@@ -49,7 +59,7 @@ function main(argv, time, proc, fs, net) {
     const save = data => Q.nfcall(fs.writeFile, cli['--output'], data);
 
     const d = driver();
-    d.download(ua, creds, daysBefore(90, time.clock()), time.clock())
+    d.download(ua, creds, daysBefore(90, now), now)
         .then(save)
         .then(() => ua.end())
         .done();
@@ -59,6 +69,20 @@ function main(argv, time, proc, fs, net) {
 function daysBefore(n, d) {
     const msPerDay = 24 * 60 * 60 * 1000;
     return new Date(d.getTime() - n * msPerDay);
+}
+
+
+function convert(csv, ofx, email, time, fs) {
+    const input = fs.createReadStream(csv);
+    const write = content => fs.createWriteStream(ofx).write(content);
+    let buf = '';
+    input
+        .on('data', chunk => buf += chunk)
+        .on('end', () => toOFX(buf).then(txs => {
+            console.log(`converted ${txs.length} transactions`);
+            const stmt = statement(txs, email);
+            write(OFX.OFX(time.clock, stmt));
+        }).done());
 }
 
 /*::
@@ -170,6 +194,24 @@ function driver() /*: Driver */ {
 }
 
 
+function statement(txs, account_id) {
+    // ISSUE: copy-and-paste from simple
+    console.log(txs.length, 'transactions to statement...');
+    const min = arr => arr.reduce((p, v) => p < v ? p : v );
+    const max = arr => arr.reduce((p, v) => p > v ? p : v );
+
+    const bank_id = account_id;
+    const end_balance = 0;
+    const txdates = txs.map(tx => tx.DTPOSTED);
+    const start_date = min(txdates);
+    const end_date = max(txdates);
+
+    return OFX.bankStatement(bank_id, account_id,
+                             start_date, end_date, end_balance,
+                             txs);
+}
+
+
 function toOFX(data) {
     /*:: type TxMaker = (row: Array<string>) => Transaction */
     function record(hd /*: Array<string>*/) /*: TxMaker*/{
@@ -270,11 +312,15 @@ const requestDownload = function () {
 };
 
 if (require.main == module) {
+    const fs = require('fs');
+
     main(
         process.argv,
         { clock: () => new Date() },
         { spawn: require('child_process').spawn },
-        { writeFile: require('fs').writeFile },
+        { writeFile: fs.writeFile,
+          createReadStream: fs.createReadStream,
+          createWriteStream: fs.createWriteStream },
         { browser: require('nightmare') });
 }
 
