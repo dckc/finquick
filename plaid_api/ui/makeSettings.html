@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+    <title>Plaid API Settings</title>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+            crossorigin="anonymous"></script>
+    
+    <!-- TODO module-ize capperConnect -->
+    <script type="text/javascript" src="/views/libs/q.js"></script>
+    <script type="text/javascript" src="/views/libs/capperConnect.js"></script>
+    
+    <!-- share between desktop and ofxies? -->
+    <script src="/apps/desktop/ui/jspm_packages/system.js"></script>
+    <script src="/apps/desktop/ui/config.js"></script>
+    <script>
+      System.import('/apps/plaid_api/ui/settingsUI.js').then(function(settingsUI) {
+        settingsUI.ui(CapperConnect.home, $);
+      });
+    </script>
+
+  </head>
+  <body>
+    <h1>Plaid API Settings</h1>
+
+    <fieldset>
+      <label>Client ID:<input id='client-id' /></label>
+      <label>Public Key:<input id='public-key' /></label>
+      <label>Secret:<input id='secret' /></label>
+      <button id='create'>Create</button>
+    </fieldset>
+    <div id='newClient'>
+      <em>result...</em>
+    </div>
+    <hr />
+    <address>
+      fincap by Dan Connolly
+    </address>
+  </body>
+</html>
