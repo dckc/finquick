@@ -23,13 +23,15 @@ function makeSettings(context /*: Context */) {
 }
 
 function makeClient(context /*: Context */) {
+    const mem = context.state;
+
     return Object.freeze({
         init: (client_id, public_key, secret) => {
             console.log('makeClient.init...', client_id);
-            const mem = context.state;
             mem.client_id = client_id;
             mem.public_key = public_key;
             mem.secret = secret;
-        }
+        },
+        getPublicKey: () => mem.public_key
     });
 }
