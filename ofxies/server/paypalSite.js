@@ -43,7 +43,7 @@ function main(argv, time, proc, fs, net) {
         download(cli, time.clock(), net, fs,
                  freedesktop.makeSecretTool(proc.spawn));
     } else if (cli['convert']) {
-        convert(cli.CSV, cli.OFX, cli['--login'], time, fs)
+        convert(cli.CSV, cli.OFX, cli['--login'], time, fs);
     }
 }
 

@@ -75,7 +75,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
     });
     return defExtend({
         makeBudget: makeBudgetMaker(keyStore, makeDB, mkSocket,
-                                    saveOFX, unique, acctMakers),
+                                    saveOFX, unique, acctMakers)
     }, acctMakers);
 }
 
