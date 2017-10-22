@@ -286,7 +286,7 @@ function makeDB(mysql /*: MySql*/, mkEvents /*: MySQLEvents*/,
 
 function makeChartOfAccounts(db /*:DB*/)
 {
-    function filterSeen(acctCode, remoteTxns) {
+    function filterSeen(acctCode /*: string*/, remoteTxns /*: Array<STMTTRN>*/) /*: Promise<Array<TxSplit>> */{
         // console.log('filterSeen:', acctCode, remoteTxns.length);
 
         const selectNew = `
@@ -307,7 +307,7 @@ function makeChartOfAccounts(db /*:DB*/)
             () => db.query(selectNew, [rowEx], [acctCode]));
     }
 
-    function importRemote(acctCode, remoteTxns) /*: Promise<number> */ {
+    function importRemote(acctCode /*: string*/, remoteTxns /*: Array<STMTTRN>*/) /*: Promise<number> */ {
         const other = '9001';  // Imbalance-USD
 
         const addTxns = `
@@ -425,7 +425,16 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
-    function currentAccounts() {
+    /*::
+    type AccountBalance = {
+        guid: string,
+        code: string,
+        name: string,
+        account_type: string,
+        balance: number
+    };
+     */
+    function currentAccounts() /*: Promise<Array<AccountBalance>>*/{
         console.log('computing account balances...');
 
         const rowEx = { guid: '', code: '', name: '',
@@ -459,7 +468,7 @@ function makeChartOfAccounts(db /*:DB*/)
             order by cur.code`, [rowEx]);
     }
 
-    function recentTransactions(limit, byAmt) {
+    function recentTransactions(limit /*: number*/, byAmt /*: ?number */) /*: Promise<Array<TxSplit>> */{
         const splitEx /*: TxSplit */ = {
             post_date: 0, num: '', description: '',
             name: '', reconcile_state: '',
@@ -512,7 +521,7 @@ function makeChartOfAccounts(db /*:DB*/)
         );
     }
 
-    function cashFlow(acct) {
+    function cashFlow(acct /*: Account*/) {
         console.log('@@cashflow:', acct);
         const q = accts => `
         select year, t, sum(amount) subtot, code, name, guid
@@ -611,7 +620,14 @@ function makeChartOfAccounts(db /*:DB*/)
             .then(first);
     }
 
-    function acctSearch(q) {
+    /*::
+    type AccountId = {
+        guid: string,
+        name: string,
+        code: string,
+    }
+     */
+    function acctSearch(q /*: string*/) /*: Promise<Array<AccountId>>*/{
         const sql = `
         select guid, code, name
         from accounts
@@ -620,7 +636,7 @@ function makeChartOfAccounts(db /*:DB*/)
     }
 
     return Object.freeze({
-        subAccounts: acctName => subAccounts(acctByName(acctName)),
+        subAccounts: (acctName /*: string*/) => subAccounts(acctByName(acctName)),
         acctSearch: acctSearch,
         acctBalance: acctBalance,
         cashFlow: cashFlow,

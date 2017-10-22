@@ -66,7 +66,7 @@ type Context = {
  */
 
 exports.makeAppMaker = makeAppMaker;
-function makeAppMaker(env /*: {[string]: string} */, connectAbstract /*: string => any */) {
+function makeAppMaker(env /*: {[string]: ?string} */, connectAbstract /*: string => any */) {
     var busCache = null;
 
     return Object.freeze({

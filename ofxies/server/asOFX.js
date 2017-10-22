@@ -30,6 +30,7 @@ export type STMTTRN = {
 
 type DateString = string; //@@ see fmtDate
 
+type Clock = () => Date;
 */
 
 const OFX = function() {
@@ -75,7 +76,7 @@ const OFX = function() {
                     '',
                     ''].join('\n');
 
-    const signOn = (clock) => ({
+    const signOn = (clock /*: Clock*/) => ({
         'SIGNONMSGSRSV1':
             {'SONRS': [
                 {'STATUS': [
@@ -86,11 +87,12 @@ const OFX = function() {
                 {'LANGUAGE': 'ENG'}
             ]}});
 
-    function parseDate(s) {
+    function parseDate(s /*: string*/) /*: Date */{
         // '20160108170000.000'
         // '20151229050000.000[-7:MST]'
         const syntax = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?(?:\[([-+])?(\d+(?:\.\d+)?)(?::([a-zA-Z]+))?)?/;
         const parts = s.match(syntax);
+        if (!parts) { throw new Error('bad date :' + s); }
         const n = i => Number(parts[i]);
         const d0 = new Date(n(1), n(2) - 1, n(3),
                             n(4), n(5), n(6),
@@ -101,8 +103,8 @@ const OFX = function() {
         return new Date(d0.getTime() + offset);
     }
 
-    function bankStatement(bank_id, account_id,
-                           start_date, end_date, end_balance,
+    function bankStatement(bank_id /*: string*/, account_id /*: string*/,
+                           start_date /*: string*/, end_date /*: string*/, end_balance /*: number*/,
                            txs /*: Array<STMTTRN>*/) {
         return {BANKMSGSRSV1: {
             STMTTRNRS: {
@@ -143,7 +145,7 @@ const OFX = function() {
         bankStatement: bankStatement,
         fmtDate: fmtDate,
         parseDate: parseDate,
-        OFX: (clock, stmt) => {
+        OFX: (clock /*: Clock */, stmt /*: Object*/) => {
             const document = {
                 // Note the order; we don't mutate stmt arg.
                 'OFX': Object.assign(signOn(clock), stmt)

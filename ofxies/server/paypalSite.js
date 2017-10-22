@@ -282,8 +282,7 @@ const requestDownload = function () {
     // but paypal expects urlencoded
     var buf = [];
     for (var i = 0; i < form.length; i++) {
-        // flow doesn't seem to know that forms can be indexed by number.
-        var item = form[/*:: '' + */i];
+        var item = ((form[i] /*: any*/)/*: HTMLInputElement */);
         var ty = item.hasAttribute('type') ?
             item.getAttribute('type') : null;
         if ((ty === 'radio' || ty === 'checkbox') && ! item.checked) {

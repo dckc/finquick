@@ -506,10 +506,9 @@ const requestDownload = function (name) {
     var formId = name + '_form';
 
     // down-cast from HTMLElement to HTMLFormElement
-    var e /*: any*/ = document.forms[formId];
-    var form /*: HTMLFormElement*/ = e;
+    var form  = ((document.forms[formId] /*: any*/) /*: HTMLFormElement*/);
 
-    form[formId + ':_idcl'].value = name + ':submit_button';
+    ((form[formId + ':_idcl'] /*: any*/) /*: HTMLInputElement*/).value = name + ':submit_button';
     var fd = new FormData(form);
     var xhr = new XMLHttpRequest();
     var synchronous = false;

@@ -12,7 +12,7 @@ function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
     // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
     const toolPath = 'secret-tool';
 
-    function lookup(what) {
+    function lookup(what /*: {[string]: string} */) {
         const args = ['lookup'];
         for (let prop in what) {
             args.push(prop);
@@ -37,9 +37,9 @@ function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
         return out.promise;
     }
 
-    function makePassKey(tool, properties) {
+    function makePassKey(tool /*: ({[string]: string}) => Promise<string>*/, properties /*: {[string]: string} */) {
         return Object.freeze({
-            subKey: (subProps) => makePassKey(
+            subKey: (subProps /*: {[string]: string} */) => makePassKey(
                 tool,
                 Object.assign({}, properties, subProps)),
             properties: () => properties,

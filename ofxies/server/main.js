@@ -53,7 +53,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
     const secrets = {
         sitePassword: realm =>
             keyStore.lookup({signon_realm: realm}),
-        challenge: (code, question) =>
+        challenge: (code /*: string*/, question /*: string*/) =>
             keyStore.lookup({code: code, question: question})
     };
     const saveOFX = (code, xml) =>
@@ -309,7 +309,7 @@ function makeBudgetMaker(keyStore, makeDB, mkSocket, saveOFX, unique, acctMakers
                         fetchedQty: f.splits.length
                     };
                 }
-                return theChart().filterSeen(code, f.splits, maxAge)
+                return theChart().filterSeen(code, f.splits)
                     .then(splits => ({
                         splits: splits,
                         fetchedAt: f.fetchedAt,

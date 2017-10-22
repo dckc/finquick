@@ -111,15 +111,11 @@ function transaction(tx /*: SimpleTrx*/) /*: STMTTRN */ {
 
 function statement(stxs /*: Array<SimpleTrx>*/) {
     console.log(stxs.length, 'transactions to statement...');
-    const last = (fallback, f) => {
-        return stxs.length === 0 ? fallback : f(stxs[stxs.length - 1]);
-    };
+    const lastTx = stxs.length === 0 ? null : stxs[stxs.length - 1];
 
-    const bank_id = last('', t => t.user_id);
+    const bank_id = lastTx ? lastTx.user_id : '';
     const account_id = bank_id;
-    const end_balance = last(0, function(t) {
-        return toUSD(t.running_balance);
-    });
+    const end_balance = lastTx ? toUSD(lastTx.running_balance) : 0;
     const txs = stxs.map(transaction);
     const txdates = txs.map(tx => tx.DTPOSTED);
     const start_date = min(txdates);
