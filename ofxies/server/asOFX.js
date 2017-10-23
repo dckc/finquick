@@ -91,16 +91,18 @@ const OFX = function() {
         // '20160108170000.000'
         // '20151229050000.000[-7:MST]'
         const syntax = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?(?:\[([-+])?(\d+(?:\.\d+)?)(?::([a-zA-Z]+))?)?/;
-        const parts = s.match(syntax);
-        if (!parts) { throw new Error('bad date :' + s); }
-        const n = i => Number(parts[i]);
-        const d0 = new Date(n(1), n(2) - 1, n(3),
-                            n(4), n(5), n(6),
-                            parts[7] ? n(7) / 1000 : 0);
-        const sign = parts[8] == '-' ? -1 : 1;
-        const msPerHr = 60 * 1000;
-        const offset = parts[9] ? n(9) * sign * msPerHr : 0;
-        return new Date(d0.getTime() + offset);
+
+        const int10 = numeral => parseInt(numeral, 10);
+        const require = match => { if (match) { return match } else { throw new Error(s); } }
+        const msPerHr = 60 * 60 * 1000;
+        const withTZ = (d0, sign, hrs) =>
+              new Date(d0.getTime() +
+                       (hrs ? int10(hrs) * (sign == '-' ? -1 : 1) * msPerHr : 0));
+
+        const [_, yyyy, mm, dd, HH, MM, SS, MS, ts, th] = require(s.match(syntax));
+        const [y, m, d, h, min, sec] = [yyyy, mm, dd, HH, MM, SS].map(int10);
+        const ms = MS ? int10(MS) / 1000 : 0;
+        return withTZ(new Date(Date.UTC(y, m - 1, d, h, min, sec, ms)), ts, th);
     }
 
     function bankStatement(bank_id /*: string*/, account_id /*: string*/,
