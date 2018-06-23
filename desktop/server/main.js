@@ -1,4 +1,4 @@
-/** presence -- subscribe to presence of desktop user
+/** desktop -- desktop user presence, secrets
  *
  * for example, to allow access only while the user is present
  */
@@ -9,35 +9,43 @@
 const Q = require('q');
 const dbus = require('dbus-native');  // native JS, not bindings to native code
 
-function main(process, net) {
-    const sessionBus = makeSessionBus(process.env.DBUS_SESSION_BUS_ADDRESS || '',
-                                      net.connectAbstract);
+function integrationTest(argv, env,
+			 setTimeout,
+			 abstractSocket) {
+    const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '',
+                                      abstractSocket.connect);
 
-    const attrs = toPairs(process.argv.slice(2));
-    console.log('searching with attrs:', attrs, process.argv);
+    Q.all([
+	testSecretService(sessionBus, DBusDict.fromArgs(argv.slice(2)), argv),
+	testPresence(sessionBus, setTimeout),
+    ]).then(_ => {
+	console.log('done... ISSUE: how to shut down the bus as in ');
+	// somebody figured it out in...
+	// https://github.com/sidorares/dbus-native/issues/60
+    });
+}
+
+function testSecretService(sessionBus, attrs, argv) {
+    console.log('searching with attrs:', attrs, argv);
     const space = secretSpace(sessionBus, {}).subSpace(DBusDict.toJS(attrs));
-    space.search()
-        .then(props => console.log('all about this space:', props))
-        .fail(oops => console.log('no props for you:', oops));
-    space.lookup()
-        .then(secret => console.log('TADA!', secret))
-        .fail(oops => console.log('no cookie for you:', oops));
+    return Q.all([
+	space.search()
+            .then(props => console.log('all about this space:', props))
+            .fail(oops => console.log('no props for you:', oops)),
+	space.lookup()
+            .then(secret => console.log('TADA!', secret))
+            .fail(oops => console.log('no cookie for you:', oops))
+    ]);
+}
 
+function testPresence(sessionBus, setTimeout) {
     const doorPrize = Q.defer();
     const winner = onlyWhenPresent(sessionBus, doorPrize.promise);
     const t = setTimeout(_ => doorPrize.resolve('you win!'), 3 * 1000);
 
-    winner
-        .then(prize => console.log(prize))
-        .fail(oops => console.log('must be present to win', oops));
-}
-
-function toPairs(items) {
-    const out = [];
-    for (let ix = 0; ix < items.length; ix += 2) {
-        out.push(items.slice(ix, ix + 2));
-    }
-    return out;
+    return winner
+        .then(prize => { console.log(prize); })
+        .fail(oops => { console.log('must be present to win', oops); });
 }
 
 
@@ -47,14 +55,22 @@ function toPairs(items) {
  */
 const DBusDict = {
     fromJS: (o /*: {[string]: string} */) => Object.keys(o).map(k => [k, o[k]]),
-    toJS: (akv /*: Array<Array<string>> */) /*: {[string]: string} */ => {
+    toJS: (akv /*: Array<[string, string]> */) /*: {[string]: string} */ => {
         const out = {};
         for (let [k, v] of akv) {
             out[k] = v;
         }
         return out;
-    }
-}
+    },
+    fromArgs: (args) => args.reduce((pairs, item, ix) => {
+	if (ix % 2 === 0) {
+	    return pairs;
+	}
+	const key = args[ix - 1];
+	return pairs.concat([[key, item]]);
+    }, [])
+};
+
 
 /*::
 // TODO: move to Capper
@@ -172,13 +188,16 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
 
     function lookup() {
         const [itemsP, svcP] = itemsAndService();
+	const notFound = () => {
+	    throw(new Error(`not found ${JSON.stringify(attrs)}`));
+	};
         const secretP = svcP.then(svc => {
             const emptyStringVariant = ['s', ''];
             const sessionP = Q.ninvoke(svc, 'OpenSession', 'plain', emptyStringVariant);
             return sessionP.then(
                 ([_out, session]) => itemsP.then(
                     ([unlocked, locked]) => Q.ninvoke(svc, 'GetSecrets', unlocked, session)));
-        }).then(secrets => friendly(secrets[0]))
+        }).then(secrets => secrets.length ? friendly(secrets[0]) : notFound());
 
         return secretP;
     }
@@ -269,8 +288,9 @@ function makeSessionBus(addr, connectAbstract) {
 
 
 if (require.main == module) {
-    main(
-        { env: process.env, argv: process.argv },
-        { connectAbstract: require('abstract-socket').createConnection }
-    )
+    integrationTest(
+        process.argv, process.env,
+	setTimeout,
+        require('abstract-socket')
+    );
 }
