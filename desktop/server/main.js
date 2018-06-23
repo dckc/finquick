@@ -9,69 +9,6 @@
 const Q = require('q');
 const dbus = require('dbus-native');  // native JS, not bindings to native code
 
-function integrationTest(argv, env,
-			 setTimeout,
-			 abstractSocket) {
-    const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '',
-                                      abstractSocket.connect);
-
-    Q.all([
-	testSecretService(sessionBus, DBusDict.fromArgs(argv.slice(2)), argv),
-	testPresence(sessionBus, setTimeout),
-    ]).then(_ => {
-	console.log('done... ISSUE: how to shut down the bus as in ');
-	// somebody figured it out in...
-	// https://github.com/sidorares/dbus-native/issues/60
-    });
-}
-
-function testSecretService(sessionBus, attrs, argv) {
-    console.log('searching with attrs:', attrs, argv);
-    const space = secretSpace(sessionBus, {}).subSpace(DBusDict.toJS(attrs));
-    return Q.all([
-	space.search()
-            .then(props => console.log('all about this space:', props))
-            .fail(oops => console.log('no props for you:', oops)),
-	space.lookup()
-            .then(secret => console.log('TADA!', secret))
-            .fail(oops => console.log('no cookie for you:', oops))
-    ]);
-}
-
-function testPresence(sessionBus, setTimeout) {
-    const doorPrize = Q.defer();
-    const winner = onlyWhenPresent(sessionBus, doorPrize.promise);
-    const t = setTimeout(_ => doorPrize.resolve('you win!'), 3 * 1000);
-
-    return winner
-        .then(prize => { console.log(prize); })
-        .fail(oops => { console.log('must be present to win', oops); });
-}
-
-
-/**
- * In DBus, a dictionary is an array of k, v structures.
- * Here we limit ourselves to string keys and values, as in SecretStore attributes.
- */
-const DBusDict = {
-    fromJS: (o /*: {[string]: string} */) => Object.keys(o).map(k => [k, o[k]]),
-    toJS: (akv /*: Array<[string, string]> */) /*: {[string]: string} */ => {
-        const out = {};
-        for (let [k, v] of akv) {
-            out[k] = v;
-        }
-        return out;
-    },
-    fromArgs: (args) => args.reduce((pairs, item, ix) => {
-	if (ix % 2 === 0) {
-	    return pairs;
-	}
-	const key = args[ix - 1];
-	return pairs.concat([[key, item]]);
-    }, [])
-};
-
-
 /*::
 // TODO: move to Capper
 
@@ -131,39 +68,46 @@ function makeAppMaker(env /*: {[string]: ?string} */, connectAbstract /*: string
 }
 
 
-function onlyWhenPresent(bus, p) {
-    let present = false;
+function makeSessionBus(addr /*: string*/, connectAbstract /*: string => any */) {
+    const parts = addr.match('([a-z]+):([a-z]+)=(.*)');
+    if (!parts) throw('no DBus Session?');
 
-    bus.getService('org.gnome.ScreenSaver').getInterface(
-        '/org/gnome/ScreenSaver',
-        'org.gnome.ScreenSaver', function(err, screensaver) {
-            if(err) {
-                console.log(err);
-            }
-            // console.log('got interface: ', screensaver);
-            screensaver.GetActive((err, screenBlanked) => {
-                present = !screenBlanked;
-                // console.log('initially blanked?', screenBlanked, 'present?', present);
-            });
+    const [_all, family, property, path] = parts;
+    if (family != 'unix' || property != 'abstract') throw(`expected unix:abstract=...; got $parts`);
 
-            // dbus signals are EventEmitter events
-            screensaver.on('ActiveChanged', function(screenBlanked) {
-                present = !screenBlanked;
-                console.log('ActiveChanged', screenBlanked, 'present?', present);
-            });
-        });
-
-    return p.then(x => {
-        if (present) {
-            return x;
-        } else {
-            throw('desktop user not present');
-        }
-    });
+    // console.log('DBus session path:', path)
+    const abstractSentinel = '\u0000';
+    const stream = connectAbstract(abstractSentinel + path);
+    return dbus.sessionBus({stream: stream});
 }
 
 
 /**
+ * In DBus, a dictionary is an array of k, v structures.
+ * Here we limit ourselves to string keys and values, as in SecretStore attributes.
+ */
+const DBusDict = {
+    fromJS: (o /*: {[string]: string} */) => Object.keys(o).map(k => [k, o[k]]),
+    toJS: (akv /*: Array<[string, string]> */) /*: {[string]: string} */ => {
+        const out = {};
+        for (let [k, v] of akv) {
+            out[k] = v;
+        }
+        return out;
+    },
+    fromArgs: (args) => args.reduce((pairs, item, ix) => {
+	if (ix % 2 === 0) {
+	    return pairs;
+	}
+	const key = args[ix - 1];
+	return pairs.concat([[key, item]]);
+    }, [])
+};
+
+
+/**
+ * secretSpace
+ *
 
 prototyping:
 
@@ -181,8 +125,6 @@ method return time=1506198592.257631 sender=:1.3 -> destination=:1.731 serial=31
    variant       string ""
    object path "/org/freedesktop/secrets/session/s50"
 */
-
-
 function secretSpace(bus, attrs /*: {[string]: string} */) {
     const secretService = bus.getService('org.freedesktop.secrets');
 
@@ -273,17 +215,82 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
 }
 
 
-function makeSessionBus(addr, connectAbstract) {
-    const parts = addr.match('([a-z]+):([a-z]+)=(.*)');
-    if (!parts) throw('no DBus Session?');
+/**
+ * screensaver, presence
+ */
+function onlyWhenPresent(bus, p) {
+    let present = false;
 
-    const [_all, family, property, path] = parts;
-    if (family != 'unix' || property != 'abstract') throw(`expected unix:abstract=...; got $parts`);
+    bus.getService('org.gnome.ScreenSaver').getInterface(
+        '/org/gnome/ScreenSaver',
+        'org.gnome.ScreenSaver', function(err, screensaver) {
+            if(err) {
+                console.error(err);
+		p.then(_ => { throw(err); });
+		return;
+            }
+            // console.log('got interface: ', screensaver);
+            screensaver.GetActive((err, screenBlanked) => {
+                present = !screenBlanked;
+                // console.log('initially blanked?', screenBlanked, 'present?', present);
+            });
 
-    // console.log('DBus session path:', path)
-    const abstractSentinel = '\u0000';
-    const stream = connectAbstract(abstractSentinel + path);
-    return dbus.sessionBus({stream: stream});
+            // dbus signals are EventEmitter events
+            screensaver.on('ActiveChanged', function(screenBlanked) {
+                present = !screenBlanked;
+                console.log('ActiveChanged', screenBlanked, 'present?', present);
+            });
+        });
+
+    return p.then(x => {
+        if (present) {
+            return x;
+        } else {
+            throw('desktop user not present');
+        }
+    });
+}
+
+
+/**
+ */
+function integrationTest(argv, env,
+			 setTimeout,
+			 abstractSocket) {
+    const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '',
+                                      abstractSocket.connect);
+
+    Q.all([
+	testSecretService(sessionBus, DBusDict.fromArgs(argv.slice(2)), argv),
+	testPresence(sessionBus, setTimeout),
+    ]).then(_ => {
+	console.log('done... ISSUE: how to shut down the bus as in ');
+	// somebody figured it out in...
+	// https://github.com/sidorares/dbus-native/issues/60
+    });
+}
+
+function testSecretService(sessionBus, attrs, argv) {
+    console.log('searching with attrs:', attrs, argv);
+    const space = secretSpace(sessionBus, {}).subSpace(DBusDict.toJS(attrs));
+    return Q.all([
+	space.search()
+            .then(props => console.log('all about this space:', props))
+            .fail(oops => console.log('no props for you:', oops)),
+	space.lookup()
+            .then(secret => console.log('TADA!', secret))
+            .fail(oops => console.log('no cookie for you:', oops))
+    ]);
+}
+
+function testPresence(sessionBus, setTimeout) {
+    const doorPrize = Q.defer();
+    const winner = onlyWhenPresent(sessionBus, doorPrize.promise);
+    const t = setTimeout(_ => doorPrize.resolve('you win!'), 3 * 1000);
+
+    return winner
+        .then(prize => { console.log(prize); })
+        .fail(oops => { console.log('must be present to win', oops); });
 }
 
 
