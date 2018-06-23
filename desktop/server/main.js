@@ -52,7 +52,7 @@ const DBusDict = {
         for (let [k, v] of akv) {
             out[k] = v;
         }
-        return out
+        return out;
     }
 }
 
@@ -67,7 +67,7 @@ type Context = {
 
 exports.makeAppMaker = makeAppMaker;
 function makeAppMaker(env /*: {[string]: ?string} */, connectAbstract /*: string => any */) {
-    var busCache = null;
+    let busCache = null;
 
     return Object.freeze({
         makeSecretSpace: makeSecretSpace
@@ -84,7 +84,7 @@ function makeAppMaker(env /*: {[string]: ?string} */, connectAbstract /*: string
     function makeSecretSpace(context /*: Context */) {
         const mem = context.state;
 
-        var spaceCache = null;
+        let spaceCache = null;
 
         function init(attributes /*: ?{[string]: string} */) {
             mem.attributes = attributes || {};
@@ -114,7 +114,7 @@ function makeAppMaker(env /*: {[string]: ?string} */, connectAbstract /*: string
     }
 }
 
-      
+
 function onlyWhenPresent(bus, p) {
     let present = false;
 
@@ -122,7 +122,7 @@ function onlyWhenPresent(bus, p) {
         '/org/gnome/ScreenSaver',
         'org.gnome.ScreenSaver', function(err, screensaver) {
             if(err) {
-                console.log(err)
+                console.log(err);
             }
             // console.log('got interface: ', screensaver);
             screensaver.GetActive((err, screenBlanked) => {
@@ -165,7 +165,7 @@ method return time=1506198592.257631 sender=:1.3 -> destination=:1.731 serial=31
    variant       string ""
    object path "/org/freedesktop/secrets/session/s50"
 */
-    
+
 
 function secretSpace(bus, attrs /*: {[string]: string} */) {
     const secretService = bus.getService('org.freedesktop.secrets');
@@ -182,7 +182,7 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
 
         return secretP;
     }
-    
+
     function itemsAndService() {
         const svcP = Q.ninvoke(secretService, 'getInterface',
                                '/org/freedesktop/secrets', 'org.freedesktop.Secret.Service');
@@ -200,7 +200,7 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
         };
     }
 
-    
+
     function search() {
         const [itemsP, svcP] = itemsAndService();
 
@@ -213,9 +213,9 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
                                     'org.freedesktop.DBus.Properties');
             return itemP
                 .then(item => Q.ninvoke(item, 'GetAll', 'org.freedesktop.Secret.Item'))
-                .then(props => dict2object(props, 'v'))
+                .then(props => dict2object(props, 'v'));
         }
-                  
+
         function decode(val, ty, ch) {
             switch (ty) {
             case 'b':
@@ -232,7 +232,7 @@ function secretSpace(bus, attrs /*: {[string]: string} */) {
                     throw(['@@TODO:', JSON.stringify([val, ty, ch])]);
                 }
             default:
-                throw('what type is that?' + ty)
+                throw('what type is that?' + ty);
             }
         }
         // We assume key type is atomic.
@@ -259,7 +259,7 @@ function makeSessionBus(addr, connectAbstract) {
     if (!parts) throw('no DBus Session?');
 
     const [_all, family, property, path] = parts;
-    if (family != 'unix' || property != 'abstract') throw(`expected unix:abstract=...; got $parts`)
+    if (family != 'unix' || property != 'abstract') throw(`expected unix:abstract=...; got $parts`);
 
     // console.log('DBus session path:', path)
     const abstractSentinel = '\u0000';
