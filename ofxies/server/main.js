@@ -50,12 +50,12 @@ function Ofxies(time /*: { clock: () => Date }*/,
         db.mysql, db.events,
         { pid: proc.pid, hostname: proc.hostname },
         optsP);
-    const secrets = {
+    const secrets = Object.freeze({
         sitePassword: realm =>
             keyStore.lookup({signon_realm: realm}),
         challenge: (code /*: string*/, question /*: string*/) =>
             keyStore.lookup({code: code, question: question})
-    };
+    });
     const saveOFX = (code, xml) =>
         Q.nfcall(fs.writeFile, code + '.ofx', xml);
     const mkSocket = socketMaker({ createServer: net.createServer,
@@ -78,6 +78,7 @@ function Ofxies(time /*: { clock: () => Date }*/,
                                     saveOFX, unique, acctMakers)
     }, acctMakers);
 }
+
 
 function defExtend(overrides, base) {
     return Object.freeze(Object.assign({}, base, overrides));

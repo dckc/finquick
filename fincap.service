@@ -1,0 +1,47 @@
+# Usage:
+#  cp fincap.service to ~/.config/systemd/user/
+#  systemctl --user enable fincap --now
+#  systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS
+#
+# ISSUE: how to persist this environment setting?
+#
+# ref systemd.unit, systemd.service, Brendan June 2016
+# https://www.freedesktop.org/software/systemd/man/systemd.unit.html
+# https://www.freedesktop.org/software/systemd/man/systemd.service.html
+# https://www.brendanlong.com/systemd-user-services-are-amazing.html
+
+[Unit]
+Description="Dan's fincap nodejs app"
+
+# What capabilities does this service need?
+AssertPathExists=%h/projects/finquick/ssl/server.key
+AssertPathExists=%h/projects/finquick/ssl/server.crt
+
+# ISSUE: use systemd to allocate TCP port?
+ConditionPathExists=%h/projects/finquick/capper.config
+
+# ISSUE: how to express dependency on keyring service?
+# Current solution:
+#   systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS
+#
+# Road not (yet) taken:
+# Wants=dbus-address.service
+# https://unix.stackexchange.com/questions/368730/starting-a-dbus-session-application-from-systemd-user-mode
+
+# ISSUE: how to express dependency on random number generator?
+# Wants: crypto.randomBytes
+
+
+[Service]
+# ISSUE: do we need source code in the working dir?
+WorkingDirectory=%h/projects/finquick
+# ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+
+# Not sure what these do...
+# PrivateTmp=true
+# NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

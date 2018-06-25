@@ -3,6 +3,5 @@ node_modules/*
 jspm_packages/*
 capper.db
 capper.config
-ssl/server.crt
-ssl/server.key
-ssl/ca.crt
+ssl/
+*~

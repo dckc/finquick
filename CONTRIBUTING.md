@@ -26,6 +26,59 @@
 [frp]: https://baconjs.github.io/
 [nightmare]: http://www.nightmarejs.org/
 
+## Service Definition: systemd user unit
+
+`fincap.service` shows how I manage the service. An initial attempt
+failed:
+
+    vowAnsToVowJSONString err  Error: non-zero exit from secret-tool
+         at ChildProcess.tool.on (.../finquick/ofxies/server/secret-tool.js:31:35)
+
+ISSUE: UI shows empty diagnostic when secret-tool fails. Working theory is to
+       use `dbus-native` rather than forking `secret-tool`.
+
+This led me to enumerate the capabilities that this service needs and
+think about how to represent them as systemd units.
+
+### Ubuntu xdg user sessions
+
+I also learned about `/etc/xdg/autostart` how Ubuntu's Xsession uses
+upstart rather than systemd for user sessions. `pstree` shows nautilus
+(from autostart) under gnome-session, but gpgagent (from
+`/etc/X11/Xsession.d/90gpg-agent`) under upstart:
+
+```
+systemd-+-ModemManager-+-{gdbus}
+
+        |-gnome-keyring-d-+-{gdbus}
+        |                 |-{gmain}
+        |                 |-3*[{ssh-agent}]
+        |                 `-{timer}
+
+        |-lightdm-+-Xorg---{InputThread}
+        |         |-lightdm-+-upstart-+-at-spi-bus-laun-+-dbus-daemon
+        |         |         |         |-dbus-daemon
+
+        |         |         |         |-emacs-+
+        |         |         |         |       |-{dconf worker}
+        |         |         |         |       |-{gdbus}
+
+        |         |         |         |-gnome-screensav-+-{dconf worker}
+        |         |         |         |                 |-{gdbus}
+        |         |         |         |                 `-{gmain}
+
+        |         |         |         |-gnome-session-b-+-compiz-+-sh---gtk-window-deco-+-{dconf worker}
+        |         |         |         |                 |-initctl
+        |         |         |         |                 |-nautilus-+-{dconf worker}
+
+        |         |         |         |-gnucash-+-{dconf worker}
+
+        |         |         |         |-gpg-agent
+        |         |         |         |-gstm-+-2*[ssh]
+
+        |         |         |         |-indicator-datet-+-{dconf worker}
+        |         |         |         |-thg-+-2*[hg]
+```
 
 ## Bitbucket and Github
 
