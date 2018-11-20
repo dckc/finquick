@@ -1,24 +1,71 @@
 /* global require */
+// @flow
 
 const cheerio = require('cheerio');
 
-const CMC = 'https://coinmarketcap.com';
+const { makeSessionBus, secretSpace } = require('../../desktop/server/main');
+const { makeDB } = require('../../ofxies/server/budget');
 
-async function main({ get }) {
-  const [start, end] = ['20180820', '20181120'];
-  const name = 'rchain';
+const CMC = 'https://coinmarketcap.com';
+const DB = 'dm93finance'; //ISSUE: docopt
+
+
+async function main({ env, pid, get, mysql, abstractSocket }) {
+  const [start, end] = ['20180820', '20181120']; // ISSUE: docopt
+  const name = 'rchain'; // ISSUE: docopt
 
   const text = await fetchPriceText(get, name, start, end);
   console.log(text.slice(0, 200));
   const { columns, rows } = parsePrices(cheerio.load(text));
 
+  console.log(rows.slice(0, 3));
   const records = rows.map(toRecord(columns));
   
-  console.log(records);
+  console.log(records.slice(0, 3));
+  const db = await dbAccess({ env, pid, mysql, abstractSocket });
+  await savePrices(db, rows);
 }
 
 function toRecord(columns) {
   return row => row.reduce((acc, cell, ix) => ({ [columns[ix]]: cell, ...acc }), {});
+}
+
+
+async function savePrices(db, rows) {
+  const tx0 = await db.begin();
+  // ISSUE: DDL doesn't fit in a transaction;
+  await tx0.update('create table if not exists cmc_prices (`Date` date, `Open` numeric(24, 8), `High` numeric(24, 8), `Low` numeric(24, 8), `Close` numeric(24, 8), `Volume` numeric(24, 8), `Market Cap` numeric(24, 8))');
+  await tx0.update('truncate table cmc_prices'); // ISSUE: delete between start and end
+  await tx0.commit();
+  const tx = await db.begin();
+  await tx.update('insert into cmc_prices values ?', null, [rows]);
+  await tx.commit();
+}
+
+
+async function dbAccess({ env, pid, mysql, abstractSocket }) {
+  const sessionBus = makeSessionBus(env.DBUS_SESSION_BUS_ADDRESS || '',
+                                    abstractSocket.connect);
+  const keyChain = secretSpace(sessionBus, {
+    protocol: 'mysql',
+    server: 'localhost',
+  });
+  const cred = await keyChain.lookup();
+
+  const optsP = Promise.resolve({
+      host     : 'localhost',
+      user     : env.LOGNAME,
+      password : cred.secret,
+      database : DB,
+  });
+
+  return makeDB(
+    mysql, null /*events*/,
+    {
+      pid: pid,
+      hostname: () => 'localhost'
+    },  //ISSUE: localhost -> docopt
+    optsP);
 }
 
 
@@ -105,12 +152,22 @@ function send/*:: <T>*/(calling) /*: Promise<T> */{
 
 
 // Access ambient stuff only when invoked as main module.
-/* global module */
+/* global module, process */
 if (require.main === module) {
   /* eslint-disable global-require */
   try {
     main({
+      env: process.env,
+      pid: process.pid,
       get: require('https').get,
-    });
-  } catch (oops) { console.log(oops); }
+      mysql: require('mysql'),
+      abstractSocket: require('abstract-socket'),
+    })
+      .then((_) => {
+        process.exit(0);
+      });
+  } catch (oops) {
+    console.log(oops);
+    process.exit(1);
+  }
 }
