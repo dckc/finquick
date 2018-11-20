@@ -56,7 +56,7 @@ function parsePrices($) {
           .map((_, th) => $(th).text().replace(/\*/g, '')).get();
   const parse = (ix, txt) => (ix > 0
                               ? parseFloat(txt.replace(/,/g, ''))
-                              : new Date(txt));
+                              : new Date(txt + ' 0:0 UTC'));
   const rows = $('tbody tr', table)
           .map((_, tr) => $('td', $(tr))
                .map((ix, td) => parse(ix, $(td).text()))).get()
