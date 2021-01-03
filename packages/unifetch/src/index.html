@@ -1,0 +1,29 @@
+<title>UniSwap Fetch</title>
+
+<label>Addr
+    <input id="ethAddr" />
+</label>
+<button id='run'>Run</button>
+<label>Result
+    <textarea id="result"></textarea>
+</label>
+
+<script type="module">
+    import { GraphQL, q1 } from "./script.js";
+    const endPoint = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2';
+    const gql = GraphQL(endPoint, { fetch });
+    const $ = s => document.querySelector(s);
+    const fmt = obj => JSON.stringify(obj, null, 2);
+
+    window.addEventListener('DOMContentLoaded', (_event) => {
+        console.log('DOMContentLoaded. button:', $('#run'));
+        $('#run').addEventListener('click', (_click) => {
+            const ethAddr = $('#ethAddr').value;
+            gql.runQuery(q1, { id: ethAddr })
+                .then(result => $('#result').value = fmt(result));
+        });
+    });
+</script>
+<noscript>
+    Please excuse JS requirement; I don't think using a GraphQL API without it is feasible
+</noscript>
