@@ -1,27 +1,25 @@
-<title>UniSwap Fetch</title>
+<head>
+    <title>UniSwap Fetch</title>
+</head>
 
-<label>Addr
-    <input id="ethAddr" />
-</label>
-<button id='run'>Run</button>
-<label>Result
-    <textarea id="result"></textarea>
-</label>
+<fieldset>
+    <label>Addr
+        <input id="ethAddr" />
+    </label>
+    <button id='run'>Run</button>
+    <br />
+    <label>Result<br />
+        <textarea id="result" readonly="readonly" cols="60" rows="18"></textarea>
+    </label>
+</fieldset>
 
 <script type="module">
-    import { GraphQL, q1 } from "./script.js";
-    const endPoint = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2';
-    const gql = GraphQL(endPoint, { fetch });
+    import { ui } from "./script.js";
     const $ = s => document.querySelector(s);
-    const fmt = obj => JSON.stringify(obj, null, 2);
 
     window.addEventListener('DOMContentLoaded', (_event) => {
         console.log('DOMContentLoaded. button:', $('#run'));
-        $('#run').addEventListener('click', (_click) => {
-            const ethAddr = $('#ethAddr').value;
-            gql.runQuery(q1, { id: ethAddr })
-                .then(result => $('#result').value = fmt(result));
-        });
+        ui({ $, fetch });
     });
 </script>
 <noscript>
