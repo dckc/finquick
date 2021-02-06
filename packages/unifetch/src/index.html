@@ -1,0 +1,27 @@
+<head>
+    <title>UniSwap Fetch</title>
+</head>
+
+<fieldset>
+    <label>Addr
+        <input id="ethAddr" />
+    </label>
+    <button id='run'>Run</button>
+    <br />
+    <label>Result<br />
+        <textarea id="result" readonly="readonly" cols="60" rows="18"></textarea>
+    </label>
+</fieldset>
+
+<script type="module">
+    import { ui } from "./script.js";
+    const $ = s => document.querySelector(s);
+
+    window.addEventListener('DOMContentLoaded', (_event) => {
+        console.log('DOMContentLoaded. button:', $('#run'));
+        ui({ $, fetch });
+    });
+</script>
+<noscript>
+    Please excuse JS requirement; I don't think using a GraphQL API without it is feasible
+</noscript>
