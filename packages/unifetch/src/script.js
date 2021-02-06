@@ -124,14 +124,14 @@ const { log } = console;
  */
 export function ui({ $, fetch }) {
   const gql = GraphQL(UniswapAPI.endPoint, { fetch });
-  const fmt = (obj) => JSON.stringify(obj, null, 2);
-  const amt = (txt) => parseFloat(txt);
-  $("#run").addEventListener("click", (_click) => {
-    const ethAddr = $("#ethAddr").value;
+  const fmt = obj => JSON.stringify(obj, null, 2);
+  const amt = txt => parseFloat(txt);
+  $('#run').addEventListener('click', _click => {
+    const ethAddr = $('#ethAddr').value;
 
-    gql.runQuery(UniswapAPI.qPositions, { id: ethAddr }).then((result) => {
-      $("#result").value = fmt(result);
-      const positions = result.data.user.liquidityPositions.map((position) => {
+    gql.runQuery(UniswapAPI.qPositions, { id: ethAddr }).then(result => {
+      $('#result').value = fmt(result);
+      const positions = result.data.user.liquidityPositions.map(position => {
         const poolOwnership =
           amt(position.liquidityTokenBalance) / amt(position.pair.totalSupply);
         const valueUSD = poolOwnership * amt(position.pair.reserveUSD);
@@ -142,7 +142,7 @@ export function ui({ $, fetch }) {
       });
     });
 
-    gql.runQuery(UniswapAPI.qTransactions, { user: ethAddr }).then((result) => {
+    gql.runQuery(UniswapAPI.qTransactions, { user: ethAddr }).then(result => {
       console.log(result);
     });
   });
@@ -158,11 +158,11 @@ export function GraphQL(endPoint, { fetch }) {
     log({ addr, ...(request === undefined ? {} : { request }) });
     const opts =
       request === undefined
-        ? { method: "GET" }
+        ? { method: 'GET' }
         : {
-            method: "POST",
+            method: 'POST',
             body:
-              typeof request === "string" ? request : JSON.stringify(request),
+              typeof request === 'string' ? request : JSON.stringify(request),
           };
     const resp = await fetch(addr, opts);
     let result;
