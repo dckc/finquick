@@ -1,20 +1,20 @@
 // @ts-check
 
-import ical from "ical";
-import requireText from "require-text";
-import * as jsonpatch from "fast-json-patch";
-import { asPromise } from "./asPromise";
+import ical from 'ical';
+import requireText from 'require-text';
+import * as jsonpatch from 'fast-json-patch';
+import { asPromise } from './asPromise';
 
 const { freeze, fromEntries, entries, keys, values } = Object;
 
 const CONFIG = {
   owners: {
-    "dan@dm93.org": "EB:Dad",
-    "mary@dm93.org": "EB:Mom",
+    'dan@dm93.org': 'EB:Dad',
+    'mary@dm93.org': 'EB:Mom',
   },
   codes: {
-    "EB:Dad": "6536",
-    "EB:Mom": "6535",
+    'EB:Dad': '6536',
+    'EB:Mom': '6535',
   },
 };
 
@@ -30,8 +30,8 @@ const CONFIG = {
  * }} io
  */
 async function main(argv, { stdout, mysql, env, require, https, readFile }) {
-  const load = (fn) => readFile(fn, "utf-8").then((txt) => JSON.parse(txt));
-  const pprint = (obj) => stdout.write(JSON.stringify(obj, null, 2));
+  const load = fn => readFile(fn, 'utf-8').then(txt => JSON.parse(txt));
+  const pprint = obj => stdout.write(JSON.stringify(obj, null, 2));
 
   function mkBook() {
     return GCBook(
@@ -41,7 +41,7 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
         password: env.GC_PASS,
         database: env.GC_DB,
       }),
-      (specifier) => requireText(specifier, require)
+      specifier => requireText(specifier, require),
     );
   }
 
@@ -51,14 +51,14 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
 
     return BRGCal(
       WebApp(check.notNull(env.CAL_URL), { https }),
-      WebApp(execUrl, { https })
+      WebApp(execUrl, { https }),
     );
   }
 
-  if (argv.includes("--sync")) {
+  if (argv.includes('--sync')) {
     const gc = mkBook();
     const aCal = mkCal();
-    console.log("fetch from db, calendar...");
+    console.log('fetch from db, calendar...');
     const [txsGC, txsCal] = await Promise.all([gc.unCat(), aCal.txs()]);
     const {
       cal: { POST, DELETE },
@@ -72,21 +72,21 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
     pprint({ calendar: calres, db: dbres });
   }
 
-  if (argv.includes("--cmp")) {
-    const [fn1, fn2] = argv.slice(argv.indexOf("--cmp") + 1);
+  if (argv.includes('--cmp')) {
+    const [fn1, fn2] = argv.slice(argv.indexOf('--cmp') + 1);
     console.log({ fn1, fn2 });
     const [txs1, txs2] = await Promise.all([fn1, fn2].map(load));
     const patch = compareTxs(txs1, txs2);
     pprint(patch);
   }
 
-  if (argv.includes("--db")) {
+  if (argv.includes('--db')) {
     const gc = mkBook();
     pprint(await gc.unCat());
     gc.close();
   }
 
-  if (argv.includes("--curl")) {
+  if (argv.includes('--curl')) {
     pprint(await mkCal().txs());
   }
 }
@@ -98,13 +98,13 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
 function sync(txsGC, txsCal) {
   const dbKeys = keys(txsGC);
   const calKeys = keys(txsCal);
-  console.log("fetched:", {
+  console.log('fetched:', {
     db: dbKeys.length,
     calendar: calKeys.length,
   });
 
   const toPost = values(txsGC).filter(
-    ({ tx_guid }) => !calKeys.includes(tx_guid)
+    ({ tx_guid }) => !calKeys.includes(tx_guid),
   );
   const toDelete = values(txsCal)
     .filter(({ tx_guid }) => !dbKeys.includes(tx_guid))
@@ -115,9 +115,9 @@ function sync(txsGC, txsCal) {
   const toUpdate = values(txsCal)
     .filter(
       ({ tx_guid, acct_path }) =>
-        dbKeys.includes(tx_guid) && typeof acct_path === "string"
+        dbKeys.includes(tx_guid) && typeof acct_path === 'string',
     )
-    .map((tx) => ({ ...tx, code: CONFIG.codes[tx.acct_path] }));
+    .map(tx => ({ ...tx, code: CONFIG.codes[tx.acct_path] }));
   return {
     cal: { POST: toPost, DELETE: toDelete },
     db: { UPDATE: toUpdate },
@@ -167,13 +167,13 @@ function compareTxs(txs1, txs2) {
     tx_guid,
     ...(acct_path ? { acct_path } : {}),
   });
-  const [txs1e, txs2e] = [txs1, txs2].map((txs) => mapValues(txs, essential));
+  const [txs1e, txs2e] = [txs1, txs2].map(txs => mapValues(txs, essential));
   const patch = jsonpatch.compare(txs1e, txs2e);
-  const fullValue = (id) => txs2[id];
-  return patch.map((op) =>
-    op.op === "add" && op.value.tx_guid
+  const fullValue = id => txs2[id];
+  return patch.map(op =>
+    op.op === 'add' && op.value.tx_guid
       ? { ...op, value: fullValue(op.value.tx_guid) }
-      : op
+      : op,
   );
 }
 
@@ -188,16 +188,16 @@ function WebApp(url, { https }) {
     url,
     async get() {
       return new Promise((resolve, reject) => {
-        const req = https.get(url, (response) => {
-          let str = "";
+        const req = https.get(url, response => {
+          let str = '';
           // console.log('Response is ' + response.statusCode);
-          response.on("data", (chunk) => {
+          response.on('data', chunk => {
             str += chunk;
           });
-          response.on("end", () => resolve(str));
+          response.on('end', () => resolve(str));
         });
         req.end();
-        req.on("error", reject);
+        req.on('error', reject);
       });
     },
     /**
@@ -208,20 +208,20 @@ function WebApp(url, { https }) {
       return new Promise((resolve, reject) => {
         const /** @type { import('http').ClientRequest } */ req = https.request(
             url,
-            { method: "POST" },
+            { method: 'POST' },
             // @ts-ignore
-            (response) => {
-              let str = "";
+            response => {
+              let str = '';
               // console.log('Response is ' + response.statusCode);
-              response.on("data", (chunk) => {
+              response.on('data', chunk => {
                 str += chunk;
               });
-              response.on("end", () => resolve(str));
-            }
+              response.on('end', () => resolve(str));
+            },
           );
         req.write(body);
         req.end();
-        req.on("error", reject);
+        req.on('error', reject);
       });
     },
   });
@@ -232,7 +232,7 @@ function sqlStatements(text) {
   /** @type {Record<string, string>} */
   const byName = {};
   /** @type {(lo: number, hi: number) => string} */
-  const chop = (lo, hi) => text.substring(lo, hi).replace(/;\s*$/, "");
+  const chop = (lo, hi) => text.substring(lo, hi).replace(/;\s*$/, '');
   let pos = 0;
   let name;
   for (const m of text.matchAll(/^-- (?<name>[^:]+):\n/gm)) {
@@ -256,9 +256,9 @@ function sqlStatements(text) {
  * @typedef {import('mysql').Connection} Connection
  */
 function GCBook(conn, requireText) {
-  const sql = sqlStatements(requireText("./book_ops.sql"));
+  const sql = sqlStatements(requireText('./book_ops.sql'));
   const exec = (/** @type {string} */ sql, params = []) =>
-    asPromise((cb) => conn.query(sql, params, cb));
+    asPromise(cb => conn.query(sql, params, cb));
 
   return freeze({
     /**
@@ -268,24 +268,24 @@ function GCBook(conn, requireText) {
      */
     async unCat() {
       const txs = await exec(sql.uncat);
-      const byGuid = fromEntries(txs.map((tx) => [tx.tx_guid, tx]));
+      const byGuid = fromEntries(txs.map(tx => [tx.tx_guid, tx]));
       return byGuid;
     },
     /**
      * @param {{ UPDATE: Tx[] }} info
      */
     async update({ UPDATE }) {
-      console.log("updating", UPDATE.length);
+      console.log('updating', UPDATE.length);
       await Promise.all(
         UPDATE.map(({ tx_guid, code }) =>
-          exec(sql.updateSplitAccounts, [code, tx_guid])
-        )
+          exec(sql.updateSplitAccounts, [code, tx_guid]),
+        ),
       );
       return UPDATE.length;
     },
     async close() {
       // @ts-ignore
-      return asPromise((cb) => conn.end(cb));
+      return asPromise(cb => conn.end(cb));
     },
   });
 }
@@ -305,9 +305,9 @@ function BRGCal(readICS, editApp) {
 
   function expenseAccount(event) {
     const accepted = event.attendee.find(
-      ({ params: { PARTSTAT } }) => PARTSTAT === "ACCEPTED"
+      ({ params: { PARTSTAT } }) => PARTSTAT === 'ACCEPTED',
     );
-    const mbox = (url) => url.replace(/^mailto:/, "");
+    const mbox = url => url.replace(/^mailto:/, '');
     return accepted ? { acct_path: CONFIG.owners[mbox(accepted.val)] } : {};
   }
 
@@ -321,14 +321,14 @@ function BRGCal(readICS, editApp) {
       return fromEntries(
         values(cal)
           .map(txOfEvent)
-          .map((tx) => [tx.tx_guid, tx])
+          .map(tx => [tx.tx_guid, tx]),
       );
     },
     /**
      * @param {{POST: Tx[], DELETE: {day: string, tx_guid: string}[]}} edits
      */
     async edit({ POST, DELETE }) {
-      console.log("edit", {
+      console.log('edit', {
         POST: POST.length,
         DELETE: DELETE.length,
         editUrl: editApp.url,
@@ -345,12 +345,12 @@ function BRGCal(readICS, editApp) {
 if (require.main === module) {
   main(process.argv, {
     stdout: process.stdout,
-    readFile: require("fs").promises.readFile,
-    mysql: require("mysql"),
-    https: require("follow-redirects").https,
+    readFile: require('fs').promises.readFile,
+    mysql: require('mysql'),
+    https: require('follow-redirects').https,
     env: process.env,
     require: require,
-  }).catch((err) => {
+  }).catch(err => {
     console.error(err);
   });
 }
