@@ -44,7 +44,7 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
         password: env.GC_PASS,
         database: env.GC_DB,
       }),
-      specifier => requireText(specifier, require),
+      specifier => requireText(specifier, require), // ISSUE
     );
   }
 
