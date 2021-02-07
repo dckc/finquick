@@ -1,8 +1,7 @@
 // @ts-check
-import { assert } from 'console';
 import requireText from 'require-text';
 
-import { nodeFetch } from './curl';
+import { WebApp } from './WebApp';
 import { GraphQL } from './graphql';
 
 export const UniswapAPI = {
@@ -18,8 +17,7 @@ export const UniswapAPI = {
  * }} io
  */
 async function main({ env, https }) {
-  const fetch = nodeFetch({ https });
-  const gql = GraphQL(UniswapAPI.endPoint, { fetch });
+  const gql = GraphQL(WebApp(UniswapAPI.endPoint, { https }));
   /** @type {(obj: unknown) => string} */
   const fmt = obj => JSON.stringify(obj, null, 2);
   /** @type {(txt: string) => number} */
