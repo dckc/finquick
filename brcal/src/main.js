@@ -6,6 +6,7 @@ import * as jsonpatch from 'fast-json-patch';
 
 import { asPromise } from './asPromise';
 import { WebApp } from './WebApp';
+import { check } from './check';
 
 const { freeze, fromEntries, entries, keys, values } = Object;
 
@@ -128,21 +129,6 @@ function sync(txsGC, txsCal) {
 
 const mapValues = (obj, f) =>
   fromEntries(entries(obj).map(([prop, val]) => [prop, f(val)]));
-
-const check = {
-  /**
-   * @param {T | null | undefined } x
-   * @param { string= } context
-   * @returns { T }
-   * @template T
-   */
-  notNull(x, context) {
-    if (!x) {
-      throw new Error(`null/undefined ${context}`);
-    }
-    return x;
-  },
-};
 
 /**
  * @typedef {{
