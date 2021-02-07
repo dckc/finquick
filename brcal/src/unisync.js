@@ -53,12 +53,12 @@ async function main({ env, https, mysql }) {
   }
 
   const bk = mkBook();
-  bk.exec('drop table uniswap'); //@@@
-  bk.exec(`create table if not exists uniswap(
+  await bk.exec('drop table if exists uniswap'); //@@@
+  await bk.exec(`create table if not exists uniswap(
     kind varchar(16),
     id varchar(256),
-    data varchar(1024)
-  )`);
+    data JSON
+  ) character set=utf8 collate=utf8_general_ci`);
   await Promise.all(
     kinds.map(kind =>
       bk.exec(`insert into uniswap(kind, id, data) values ?`, [
