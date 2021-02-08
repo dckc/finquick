@@ -1,6 +1,18 @@
 // @ts-check
 
-const { freeze } = Object;
+const { freeze, entries } = Object;
+
+/**
+ * @param {Query} params
+ * @returns {string}
+ *
+ * @typedef { Record<string, string|number|boolean> } Query
+ */
+function urlencode(params) {
+  return entries(params)
+    .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
+    .join('&');
+}
 
 /**
  * @param {string} url
@@ -11,6 +23,11 @@ const { freeze } = Object;
 export function WebApp(url, { https }) {
   return freeze({
     url,
+    query(/** @type {Query} */ params) {
+      const q = url.endsWith('?') ? '' : '?';
+      const there = `${url}${q}${urlencode(params)}`;
+      return WebApp(there, { https });
+    },
     async get() {
       return new Promise((resolve, reject) => {
         const req = https.get(url, response => {
