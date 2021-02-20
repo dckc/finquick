@@ -1,5 +1,7 @@
 // @ts-check
 
+import { URL } from 'url';
+
 const { freeze, entries } = Object;
 
 /**
@@ -19,10 +21,19 @@ function urlencode(params) {
  * @param {{
  *   https: typeof import('https'), // follow-redirects?
  * }} io
+ * @param {Headers=} headers
+ *
+ * @typedef {Record<string, string | number | string []>} Headers
  */
-export function WebApp(url, { https }) {
+export function WebApp(url, { https }, headers) {
   return freeze({
     url,
+    pathjoin(/** @type { string } */ ref) {
+      return WebApp(`${new URL(ref, url)}`, { https });
+    },
+    withHeaders(/** @type { Headers } */ h) {
+      return WebApp(url, { https }, { ...headers, ...h });
+    },
     query(/** @type {Query} */ params) {
       const q = url.endsWith('?') ? '' : '?';
       const there = `${url}${q}${urlencode(params)}`;
@@ -30,7 +41,7 @@ export function WebApp(url, { https }) {
     },
     async get() {
       return new Promise((resolve, reject) => {
-        const req = https.get(url, response => {
+        const req = https.get(url, { method: 'GET', headers }, response => {
           let str = '';
           // console.log('Response is ' + response.statusCode);
           response.on('data', chunk => {
@@ -50,7 +61,7 @@ export function WebApp(url, { https }) {
       return new Promise((resolve, reject) => {
         const /** @type { import('http').ClientRequest } */ req = https.request(
             url,
-            { method: 'POST' },
+            { method: 'POST', headers },
             // @ts-ignore
             response => {
               let str = '';
