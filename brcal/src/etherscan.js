@@ -35,10 +35,13 @@ const tx0 = {
 /**
  * @param {ReturnType<typeof import('./WebApp').WebApp> } web
  * @param {string} apikey
- *
+ * @param {(ms: number) => Promise<void> } delay
  * @typedef { import('./WebApp').Query } Query
  */
-function makeEtherscan(web, apikey) {
+function makeEtherscan(web, apikey, delay) {
+  /** @type {Promise<void>?} */
+  let rateLimit;
+
   /**
    * @param {Query} params
    * @param {T} _template
@@ -46,10 +49,16 @@ function makeEtherscan(web, apikey) {
    * @template T
    */
   async function call(params, _template) {
+    if (rateLimit) await rateLimit;
     const body = await web.query(params).get();
     const info = JSON.parse(body);
     if (!['0', '1'].includes(info.status)) throw Error(info.message);
     if (info.error) throw Error(info.error.message || info.error);
+    if (info.result === 'Max rate limit reached') {
+      console.log({ info });
+      throw Error(info.result);
+    }
+    rateLimit = delay(250);
     return info.result;
   }
 
@@ -118,11 +127,14 @@ async function save(bk, table, txs) {
  *   env: typeof process.env,
  *   https: typeof import('https'),
  *   mysql: typeof import('mysql'),
+ *   setTimeout: typeof setTimeout,
  * }} io
  */
-async function main({ env, https, mysql }) {
+async function main({ env, https, mysql, setTimeout }) {
   const apiKey = check.notNull(env.ETHERSCAN_APIKEY);
-  const svc = makeEtherscan(WebApp(base, { https }), apiKey);
+  /** @type {(ms: number) => Promise<void> } */
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const svc = makeEtherscan(WebApp(base, { https }), apiKey, delay);
   const account = check.notNull(env.ETH_ADDR);
 
   function mkBook() {
@@ -139,14 +151,21 @@ async function main({ env, https, mysql }) {
   }
 
   const bk = mkBook();
-  console.log('fetching ERC20 transaction data...');
-  const txs = await svc.account(account).tokentx();
-  await save(bk, 'ERC20', txs);
-  await save(bk, 'ETH', [
-    ...(await svc.account(account).txlist()),
-    ...(await svc.account(account).txlist('txlistinternal')),
+  console.log('fetching transaction data for', account);
+  await Promise.all([
+    svc
+      .account(account)
+      .txlist()
+      .then(txs => save(bk, 'ETH', txs)),
+    svc
+      .account(account)
+      .txlist('txlistinternal')
+      .then(txs => save(bk, 'ETH_I', txs)),
+    svc
+      .account(account)
+      .tokentx()
+      .then(txs => save(bk, 'ERC20', txs)),
   ]);
-  console.log('saved.');
   await bk.close();
 }
 
@@ -155,6 +174,7 @@ if (require.main === module) {
     env: process.env,
     https: require('https'),
     mysql: require('mysql'),
+    setTimeout,
   }).catch(err => {
     console.error(err);
   });
