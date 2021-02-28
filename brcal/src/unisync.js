@@ -69,16 +69,6 @@ async function main({ env, https, mysql }) {
   await bk.close();
 }
 
-if (require.main === module) {
-  main({
-    https: require('follow-redirects').https,
-    env: process.env,
-    mysql: require('mysql'),
-  }).catch(err => {
-    console.error(err);
-  });
-}
-
 async function fetchPositions(gql, ethAddr) {
   const result = await gql.runQuery(UniswapAPI.qPositions, { id: ethAddr });
   console.log(fmt(result));
@@ -90,5 +80,15 @@ async function fetchPositions(gql, ethAddr) {
       name: `${position.pair.token0.symbol}-${position.pair.token1.symbol}`,
       valueUSD,
     });
+  });
+}
+
+if (require.main === module) {
+  main({
+    https: require('follow-redirects').https,
+    env: process.env,
+    mysql: require('mysql'),
+  }).catch(err => {
+    console.error(err);
   });
 }
