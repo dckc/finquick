@@ -38,12 +38,13 @@ async function main(argv, { stdout, mysql, env, require, https, readFile }) {
 
   function mkBook() {
     return GCBook(
-      mysql.createConnection({
-        host: env.GC_HOST,
-        user: env.GC_USER,
-        password: env.GC_PASS,
-        database: env.GC_DB,
-      }),
+      async () =>
+        mysql.createConnection({
+          host: env.GC_HOST,
+          user: env.GC_USER,
+          password: env.GC_PASS,
+          database: env.GC_DB,
+        }),
       specifier => requireText(specifier, require), // ISSUE
     );
   }
