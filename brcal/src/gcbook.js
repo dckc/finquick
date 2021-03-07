@@ -204,6 +204,23 @@ export function GCBook(connect, requireText) {
       );
       return UPDATE.length;
     },
+    /**
+     * @param {string} name
+     * @param {{ id: string, data: unknown }[]} records
+     */
+    async importSlots(name, records) {
+      console.log('importing', records.length, name, 'slots');
+      await db.exec(sql.createSlotImport);
+      await db.exec(sql.loadSlotImport, [
+        records.map(({ id, data }) => [id, name, JSON.stringify(data)]),
+      ]);
+      const affected = { affectedRows: 1 };
+      const inserted = await db.query(sql.insertSlotImport, affected);
+      console.log('inserted', inserted.affectedRows);
+      await db.query(sql.updateSlotImport, affected);
+      console.log('updated', inserted.affectedRows);
+      await db.exec(sql.dropSlotImport);
+    },
     exec: db.exec,
     close: db.close,
   });

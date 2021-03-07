@@ -1,5 +1,6 @@
 // @ts-check
 import { createHmac } from 'crypto';
+import requireText from 'require-text';
 
 import { rateLimit, WebApp, urlencode } from './WebApp';
 import { check } from './check';
@@ -322,9 +323,10 @@ async function save(bk, table, records, getId) {
  *   setTimeout: typeof setTimeout,
  *   https: typeof import('https'),
  *   mysql: typeof import('mysql'),
+ *   require: typeof require,
  * }} io
  */
-async function main(args, { env, clock, setTimeout, https, mysql }) {
+async function main(args, { env, clock, setTimeout, https, mysql, require }) {
   /** @type {() => Promise<void> } */
   const delay = () => new Promise(resolve => setTimeout(resolve, 250));
   const cb = makeCoinbase(
@@ -355,7 +357,7 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
           database: env.GC_DB,
         }),
       );
-    return GCBook(connect, _ => '');
+    return GCBook(connect, specifier => requireText(specifier, require));
   }
 
   if (args.includes('--time')) {
@@ -379,10 +381,22 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
     const fills = (
       await Promise.all(products.map(product_id => pro.fills({ product_id })))
     ).flat();
-    await save(bk, 'cbp_accounts', accounts, a => a.id);
-    await save(bk, 'cbp_transfers', transfers, t => t.id);
-    await save(bk, 'cbp_orders', orders, o => o.id);
-    await save(bk, 'cbp_fills', fills, f => f.trade_id);
+    await bk.importSlots(
+      'pro.coinbase.com/accounts',
+      accounts.map(data => ({ id: data.id, data })),
+    );
+    await bk.importSlots(
+      'pro.coinbase.com/transfers',
+      transfers.map(data => ({ id: data.id, data })),
+    );
+    await bk.importSlots(
+      'pro.coinbase.com/orders',
+      orders.map(data => ({ id: data.id, data })),
+    );
+    await bk.importSlots(
+      'pro.coinbase.com/fills',
+      fills.map(data => ({ id: data.trade_id, data })),
+    );
     bk.close();
     return;
   }
@@ -402,8 +416,14 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
   ).flat();
 
   try {
-    await save(bk, 'cb_accts', accounts, a => a.id);
-    await save(bk, 'cb_txs', transactions, t => t.id);
+    await bk.importSlots(
+      'coinbase.com/accounts',
+      accounts.map(data => ({ id: data.id, data })),
+    );
+    await bk.importSlots(
+      'coinbase.com/transactions',
+      transactions.map(data => ({ id: data.id, data })),
+    );
   } finally {
     await bk.close();
   }
@@ -416,6 +436,7 @@ if (require.main === module) {
     mysql: require('mysql'),
     clock: () => new Date(),
     setTimeout,
+    require,
   }).catch(err => {
     console.error(err);
   });
