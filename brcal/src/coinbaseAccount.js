@@ -1,8 +1,8 @@
 // @ts-check
 import { createHmac } from 'crypto';
 
-import { rateLimit, WebApp } from './WebApp';
-import { check, logged } from './check';
+import { rateLimit, WebApp, urlencode } from './WebApp';
+import { check } from './check';
 import { GCBook } from './gcbook';
 
 const { freeze } = Object;
@@ -112,7 +112,7 @@ function assert(cond, detail) {
  * @param {() => Date} clock
  * @param {{ key: string, secret: Bytes}} api
  *
- * @typedef {ReturnType<import('./WebApp').WebApp>} WebApp
+ * @typedef {ReturnType<typeof import('./WebApp').WebApp>} WebApp
  */
 function makeCoinbase(endPoint, clock, api) {
   /**
@@ -179,104 +179,127 @@ function makeCoinbase(endPoint, clock, api) {
   return freeze({ time, accounts });
 }
 
-function makeCoinbasePro(web, clock, api) {
-  const base = {
-    origin: 'https://api.pro.coinbase.com',
-    url: 'https://api.pro.coinbase.com/',
-    path: '/',
-  };
+const tx1 = {
+  id: '9bd30e61-de96-4a25-9c38-5b110d13a03d',
+  price: '6559.90000000',
+  size: '0.00250999',
+  product_id: 'BTC-USD',
+  side: 'sell',
+  type: 'limit',
+  time_in_force: 'GTC',
+  post_only: true,
+  created_at: '2018-10-08T05:04:45.364184Z',
+  done_at: '2018-10-08T10:45:29.401Z',
+  done_reason: 'filled',
+  fill_fees: '0.0000000000000000',
+  filled_size: '0.00250999',
+  executed_value: '16.4652834010000000',
+  status: 'done',
+  settled: true,
+};
 
-  function fmtSig(signature, timestamp) {
+const tx2 = {
+  created_at: '2018-08-03T15:36:17.9Z',
+  trade_id: 38221286,
+  product_id: 'ETH-USD',
+  order_id: '195c5aef-bbeb-4014-9ab8-5e62f2b20a06',
+  user_id: '573a7c2b66084b3114000412',
+  profile_id: '8934d7bf-413e-4179-bc52-2e6831e91fab',
+  liquidity: 'M',
+  price: '413.35000000',
+  size: '0.11745726',
+  fee: '0.0000000000000000',
+  side: 'sell',
+  settled: true,
+  usd_volume: '48.5509584210000000',
+};
+
+const CoinbasePro = {
+  origin: 'https://api.pro.coinbase.com',
+  url: 'https://api.pro.coinbase.com/',
+  path: '/',
+  /**
+   * @param {string} key
+   * @param {Bytes} signature
+   * @param {number} timestamp
+   * @param {string} passPhrase
+   */
+  fmtSig(key, signature, timestamp, passPhrase) {
     return {
-      'CB-ACCESS-KEY': api.key,
+      'user-agent': 'madmode.com',
+      'CB-ACCESS-KEY': key,
       'CB-ACCESS-SIGN': Base64.encode(signature),
       'CB-ACCESS-TIMESTAMP': timestamp,
-      'CB-ACCESS-PASSPHRASE': api.passPhrase,
+      'CB-ACCESS-PASSPHRASE': passPhrase,
     };
+  },
+};
+
+/**
+ * @param {WebApp} web
+ * @param {() => Date} clock
+ * @param {{ key: string, secret: Bytes, passPhrase: string }} api
+ */
+function makeCoinbasePro(web, clock, api) {
+  /**
+   * @param {string} path
+   * @param {Query=} params
+   * @param {((h: Record<string, string>) => void)=} onHeaders
+   * @returns {Promise<any[] | { message: string }>} // TODO: type parameter
+   *
+   * @typedef {import('./WebApp').Query} Query
+   */
+  async function getJSON(path, params, onHeaders) {
+    const ts = floor(clock().valueOf() / 1000);
+
+    const sigPath = params ? `${path}?${urlencode(params)}` : path;
+    const sig = Coinbase.signature(api.secret, ts, 'GET', sigPath);
+    return JSON.parse(
+      await web
+        .pathjoin(path)
+        .query(params || {})
+        .withHeaders(CoinbasePro.fmtSig(api.key, sig, ts, api.passPhrase))
+        .get(onHeaders),
+    );
   }
 
-  const cc = coinbaseCommon(
-    web,
-    clock,
-    base,
-    Base64.decode(api.secret),
-    fmtSig,
-  );
-
-  function orders(status) {
-    function list() {
-      // TODO: paged
-      return cc.getJSON(base.path + 'orders?status=' + status);
-    }
-
-    // {"id":"9bd30e61-de96-4a25-9c38-5b110d13a03d",
-    //  "price":"6559.90000000","size":"0.00250999","product_id":"BTC-USD","side":"sell","type":"limit",
-    //  "time_in_force":"GTC","post_only":true,"created_at":"2018-10-08T05:04:45.364184Z","done_at":"2018-10-08T10:45:29.401Z",
-    //  "done_reason":"filled","fill_fees":"0.0000000000000000","filled_size":"0.00250999","executed_value":"16.4652834010000000",
-    //  "status":"done","settled":true}
-    function unpack(txData) {
-      const hd = [
-        'id',
-        'done_at',
-        'product_id',
-        'price',
-        'size',
-        'executed_value',
-        'fill_fees',
-        'status',
-        'side',
-        'type',
-        'created_at',
-      ];
-      const rows = txData.map(function(tx) {
-        tx.done_at = (tx.done_at || '').replace('T', ' ').replace('Z', '');
-        tx.created_at = (tx.created_at || '')
-          .replace('T', ' ')
-          .replace('Z', '');
-        tx.price = tx.price || null;
-        return hd.map(function(k) {
-          return tx[k];
-        });
+  async function paged(path, params) {
+    let data = []; // TODO: generator
+    for (;;) {
+      let headers = {};
+      let results = await getJSON(path, params, h => {
+        headers = h;
       });
-      return { hd: hd, rows: rows };
+      debugger;
+      if ('message' in results) {
+        throw Error(results.message);
+      }
+      data = [...data, ...results];
+      path = headers['cb-after'];
+      if (!path) {
+        break;
+      }
     }
-    return freeze({ list: list, unpack: unpack });
+    return data;
   }
 
-  function fills(productId) {
-    function list() {
-      // TODO: paged
-      return cc.getJSON(base.path + 'fills?product_id=' + productId);
-    }
-
-    // {"created_at":"2018-08-03T15:36:17.9Z","trade_id":38221286,"product_id":"ETH-USD",
-    // "order_id":"195c5aef-bbeb-4014-9ab8-5e62f2b20a06","user_id":"573a7c2b66084b3114000412",
-    // "profile_id":"8934d7bf-413e-4179-bc52-2e6831e91fab","liquidity":"M","price":"413.35000000",
-    // "size":"0.11745726","fee":"0.0000000000000000","side":"sell","settled":true,"usd_volume":"48.5509584210000000"}
-    function unpack(txData) {
-      const hd = [
-        'trade_id',
-        'created_at',
-        'price',
-        'size',
-        'usd_volume',
-        'fee',
-        'liquidity',
-        'side',
-        'settled',
-        'order_id',
-      ];
-      const rows = txData.map(function(tx) {
-        tx.created_at = tx.created_at.replace('T', ' ').replace('Z', '');
-        return hd.map(function(k) {
-          return tx[k];
-        });
-      });
-      return { hd: hd, rows: rows };
-    }
-    return freeze({ list, unpack });
+  function accounts(params) {
+    return paged(`/accounts`, params);
   }
-  return freeze({ fills, orders });
+
+  function transfers(params) {
+    return paged(`/transfers`, params);
+  }
+
+  function orders(params) {
+    return paged(`/orders`, params);
+  }
+
+  function fills(params) {
+    return paged(`/fills`, params);
+  }
+
+  return freeze({ accounts, transfers, orders, fills });
 }
 
 /**
@@ -320,6 +343,28 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
       secret: UTF8.encode(check.notNull(env.COINBASE_SECRET)),
     },
   );
+  const pro = makeCoinbasePro(
+    rateLimit(WebApp(CoinbasePro.origin, { https }), delay),
+    clock,
+    {
+      key: check.notNull(env.COINBASE_PRO_KEY),
+      secret: Base64.decode(check.notNull(env.COINBASE_PRO_SECRET)),
+      passPhrase: check.notNull(env.COINBASE_PRO_PASSPRHASE),
+    },
+  );
+
+  function mkBook() {
+    const connect = () =>
+      Promise.resolve(
+        mysql.createConnection({
+          host: env.GC_HOST,
+          user: env.GC_USER,
+          password: env.GC_PASS,
+          database: env.GC_DB,
+        }),
+      );
+    return GCBook(connect, _ => '');
+  }
 
   if (args.includes('--time')) {
     console.log(await cb.time());
@@ -328,6 +373,25 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
   }
   if (args.includes('--test')) {
     testSig();
+    return;
+  }
+
+  const bk = mkBook();
+
+  if (args.includes('--pro')) {
+    console.log('fetching coinbase pro data');
+    const accounts = await pro.accounts();
+    const transfers = await pro.transfers();
+    const orders = await pro.orders({ status: 'all' });
+    const products = [...new Set(orders.map(({ product_id }) => product_id))];
+    const fills = (
+      await Promise.all(products.map(product_id => pro.fills({ product_id })))
+    ).flat();
+    await save(bk, 'cbp_accounts', accounts, a => a.id);
+    await save(bk, 'cbp_transfers', transfers, t => t.id);
+    await save(bk, 'cbp_orders', orders, o => o.id);
+    await save(bk, 'cbp_fills', fills, f => f.trade_id);
+    bk.close();
     return;
   }
 
@@ -345,20 +409,6 @@ async function main(args, { env, clock, setTimeout, https, mysql }) {
     )
   ).flat();
 
-  function mkBook() {
-    const connect = () =>
-      Promise.resolve(
-        mysql.createConnection({
-          host: env.GC_HOST,
-          user: env.GC_USER,
-          password: env.GC_PASS,
-          database: env.GC_DB,
-        }),
-      );
-    return GCBook(connect, _ => '');
-  }
-
-  const bk = mkBook();
   try {
     await save(bk, 'cb_accts', accounts, a => a.id);
     await save(bk, 'cb_txs', transactions, t => t.id);
