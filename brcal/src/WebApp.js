@@ -10,7 +10,7 @@ const { freeze, entries } = Object;
  *
  * @typedef { Record<string, string|number|boolean> } Query
  */
-function urlencode(params) {
+export function urlencode(params) {
   return entries(params)
     .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
     .join('&');
@@ -39,8 +39,11 @@ export function WebApp(url, { https }, headers) {
       const there = `${url}${q}${urlencode(params)}`;
       return WebApp(there, { https });
     },
-    /** @returns {Promise<string>} */
-    async get() {
+    /**
+     * @param {((h: Record<string, string>) => void)=} onHeaders
+     * @returns {Promise<string>}
+     */
+    async get(onHeaders) {
       return new Promise((resolve, reject) => {
         const req = https.get(url, { method: 'GET', headers }, response => {
           let str = '';
@@ -48,6 +51,9 @@ export function WebApp(url, { https }, headers) {
           response.on('data', chunk => {
             str += chunk;
           });
+          if (onHeaders) {
+            response.on('headers', onHeaders);
+          }
           response.on('end', () => resolve(str));
         });
         req.end();
@@ -95,9 +101,9 @@ export function rateLimit(web, delay) {
     pathjoin: ref => rateLimit(web.pathjoin(ref), delay),
     query: params => rateLimit(web.query(params), delay),
     withHeaders: h => rateLimit(web.withHeaders(h), delay),
-    async get() {
+    async get(onHeaders) {
       if (pause) await pause;
-      const result = await web.get();
+      const result = await web.get(onHeaders);
       pause = delay();
       return result;
     },
