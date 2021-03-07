@@ -80,3 +80,32 @@ export function WebApp(url, { https }, headers) {
     },
   });
 }
+
+/**
+ * @param {ReturnType<WebApp>} web
+ * @param {() => Promise<void> } delay
+ * @returns {ReturnType<typeof WebApp>}
+ */
+export function rateLimit(web, delay) {
+  /** @type {Promise<void>?} */
+  let pause;
+
+  return freeze({
+    url: web.url,
+    pathjoin: ref => rateLimit(web.pathjoin(ref), delay),
+    query: params => rateLimit(web.query(params), delay),
+    withHeaders: h => rateLimit(web.withHeaders(h), delay),
+    async get() {
+      if (pause) await pause;
+      const result = await web.get();
+      pause = delay();
+      return result;
+    },
+    async post(body) {
+      if (pause) await pause;
+      const result = await web.post(body);
+      pause = delay();
+      return result;
+    },
+  });
+}
