@@ -39,6 +39,7 @@ export function WebApp(url, { https }, headers) {
       const there = `${url}${q}${urlencode(params)}`;
       return WebApp(there, { https });
     },
+    /** @returns {Promise<string>} */
     async get() {
       return new Promise((resolve, reject) => {
         const req = https.get(url, { method: 'GET', headers }, response => {
