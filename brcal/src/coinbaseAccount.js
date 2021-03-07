@@ -1,8 +1,9 @@
 // @ts-check
 import { createHmac } from 'crypto';
 
-import { WebApp } from './WebApp';
+import { rateLimit, WebApp } from './WebApp';
 import { check, logged } from './check';
+import { GCBook } from './gcbook';
 
 const { freeze } = Object;
 const { floor } = Math;
@@ -135,18 +136,10 @@ function makeCoinbase(endPoint, clock, api) {
   }
 
   async function paged(result) {
-    if (!result.data) {
-      console.log('@@@', result);
-      return [];
-    }
     let data = check.notNull(result.data);
     let path;
     while ((path = result.pagination.next_uri)) {
       result = await getJSON(path);
-      if (!result.data) {
-        console.log('@@@', result);
-        throw Error('@@@');
-      }
       data = [...data, ...check.notNull(result.data)];
     }
     return data;
@@ -287,19 +280,46 @@ function makeCoinbasePro(web, clock, api) {
 }
 
 /**
+ *
+ * @param {ReturnType<typeof import('./gcbook').GCBook>} bk
+ * @param {string} table
+ * @param {T[]} records
+ * @param {(r: T) => string} getId
+ * @template T
+ */
+async function save(bk, table, records, getId) {
+  console.log('saving ', records.length, 'records to ', table);
+  await bk.exec(`drop table if exists ${table}`); //@@@
+  await bk.exec(`create table if not exists ${table} (
+    id varchar(256),
+    data JSON
+  ) character set=utf8 collate=utf8_general_ci`);
+  await bk.exec(`insert into ${table}(id, data) values ?`, [
+    records.map(r => [getId(r), JSON.stringify(r)]),
+  ]);
+}
+
+/**
  * @param {string[]} args
  * @param {{
  *   env: typeof process.env,
- *   stdout: typeof process.stdout,
  *   clock: () => Date,
+ *   setTimeout: typeof setTimeout,
  *   https: typeof import('https'),
+ *   mysql: typeof import('mysql'),
  * }} io
  */
-async function main(args, { env, stdout, clock, https }) {
-  const cb = makeCoinbase(WebApp(Coinbase.origin, { https }), clock, {
-    key: check.notNull(env.COINBASE_KEY),
-    secret: UTF8.encode(check.notNull(env.COINBASE_SECRET)),
-  });
+async function main(args, { env, clock, setTimeout, https, mysql }) {
+  /** @type {() => Promise<void> } */
+  const delay = () => new Promise(resolve => setTimeout(resolve, 250));
+  const cb = makeCoinbase(
+    rateLimit(WebApp(Coinbase.origin, { https }), delay),
+    clock,
+    {
+      key: check.notNull(env.COINBASE_KEY),
+      secret: UTF8.encode(check.notNull(env.COINBASE_SECRET)),
+    },
+  );
 
   if (args.includes('--time')) {
     console.log(await cb.time());
@@ -311,20 +331,49 @@ async function main(args, { env, stdout, clock, https }) {
     return;
   }
 
+  console.log('fetching coinbase data');
   const accounts = await cb.accounts().list();
 
-  const transactions = await Promise.all(
-    accounts.map(account => cb.accounts(account.id).transactions()),
-  );
-  stdout.write(JSON.stringify({ accounts, transactions }, null, 2));
+  const transactions = (
+    await Promise.all(
+      accounts.map(account =>
+        cb
+          .accounts(account.id)
+          .transactions()
+          .then(txs => txs.map(tx => ({ tx_account: account.id, ...tx }))),
+      ),
+    )
+  ).flat();
+
+  function mkBook() {
+    const connect = () =>
+      Promise.resolve(
+        mysql.createConnection({
+          host: env.GC_HOST,
+          user: env.GC_USER,
+          password: env.GC_PASS,
+          database: env.GC_DB,
+        }),
+      );
+    return GCBook(connect, _ => '');
+  }
+
+  const bk = mkBook();
+  try {
+    await save(bk, 'cb_accts', accounts, a => a.id);
+    await save(bk, 'cb_txs', transactions, t => t.id);
+  } finally {
+    await bk.close();
+  }
 }
 
 if (require.main === module) {
   main(process.argv.slice(2), {
     env: process.env,
-    stdout: process.stdout,
     https: require('https'),
+    mysql: require('mysql'),
     clock: () => new Date(),
+    setTimeout,
   }).catch(err => {
     console.error(err);
   });
