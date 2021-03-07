@@ -282,23 +282,16 @@ function makeCoinbasePro(web, clock, api) {
     return data;
   }
 
-  function accounts(params) {
-    return paged(`/accounts`, params);
-  }
-
-  function transfers(params) {
-    return paged(`/transfers`, params);
-  }
-
-  function orders(params) {
-    return paged(`/orders`, params);
-  }
-
-  function fills(params) {
-    return paged(`/fills`, params);
-  }
-
-  return freeze({ accounts, transfers, orders, fills });
+  return freeze({
+    /** @param {Query=} params */
+    accounts: params => paged(`/accounts`, params),
+    /** @param {Query=} params */
+    transfers: params => paged(`/transfers`, params),
+    /** @param {Query=} params */
+    orders: params => paged(`/orders`, params),
+    /** @param {Query=} params */
+    fills: params => paged(`/fills`, params),
+  });
 }
 
 /**
