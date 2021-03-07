@@ -63,9 +63,8 @@ const Coinbase = {
   signature(secret, timestamp, method, path_url, body) {
     const message = `${timestamp}${method}${path_url}${body || ''}`;
 
-    // Logger.log({ message: message, api_secret: api_secret });
     const sig = Sha256.hmac(UTF8.encode(message), secret);
-    console.log({ timestamp, method, path_url, sig });
+    // console.log({ timestamp, method, path_url, sig: Base16.encode(sig) });
     return sig;
   },
   /** @type {(key: string, sig: Bytes, ts: number) => Headers} */
@@ -92,12 +91,19 @@ function testSig() {
     Coinbase.signature(
       Base16.decode(sigTest.secret),
       parseInt(sigTest.timestamp, 10),
+      // @ts-ignore
       sigTest.method,
       sigTest.path_url,
     ),
   );
   const expected = sigTest.signature;
   console.log({ actual, expected, ok: actual === expected });
+}
+
+function assert(cond, detail) {
+  if (!cond) {
+    throw Error(detail);
+  }
 }
 
 /**
@@ -108,32 +114,39 @@ function testSig() {
  * @typedef {ReturnType<import('./WebApp').WebApp>} WebApp
  */
 function makeCoinbase(endPoint, clock, api) {
-  // const cc = coinbaseCommon(
-  //   endPoint,
-  //   clock,
-  //   Base64.decode(api.secret),
-  //   (sig, ts) => Coinbase.fmtSig(api.key, sig, ts),
-  // );
-
-  async function getJSON(/** @type { string } */ path) {
+  /**
+   * @param {string} path
+   * @returns {Promise<{
+   *   errors?: unknown[],
+   *   pagination: { next_uri?: string },
+   *   data: any[],  // TODO: type parameter
+   * }>}
+   */
+  async function getJSON(path) {
     const ts = floor(clock().valueOf() / 1000);
 
-    const sig = Coinbase.signature(api.secret, ts, 'GET', Coinbase.path + path);
+    const sig = Coinbase.signature(api.secret, ts, 'GET', path);
     return JSON.parse(
-      logged('getJSON text')(
-        await logged('getJSON endpoint')(endPoint)
-          .pathjoin(path)
-          .withHeaders(logged('sig')(Coinbase.fmtSig(api.key, sig, ts)))
-          .get(),
-      ),
+      await endPoint
+        .pathjoin(path)
+        .withHeaders(Coinbase.fmtSig(api.key, sig, ts))
+        .get(),
     );
   }
 
   async function paged(result) {
+    if (!result.data) {
+      console.log('@@@', result);
+      return [];
+    }
     let data = check.notNull(result.data);
     let path;
     while ((path = result.pagination.next_uri)) {
       result = await getJSON(path);
+      if (!result.data) {
+        console.log('@@@', result);
+        throw Error('@@@');
+      }
       data = [...data, ...check.notNull(result.data)];
     }
     return data;
@@ -143,37 +156,34 @@ function makeCoinbase(endPoint, clock, api) {
     async function list() {
       // ISSUE: arg for previous pages
       // ISSUE: error handling
-      const result = await getJSON('accounts');
-      if (result.errors) {
-        throw new Error(
-          `cannot list accounts: ${JSON.stringify(result.errors)}`,
-        );
-      }
-      return result.data;
+      const result = await getJSON('/v2/accounts');
+      assert(
+        !result.errors,
+        `cannot list accounts: ${JSON.stringify(result.errors)}`,
+      );
+      return paged(result);
     }
 
     function sells() {
-      function list() {
-        return paged(getJSON(`accounts/${id}/sells`));
-      }
-      return freeze({ list: list }); // ISSUE: TODO: unpack
+      return paged(getJSON(`/v2/accounts/${id}/sells`));
     }
 
-    function transactions() {
-      function list() {
-        return paged(getJSON(`accounts/${id}/transactions`));
-      }
-      return freeze({ list: list });
+    async function transactions() {
+      const result = await getJSON(`/v2/accounts/${id}/transactions`);
+      assert(
+        !result.errors,
+        `cannot list transactions: ${JSON.stringify(result.errors)}`,
+      );
+      return paged(result);
     }
     return freeze({ list, transactions, sells });
   }
 
-  return freeze({
-    accounts: accounts,
-    async time() {
-      return JSON.parse(await endPoint.pathjoin('time').get());
-    },
-  });
+  async function time() {
+    return JSON.parse(await endPoint.pathjoin('time').get());
+  }
+
+  return freeze({ time, accounts });
 }
 
 function makeCoinbasePro(web, clock, api) {
@@ -186,7 +196,7 @@ function makeCoinbasePro(web, clock, api) {
   function fmtSig(signature, timestamp) {
     return {
       'CB-ACCESS-KEY': api.key,
-      'CB-ACCESS-SIGN': Utilities.base64Encode(signature),
+      'CB-ACCESS-SIGN': Base64.encode(signature),
       'CB-ACCESS-TIMESTAMP': timestamp,
       'CB-ACCESS-PASSPHRASE': api.passPhrase,
     };
@@ -196,7 +206,7 @@ function makeCoinbasePro(web, clock, api) {
     web,
     clock,
     base,
-    Utilities.base64Decode(api.secret),
+    Base64.decode(api.secret),
     fmtSig,
   );
 
@@ -277,29 +287,42 @@ function makeCoinbasePro(web, clock, api) {
 }
 
 /**
- *
+ * @param {string[]} args
  * @param {{
  *   env: typeof process.env,
+ *   stdout: typeof process.stdout,
  *   clock: () => Date,
  *   https: typeof import('https'),
  * }} io
  */
-async function main({ env, clock, https }) {
-  testSig();
-  const cb = makeCoinbase(WebApp(Coinbase.url, { https }), clock, {
+async function main(args, { env, stdout, clock, https }) {
+  const cb = makeCoinbase(WebApp(Coinbase.origin, { https }), clock, {
     key: check.notNull(env.COINBASE_KEY),
     secret: UTF8.encode(check.notNull(env.COINBASE_SECRET)),
   });
 
-  console.log(await cb.time());
-  console.log(clock());
+  if (args.includes('--time')) {
+    console.log(await cb.time());
+    console.log(clock());
+    return;
+  }
+  if (args.includes('--test')) {
+    testSig();
+    return;
+  }
 
-  console.log(await cb.accounts().list());
+  const accounts = await cb.accounts().list();
+
+  const transactions = await Promise.all(
+    accounts.map(account => cb.accounts(account.id).transactions()),
+  );
+  stdout.write(JSON.stringify({ accounts, transactions }, null, 2));
 }
 
 if (require.main === module) {
-  main({
+  main(process.argv.slice(2), {
     env: process.env,
+    stdout: process.stdout,
     https: require('https'),
     clock: () => new Date(),
   }).catch(err => {
