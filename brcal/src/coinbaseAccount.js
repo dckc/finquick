@@ -270,7 +270,6 @@ function makeCoinbasePro(web, clock, api) {
       let results = await getJSON(path, params, h => {
         headers = h;
       });
-      debugger;
       if ('message' in results) {
         throw Error(results.message);
       }
