@@ -23,9 +23,10 @@ const amt = txt => parseFloat(txt);
  *   env: typeof process.env,
  *   https: typeof import('https'),
  *   mysql: typeof import('mysql'),
+ *   require: typeof require,
  * }} io
  */
-async function main({ env, https, mysql }) {
+async function main({ env, https, mysql, require }) {
   const gql = GraphQL(WebApp(UniswapAPI.endPoint, { https }));
 
   const ethAddr = env.ETH_ADDR;
@@ -53,19 +54,13 @@ async function main({ env, https, mysql }) {
   }
 
   const bk = mkBook();
-  await bk.exec('drop table if exists uniswap'); //@@@
-  await bk.exec(`create table if not exists uniswap(
-    kind varchar(16),
-    id varchar(256),
-    data JSON
-  ) character set=utf8 collate=utf8_general_ci`);
-  await Promise.all(
-    kinds.map(kind =>
-      bk.exec(`insert into uniswap(kind, id, data) values ?`, [
-        txs.data[kind].map(tx => [kind, tx.id, q(tx)]),
-      ]),
-    ),
-  );
+
+  for (const kind of kinds) {
+    await bk.importSlots(
+      `uniswap.org/${kind}`,
+      txs.data[kind].map(data => ({ id: data.id, data })),
+    );
+  }
   await bk.close();
 }
 
@@ -88,6 +83,7 @@ if (require.main === module) {
     https: require('follow-redirects').https,
     env: process.env,
     mysql: require('mysql'),
+    require,
   }).catch(err => {
     console.error(err);
   });
