@@ -1,4 +1,5 @@
 // @ts-check
+import requireText from 'require-text';
 
 import { check } from './check';
 import { WebApp } from './WebApp';
@@ -128,9 +129,10 @@ async function save(bk, table, txs) {
  *   https: typeof import('https'),
  *   mysql: typeof import('mysql'),
  *   setTimeout: typeof setTimeout,
+ *   require: typeof require,
  * }} io
  */
-async function main({ env, https, mysql, setTimeout }) {
+async function main({ env, https, mysql, setTimeout, require }) {
   const apiKey = check.notNull(env.ETHERSCAN_APIKEY);
   /** @type {(ms: number) => Promise<void> } */
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -147,25 +149,31 @@ async function main({ env, https, mysql, setTimeout }) {
           database: env.GC_DB,
         }),
       );
-    return GCBook(connect, _ => '');
+    return GCBook(connect, m => requireText(m, require));
   }
 
-  const bk = mkBook();
   console.log('fetching transaction data for', account);
-  await Promise.all([
-    svc
-      .account(account)
+  const acct = svc.account(account);
+  const parts = {
+    txlist: acct
       .txlist()
-      .then(txs => save(bk, 'ETH', txs)),
-    svc
-      .account(account)
+      .then(txs => txs.map(data => ({ id: data.hash, data }))),
+    txlistinternal: acct
       .txlist('txlistinternal')
-      .then(txs => save(bk, 'ETH_I', txs)),
-    svc
-      .account(account)
+      .then(txs =>
+        txs.map(data => ({ id: `${data.hash}#${data.traceId}`, data })),
+      ),
+    tokentx: acct
       .tokentx()
-      .then(txs => save(bk, 'ERC20', txs)),
-  ]);
+      .then(txs =>
+        txs.map(data => ({ id: `${data.hash}#${data.contractAddress}`, data })),
+      ),
+  };
+  const bk = mkBook();
+  for (const [kind, recordsP] of Object.entries(parts)) {
+    const records = await recordsP;
+    await bk.importSlots(`etherscan.io/${kind}`, records);
+  }
   await bk.close();
 }
 
@@ -175,6 +183,7 @@ if (require.main === module) {
     https: require('https'),
     mysql: require('mysql'),
     setTimeout,
+    require,
   }).catch(err => {
     console.error(err);
   });
