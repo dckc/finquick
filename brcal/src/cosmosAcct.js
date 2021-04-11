@@ -5,6 +5,8 @@ import requireText from 'require-text';
 import { GCBook } from './gcbook';
 import { WebApp } from './WebApp';
 
+const { entries } = Object;
+
 // const BASE = 'https://api.cosmos.network';
 // const BASE = 'https://lcd-cosmos.cosmostation.io';
 const BASE = 'https://node.atomscan.com';
@@ -41,7 +43,8 @@ async function main(env, { https, mysql }) {
       );
     return GCBook(connect, m => requireText(m, require));
   }
-  let txs = [];
+  /** @type {Record<string, unknown>} */
+  const txs = {};
   for (const role of ['transfer.sender', 'transfer.recipient']) {
     const path = `/txs?${role}=${addr}`;
 
@@ -49,17 +52,16 @@ async function main(env, { https, mysql }) {
     const content = await ua.pathjoin(path).get();
     const info = JSON.parse(content);
     // console.log(JSON.stringify(info, null, 2));
-    txs = [...txs, ...info.txs];
     console.log({ role, qty: info.txs.length });
+    info.txs.forEach(tx => {
+      txs[tx.txhash] = tx;
+    });
   }
   const bk = mkBook();
   try {
     await bk.importSlots(
       `cosmos.network`,
-      txs.map(data => ({
-        id: data.txhash,
-        data,
-      })),
+      entries(txs).map(([id, data]) => ({ id, data })),
     );
   } finally {
     await bk.close();
