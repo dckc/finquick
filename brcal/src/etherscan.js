@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 // @ts-check
 import requireText from 'require-text';
 
@@ -9,7 +10,7 @@ const { freeze } = Object;
 
 const base = 'https://api.etherscan.io/api?';
 
-const RHOC = '0x168296bb09e24a88805cb9c33356536b980d3fc5';
+// const RHOC = '0x168296bb09e24a88805cb9c33356536b980d3fc5';
 
 const tx0 = {
   blockNumber: '4357197',
@@ -38,10 +39,18 @@ const tx0 = {
  * @param {string} apikey
  * @param {(ms: number) => Promise<void> } delay
  * @typedef { import('./WebApp').Query } Query
+ *
+ * @typedef { typeof tx0 } Tx
  */
 function makeEtherscan(web, apikey, delay) {
-  /** @type {Promise<void>?} */
-  let rateLimit;
+  async function* rateLimit() {
+    for (;;) {
+      yield;
+      await delay(250);
+    }
+  }
+  const opportunities = rateLimit();
+  // console.time('rateLimit');
 
   /**
    * @param {Query} params
@@ -50,7 +59,10 @@ function makeEtherscan(web, apikey, delay) {
    * @template T
    */
   async function call(params, _template) {
-    if (rateLimit) await rateLimit;
+    await opportunities.next();
+    // console.timeEnd('rateLimt');
+    // console.log(params);
+    // console.time('rateLimt');
     const body = await web.query(params).get();
     const info = JSON.parse(body);
     if (!['0', '1'].includes(info.status)) throw Error(info.message);
@@ -59,7 +71,6 @@ function makeEtherscan(web, apikey, delay) {
       console.log({ info });
       throw Error(info.result);
     }
-    rateLimit = delay(250);
     return info.result;
   }
 
@@ -71,7 +82,7 @@ function makeEtherscan(web, apikey, delay) {
    */
   async function paged(params, ex) {
     /** @type {T[][]} */
-    let pages = [];
+    const pages = [];
     let page = 1;
     for (;;) {
       const items = await call({ ...params, page: `${page}`, offset: 128 }, ex);
@@ -101,25 +112,6 @@ function makeEtherscan(web, apikey, delay) {
       });
     },
   });
-}
-
-/**
- *
- * @param {ReturnType<typeof import('./gcbook').GCBook>} bk
- * @param {string} table
- * @param {Tx[]} txs
- * @typedef {typeof tx0} Tx
- */
-async function save(bk, table, txs) {
-  console.log('saving ', txs.length, 'transactions to ', table);
-  await bk.exec(`drop table if exists ${table}`); //@@@
-  await bk.exec(`create table if not exists ${table} (
-    hash varchar(256),
-    data JSON
-  ) character set=utf8 collate=utf8_general_ci`);
-  await bk.exec(`insert into ${table}(hash, data) values ?`, [
-    txs.map(tx => [tx.hash, JSON.stringify(tx)]),
-  ]);
 }
 
 /**
@@ -177,10 +169,13 @@ async function main({ env, https, mysql, setTimeout, require }) {
   await bk.close();
 }
 
+/* global require, module, setTimeout, process */
 if (require.main === module) {
   main({
     env: process.env,
+    // eslint-disable-next-line global-require
     https: require('https'),
+    // eslint-disable-next-line global-require
     mysql: require('mysql'),
     setTimeout,
     require,
