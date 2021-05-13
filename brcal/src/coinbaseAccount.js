@@ -327,8 +327,10 @@ async function save(bk, table, records, getId) {
  * }} io
  */
 async function main(args, { env, clock, setTimeout, https, mysql, require }) {
+  // By default, each API key or app is rate limited at 10,000 requests per hour.
+  const period = 1 / (10000 / (60 * 60)) * 1000;
   /** @type {() => Promise<void> } */
-  const delay = () => new Promise(resolve => setTimeout(resolve, 250));
+  const delay = () => new Promise(resolve => setTimeout(resolve, period));
   const cb = makeCoinbase(
     rateLimit(WebApp(Coinbase.origin, { https }), delay),
     clock,

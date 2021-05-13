@@ -93,25 +93,42 @@ export function WebApp(url, { https }, headers) {
  * @returns {ReturnType<typeof WebApp>}
  */
 export function rateLimit(web, delay) {
-  /** @type {Promise<void>?} */
+  let step = 0;
+  // let iter = 0;
   let pause;
 
-  return freeze({
-    url: web.url,
-    pathjoin: ref => rateLimit(web.pathjoin(ref), delay),
-    query: params => rateLimit(web.query(params), delay),
-    withHeaders: h => rateLimit(web.withHeaders(h), delay),
-    async get(onHeaders) {
-      if (pause) await pause;
-      const result = await web.get(onHeaders);
-      pause = delay();
-      return result;
-    },
-    async post(body) {
-      if (pause) await pause;
-      const result = await web.post(body);
-      pause = delay();
-      return result;
-    },
-  });
+  // of all those waiting on pause, only 1 gets to go next
+  async function waitMyTurn() {
+    let before;
+    // iter += 1;
+    // const me = iter;
+    do {
+      before = step;
+      // console.log('before', me, before, step, !!pause, new Date());
+      if (pause) {
+        await pause;
+      }
+    } while (before !== step);
+    step += 1;
+    pause = delay();
+    // console.log('my turn.......', me, step, new Date());
+  }
+
+  function recur(web) {
+    return freeze({
+      url: web.url,
+      pathjoin: ref => recur(web.pathjoin(ref)),
+      query: params => recur(web.query(params)),
+      withHeaders: h => recur(web.withHeaders(h)),
+      async get(onHeaders) {
+        await waitMyTurn();
+        return web.get(onHeaders);
+      },
+      async post(body) {
+        await waitMyTurn();
+        return await web.post(body);
+      },
+    });
+  }
+  return recur(web);
 }
