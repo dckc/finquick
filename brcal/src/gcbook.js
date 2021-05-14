@@ -210,6 +210,7 @@ export function GCBook(connect, requireText) {
      */
     async importSlots(name, records) {
       console.log('importing', records.length, name, 'slots');
+      if (!records.length) return;
       await db.exec(sql.createSlotImport);
       await db.exec(sql.loadSlotImport, [
         records.map(({ id, data }) => [id, name, JSON.stringify(data)]),
