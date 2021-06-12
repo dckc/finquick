@@ -35,7 +35,7 @@
     "object-assign-shim": "^1.0.0",
     "paypal-rest-sdk": "^1.7.1",
     "q": "~1.0.1",
-    "ws": "^1.0.1",
+    "ws": "^5.2.3",
     "xkeychain": "0.0.6",
     "xml": "^1.0.0",
     "xml2js": "^0.4.7"
