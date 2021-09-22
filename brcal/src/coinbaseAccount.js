@@ -116,6 +116,11 @@ function assert(cond, detail) {
  * @typedef {ReturnType<typeof import('./WebApp').WebApp>} WebApp
  */
 function makeCoinbase(endPoint, clock, api) {
+  function logged(value, ...notes) {
+    console.log(value.length, ...notes);
+    return value;
+  }
+
   /**
    * @param {string} path
    * @returns {Promise<{
@@ -129,19 +134,24 @@ function makeCoinbase(endPoint, clock, api) {
 
     const sig = Coinbase.signature(api.secret, ts, 'GET', path);
     return JSON.parse(
-      await endPoint
+      logged(await endPoint
         .pathjoin(path)
         .withHeaders(Coinbase.fmtSig(api.key, sig, ts))
-        .get(),
+             .get(), path),
     );
   }
 
   async function paged(result) {
-    let data = check.notNull(result.data);
+    let data = result.data;
+    if (!data) {
+      console.log('no data!');
+      return [];
+    }
+    console.log('data:', data.length);
     let path;
     while ((path = result.pagination.next_uri)) {
       result = await getJSON(path);
-      data = [...data, ...check.notNull(result.data)];
+      data = [...data, ...check.notNull(result.data)];  // ISSUE: use flat()?
     }
     return data;
   }
@@ -158,8 +168,20 @@ function makeCoinbase(endPoint, clock, api) {
       return paged(result);
     }
 
-    function sells() {
-      return paged(getJSON(`/v2/accounts/${id}/sells`));
+    async function buys() {
+      return paged(await getJSON(`/v2/accounts/${id}/buys`));
+    }
+
+    async function sells() {
+      return paged(await getJSON(`/v2/accounts/${id}/sells`));
+    }
+
+    async function deposits() {
+      return paged(await getJSON(`/v2/accounts/${id}/deposits`));
+    }
+
+    async function withdrawals() {
+      return paged(await getJSON(`/v2/accounts/${id}/withdrawals`));
     }
 
     async function transactions() {
@@ -170,7 +192,7 @@ function makeCoinbase(endPoint, clock, api) {
       );
       return paged(result);
     }
-    return freeze({ list, transactions, sells });
+    return freeze({ list, transactions, buys, sells, deposits, withdrawals });
   }
 
   async function time() {
@@ -406,26 +428,34 @@ async function main(args, { env, clock, setTimeout, https, mysql, require }) {
   console.log('fetching coinbase data');
   const accounts = await cb.accounts().list();
 
-  const transactions = (
+  const detail = async f => (
     await Promise.all(
       accounts.map(account =>
-        cb
-          .accounts(account.id)
-          .transactions()
-          .then(txs => txs.map(tx => ({ tx_account: account.id, ...tx }))),
+                   f(cb.accounts(account.id))
+          .then(items => items.map(item => ({ _account_id: account.id, ...item }))),
       ),
     )
   ).flat();
+  const kinds = {
+    transactions: acct => acct.transactions(),
+    buys: acct => acct.buys(),
+    sells: acct => acct.sells(),
+    deposits: acct => acct.deposits(),
+    withdrawals: acct => acct.withdrawals(),
+  };
 
   try {
     await bk.importSlots(
       'coinbase.com/accounts',
       accounts.map(data => ({ id: data.id, data })),
     );
-    await bk.importSlots(
-      'coinbase.com/transactions',
-      transactions.map(data => ({ id: data.id, data })),
-    );
+    // TODO: filter accounts by updated_at?
+    for (const [kind, f] of Object.entries(kinds)) {
+      await bk.importSlots(
+        `coinbase.com/${kind}`,
+        (await detail(f)).map(data => ({ id: data.id, data })),
+      );
+    }
   } finally {
     await bk.close();
   }
