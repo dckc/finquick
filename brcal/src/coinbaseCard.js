@@ -46,7 +46,7 @@ const toOFX = async (text, clock) => {
       (err ? reject(err) : resolve(records)),
     ),
   );
-  console.log('@@csv parsed:', rows.slice(0, 3));
+  // console.log('@@csv parsed:', rows.slice(0, 3));
   const purchases = rows
     .filter(([type]) => type === 'Purchase')
     .map(([_ty, NAME, dt, amt, loc]) => {
@@ -57,7 +57,7 @@ const toOFX = async (text, clock) => {
       const tx = { TRNTYPE: 'DEBIT', DTPOSTED, TRNAMT, FITID, NAME, MEMO: loc };
       return tx;
     });
-  console.log('@@txs:', purchases.slice(0, 3));
+  // console.log('@@txs:', purchases.slice(0, 3));
   return purchases;
 };
 
@@ -71,6 +71,10 @@ const toOFX = async (text, clock) => {
  * }} io
  */
 const main = async (args, { stdout, readFile, clock }) => {
+  const csv = args[0] === '--csv';
+  if (csv) {
+    args.shift();
+  }
   const [downloadedFileName] = args;
   if (!downloadedFileName)
     throw RangeError('Usage: node coinbaseCard.js statement.csv');
@@ -79,22 +83,39 @@ const main = async (args, { stdout, readFile, clock }) => {
   const text = await readFile(downloadedFileName, 'utf-8');
   const txs = await toOFX(text, clock);
 
-  const dates = txs.map(t => t.DTPOSTED);
-  const endBalance = -1; // todo?
-  const statement = OFX.bankStatement(
-    Info.bankID,
-    Info.accountID,
-    min(dates),
-    max(dates),
-    endBalance,
-    txs,
-  );
-  stdout.write(OFX.OFX(clock, statement));
+  if (csv) {
+    if (txs.length <= 0) {
+      return;
+    }
+    const hd = Object.keys(txs[0]);
+    const quote = s => s.match(/[,"]/) ? `"${s.replace(/"/g, '""')}"` : s;
+    const ymd = s => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    const rows = txs
+          .map(({ DTPOSTED: dt, ...rest }) => ({ DTPOSTED: ymd(dt), ...rest }))
+          .map(tx => hd.map(col => quote(String(tx[col]))));
+    const line = row => row.join(",") + '\n';
+    stdout.write(line(hd));
+    for (const row of rows) {
+      stdout.write(line(row));
+    }
+  } else {
+    const dates = txs.map(t => t.DTPOSTED);
+    const endBalance = -1; // todo?
+    const statement = OFX.bankStatement(
+      Info.bankID,
+      Info.accountID,
+      min(dates),
+      max(dates),
+      endBalance,
+      txs,
+    );
+    stdout.write(OFX.OFX(clock, statement));
+  }
 };
 
 /* global require, module, process */
 if (require.main === module) {
-  console.log(parseDate('6:02pm 7/31/21'));
+  // console.log(parseDate('6:02pm 7/31/21'));
 
   main(process.argv.slice(2), {
     stdout: process.stdout,
