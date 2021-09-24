@@ -39,15 +39,26 @@ export const lmSync = async (args, env, { https, mysql }) => {
   }
 
   const api = WebApp(LunchMoneyAPI.endpoint, { https }, creds);
-  const body = await api.pathjoin('/v1/categories').get();
-  const info = JSON.parse(body);
-  console.log('importing', info.categories.length, 'Lunch Money categories');
+  const all = {
+    categories: api.pathjoin('/v1/categories').get(),
+    assets: api.pathjoin('/v1/assets').get(),
+    plaid_accounts: api.pathjoin('/v1/plaid_accounts').get(),
+    transactions: api.pathjoin('/v1/transactions').get(),
+  };
+
   const bk = mkBook();
   try {
-    await bk.importSlots(
-      `lunchmoney.app/categories`,
-      info.categories.map(data => ({ id: data.id, data })),
-    );
+    for await (const [kind, req] of entries(all)) {
+      console.log('fetching', kind, 'from Lunch Money API');
+      const body = await req;
+      const info = JSON.parse(body);
+      // ISSUE: check for errors
+      // ISSUE: pagination
+      await bk.importSlots(
+        `lunchmoney.app/${kind}`,
+        info[kind].map(data => ({ id: data.id, data })),
+      );
+    }
   } finally {
     await bk.close();
   }
