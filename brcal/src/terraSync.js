@@ -5,7 +5,7 @@ import requireText from 'require-text';
 import { GCBook } from './gcbook';
 import { WebApp } from './WebApp';
 
-const { entries, fromEntries } = Object;
+const { entries, fromEntries, keys } = Object;
 
 // https://api.anchorprotocol.com/api/v1/history/terra16d39g540fywlkhk533f2cwm9fnq9as08hr9u95
 // https://fcd.terra.dev/v1/tx/FBFF9A71439D71CF6DD397CF8769E3DA8A04172F1501F2C3D6D2908034976629
@@ -46,12 +46,26 @@ async function main(env, { https, mysql }) {
     .get()
     .then(s => fromEntries(JSON.parse(s).history.map(tx => [tx.tx_hash, tx])));
 
+  const terraTxs = await Promise.all(
+    keys(anchorHistory).map(async id => {
+      /** @type { unknown } */
+      const data = await terra
+        .pathjoin(`tx/${id}`)
+        .get()
+        .then(s => JSON.parse(s));
+      delete data.raw_log;
+      const entry = { id, data };
+      return entry;
+    }),
+  );
+
   const bk = mkBook();
   try {
     await bk.importSlots(
       `anchorprotocol.com/history`,
       entries(anchorHistory).map(([id, data]) => ({ id, data })),
     );
+    await bk.importSlots('terra.money/tx', terraTxs);
   } finally {
     await bk.close();
   }
