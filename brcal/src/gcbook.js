@@ -98,7 +98,7 @@ function DB({ connect, process }) {
           await exec('commit', {});
           await exec('delete from gnclock', {});
         },
-        rollback: rollback,
+        rollback,
       });
 
     const locks = await exec('select hostname, pid from gnclock', [
