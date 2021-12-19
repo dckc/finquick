@@ -1,17 +1,18 @@
 -- Lunch Money
 
-select * from slots where name = 'lunchmoney.app/categories';
-
 -- delete from slots where name like 'lunchmoney.app/transactions';
+select * from slots where name = 'lunchmoney.app/categories';
+select * from slots where name = 'lunchmoney.app/assets';
+select * from slots where name = 'lunchmoney.app/plaid_accounts';
+select * from slots where name = 'lunchmoney.app/transactions';
 
 -- Home -> House
--- ISSUE: importSlots assumes records don't change. hm.
 -- delete from slots where name = 'lunchmoney.app/categories' and string_val like '%"Home"%';
 -- delete from slots where name = 'lunchmoney.app/categories' and string_val like '%"Education"%';
 
-drop table if exists lm_categories ;
 
 -- odd! views don't seem to work well.
+drop table if exists lm_categories ;
 create table lm_categories as
 select
     obj_guid guid
@@ -27,6 +28,10 @@ select
   -- , json_type(data->>"$.is_group") ty
   , data->>"$.is_group" = 'true' is_group
   , data->>"$.group_id" group_id
+  , ax.name account_name
+  , ax.guid account_guid
+  , ax.account_type
+  , ax.code
   , data
 from (
 	select id, obj_guid, name
@@ -34,7 +39,14 @@ from (
 	from slots
 	where name = 'lunchmoney.app/categories'
 ) detail
+left join (
+  select a.guid, string_val, a.code, a.name, a.account_type
+  from slots s join accounts a on a.guid = s.obj_guid
+  where s.string_val like 'lm:%'
+) ax
+on concat('lm:', data->>"$.id") = ax.string_val
 ;
+select * from lm_categories where account_guid is not null;
 
 
 -- Lunch Money Transactions
@@ -72,6 +84,7 @@ from (
 order by date
 ;
 
+drop table if exists lm_assets;
 create table lm_assets as
 select
     obj_guid guid
@@ -92,10 +105,10 @@ from (
 ) detail
 ;
 
-drop table lm_plaid_accounts;
+drop table if exists lm_plaid_accounts;
 create table lm_plaid_accounts as
 select
-    obj_guid guid
+    detail.obj_guid guid
   , data->>"$.id" id
   , data->>"$.name" name
   , data->>"$.display_name" display_name
@@ -104,6 +117,9 @@ select
   , data->>"$.subtype" subtype
   , timestamp(replace(replace(data->>"$.balance_last_update", 'T', ' '), 'Z', '')) balance_last_update
   -- mask, ...
+  , ax.guid account_guid
+  , ax.name account_name
+  , ax.account_type
   , data
 from (
 	select id, obj_guid, name
@@ -111,13 +127,21 @@ from (
 	from slots
 	where name = 'lunchmoney.app/plaid_accounts'
 ) detail
+left join (
+  select a.guid, string_val, a.name, a.account_type
+  from slots s join accounts a on a.guid = s.obj_guid
+  where s.string_val like 'lm:%'
+) ax
+on concat('lm:', data->>"$.id") = ax.string_val
 ;
 select * from lm_plaid_accounts;
 
 create or replace view lm_detail as
 select tx.date, tx.payee, tx.amount, tx.notes
-     , tx.category_id, cat.name category_name
+     , tx.category_id, cat.name category_name, cat.code, cat.account_guid cat_guid
      , coalesce(pa.id, a.id) account_id, coalesce(pa.display_name, pa.name, a.name) account_name
+     , pa.account_guid
+     , tx.id
      , tx.is_group, tx.parent_id
 from lm_tx tx
 left join lm_assets a on a.id = tx.asset_id
@@ -126,12 +150,14 @@ left join lm_categories cat on cat.id = tx.category_id
 order by tx.date
 ;
 select * from lm_detail
-where account_id = 23125
+-- where account_id = 23125 -- coinbase
+where account_id = 43212 -- Discover
+and cat_guid is not null
 ;
 
 select * from split_detail;
 
-select account_id, account_name, sum(amount) from lm_detail
+select account_id, account_name, count(*) qty, sum(amount) from lm_detail
 group by account_id, account_name
 ;
 
@@ -159,6 +185,48 @@ on lm.name = gc.name
 order by gc.hidden, gc.code
 ;
 
-select * from slots where name = 'lunchmoney.app/assets';
-select * from slots where name = 'lunchmoney.app/plaid_accounts';
-select * from slots where name = 'lunchmoney.app/transactions';
+select * from lm_detail where cat_guid is not null and account_guid is not null;
+
+-- Sync Discover between Lunch Money and GnuCash
+create or replace view tx_split as
+	select post_date, tx.guid tx_guid
+	     , sa.guid split_guid, sa.account_guid, sa.value_num / sa.value_denom amount
+	from transactions tx
+	join splits sa on sa.tx_guid = tx.guid
+	where tx.post_date >= '2021-07-01'
+;
+
+-- createLunchMoneyGnuCashSync:
+create table lm_gc_sync as
+select ga.tx_guid
+     , lm.*
+from lm_detail lm
+join tx_split ga on ga.account_guid = lm.account_guid and date(ga.post_date) = lm.date and ga.amount = -lm.amount 
+join accounts gc on gc.guid = lm.cat_guid
+where lm.date >= '2021-07-01'
+order by lm.date desc
+;
+select * from lm_gc_sync;
+
+create or replace view lm_gc_sync_match as
+select sd.*
+     , x.id, x.payee, x.notes, x.category_name, x.cat_guid
+from split_detail sd
+join lm_gc_sync x on x.tx_guid = sd.tx_guid and sd.amount = x.amount
+where sd.path = 'Imbalance-USD';
+
+-- IDEA: feed online_id back to lunchmoney? hm. are transactions from plaid accounts editable?
+
+-- previewUpdateUnCat
+select *
+from splits s
+join lm_gc_sync_match x on s.guid = x.guid
+;
+
+-- TODO: sync pay, notes
+
+-- updateUnCat:
+update splits s
+join lm_gc_sync_match x on s.guid = x.guid
+set s.account_guid = x.cat_guid
+;
