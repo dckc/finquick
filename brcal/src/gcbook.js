@@ -211,16 +211,16 @@ export function GCBook(connect, requireText) {
     async importSlots(name, records) {
       console.log('importing', records.length, name, 'slots');
       if (!records.length) return;
+      await db.exec(sql.dropSlotImport);
       await db.exec(sql.createSlotImport);
       await db.exec(sql.loadSlotImport, [
         records.map(({ id, data }) => [id, name, JSON.stringify(data)]),
       ]);
-      const affected = { affectedRows: 1 };
-      const inserted = await db.query(sql.insertSlotImport, affected);
-      console.log('inserted', inserted.affectedRows);
-      await db.query(sql.updateSlotImport, affected);
-      console.log('updated', inserted.affectedRows);
-      await db.exec(sql.dropSlotImport);
+      const changed = { changedRows: 1 };
+      const inserted = await db.query(sql.insertSlotImport, changed);
+      console.log('inserted', inserted.changedRows);
+      await db.query(sql.updateSlotImport, changed);
+      console.log('updated', inserted.changedRows);
     },
     exec: db.exec,
     close: db.close,
