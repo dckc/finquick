@@ -4,6 +4,7 @@
     "sync": "node -r esm src/main.js --sync",
     "sync:etherscan": "node -r esm src/etherscan.js",
     "sync:uniswap": "node -r esm src/unisync.js",
+    "build:coinbase": "node -r esm src/coinbaseCard.js --csv $CB $>$CB-lm.csv",
     "lint:types": "tsc -p jsconfig.json",
     "build": "exit 0",
     "test": "exit 1",
