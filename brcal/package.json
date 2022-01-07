@@ -8,6 +8,7 @@
     "build:coinbase": "node -r esm src/coinbaseCard.js --csv $CB $>$CB-lm.csv",
     "lint:types": "tsc -p jsconfig.json",
     "build": "exit 0",
+    "test:grok-balance-sheet": "node src/grokBalanceSheet.js <test/balance-sheet.txt",
     "test": "exit 1",
     "pretty-fix": "prettier --write '**/*.js'",
     "pretty-check": "prettier --check '**/*.js'",
