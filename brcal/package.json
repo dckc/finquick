@@ -18,6 +18,7 @@
     "lint:eslint": "eslint '**/*.js'"
   },
   "dependencies": {
+    "better-sqlite3": "^7.4.6",
     "csv-parse": "^4.16.0",
     "esm": "^3.2.25",
     "fast-json-patch": "^3.0.0-1",
