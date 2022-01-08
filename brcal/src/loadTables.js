@@ -19,15 +19,19 @@ const main = async (args, { sqlite3, readFile }) => {
   for (const [name, rows] of entries(tables)) {
     console.info({ name, rows: rows.length });
     if (rows.length === 0) continue;
+
     const columns = keys(rows[0]);
     const bindings = columns.map(c => `@${c}`).join(', ');
-    db.prepare(
-      `create table ${name}_load as select * from ${name} where 1=0`,
-    ).run();
     const dml = `insert into ${name}_load (${columns.join(
       ', ',
     )}) values (${bindings})`;
     console.log(dml);
+
+    db.prepare(`drop table if exists ${name}_load`).run();
+    db.prepare(
+      `create table ${name}_load as select * from ${name} where 1=0`,
+    ).run();
+
     const insert = db.prepare(dml);
     for (const row of rows) insert.run(row);
   }
