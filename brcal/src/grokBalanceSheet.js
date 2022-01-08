@@ -1,14 +1,19 @@
 // @ts-check
+/* global Buffer */
+
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-continue */
-/* global Buffer */
-const { fromEntries } = Object;
+
+const crypto = require('crypto');
+
+const { entries, fromEntries, values } = Object;
+
 /** @param { number } n */
 const range = n => [...Array(n).keys()];
 const monthByName = fromEntries(
   range(12).map(m => [
     new Date(2000, m, 1)
-      .toDateString()
+      .toDateString() // Assumes US locale? implementation-dependent?
       .slice(4, 7)
       .toUpperCase(),
     m,
@@ -43,14 +48,43 @@ async function read(stream) {
 }
 
 /**
- * @param {string[]} lines
- * @yields {Record<string, unknown>}
+ * @typedef {typeof example.heading} Heading
+ * @typedef {typeof example.detail} Detail
  */
-function* reportItems(lines) {
+// eslint-disable-next-line no-unused-vars
+const example = {
+  heading: {
+    org: 'RChain Cooperative',
+    report: 'Balance Sheet',
+    reportDate: '2021-06-30T05:00:00.000Z',
+  },
+  detail: {
+    acctType: 'ASSETS',
+    name: '1010 BECU Checking',
+    amt: -104843.93,
+    period: {
+      start: [2021, 1],
+      end: [2021, 3],
+    },
+    acctPath: ['Current Assets', 'Bank Accounts'],
+  },
+};
+
+/**
+ * @param {string[]} lines
+ * @returns {Heading}
+ */
+function getHeading(lines) {
   const [org, report, asOf] = lines.slice(0, 3).map(l => l.trim());
   const reportDate = parseDate(asOf.replace('As of ', ''));
-  yield { org, report, reportDate };
+  return { org, report, reportDate: JSON.stringify(reportDate) };
+}
 
+/**
+ * @param {string[]} lines
+ * @yields {Detail}
+ */
+function* reportItems(lines) {
   let state = 'date-cols';
   let acctType;
   let periods;
@@ -58,7 +92,7 @@ function* reportItems(lines) {
   const acctPath = [];
   let detail;
   const n = txt => parseInt(txt, 10);
-  for (const line of lines.slice(3)) {
+  for (const line of lines) {
     if (line.trim() === '') continue;
     switch (state) {
       case 'date-cols': {
@@ -112,6 +146,7 @@ function* reportItems(lines) {
           const groups = the(detail.groups);
           // console.error({ acctPath, ...groups });
           // TODO: account codes here too
+          if (!acctType) throw TypeError();
           if (the(detail.groups).amt1)
             yield {
               acctType,
@@ -140,14 +175,106 @@ function* reportItems(lines) {
   }
 }
 
+const md5 = txt =>
+  crypto
+    .createHash('md5')
+    .update(txt)
+    .digest('hex');
+
+/**
+ * @param { T[] } xs
+ * @returns {Array<[T, T]>}
+ * @template T
+ */
+const pairs = xs =>
+  xs.slice(1).reduce(
+    ({ acc, prev }, cur) => ({
+      acc: [...acc, /** @type {[T, T]} */ ([prev, cur])],
+      prev: cur,
+    }),
+    { acc: [], prev: xs[0] },
+  ).acc;
+
+/**
+ * @param {[K, V][]} kvs
+ * @template K
+ * @template V
+ * @returns {Record<K, V[]>}
+ */
+const collectByKey = kvs => {
+  const keys = [...new Map(kvs).keys()];
+  return fromEntries(
+    keys.map(k => [k, kvs.filter(([x, _v]) => x === k).map(([_x, v]) => v)]),
+  );
+};
+
+/** @param { Detail[] } details */
+const getAccounts = details => {
+  // de-duplicate
+  const byName = fromEntries(
+    details.map(({ acctType, name, acctPath }) => [
+      name,
+      { acctType, name, acctPath },
+    ]),
+  );
+  const byType = collectByKey(
+    values(byName).map(a => /** @type { [string, typeof a] } */ ([
+      a.acctType,
+      a,
+    ])),
+  );
+
+  const accounts = entries(byType)
+    .map(([acctType, accts]) => {
+      const childOf = fromEntries(
+        accts.map(({ name, acctPath }) => pairs([name, ...acctPath])).flat(),
+      );
+      const children = fromEntries(
+        entries(childOf).map(([child, parent]) => [
+          child,
+          {
+            acctType,
+            name: child,
+            parent,
+          },
+        ]),
+      );
+      const parents = fromEntries(
+        entries(childOf).map(([_child, parent]) => [
+          parent,
+          {
+            acctType,
+            name: parent,
+            parent: undefined,
+          },
+        ]),
+      );
+
+      return values({ ...parents, ...children });
+    })
+    .flat();
+
+  return accounts.map(({ acctType, name, parent }) => {
+    const m = name.match(/(?<acct>(?<code>\d+)?\s*(?<name>.*))/);
+    if (!m) throw TypeError();
+    const { code } = the(m.groups);
+    return {
+      guid: md5([name, parent].join('\t')),
+      name,
+      account_type: acctType === 'ASSETS' ? 'ASSET' : 'LIABILITY',
+      code,
+    };
+  });
+};
+
 const main = async ({ stdin, stdout }) => {
   const txt = await read(stdin);
   const lines = txt.split('\n');
 
-  const items = reportItems(lines);
-  const { value: heading } = items.next();
-  const detail = [...items];
-  stdout.write(JSON.stringify({ heading, detail }, null, 2));
+  const heading = getHeading(lines);
+  const details = [...reportItems(lines.slice(3))];
+  const data = { heading, details, accounts: getAccounts(details) };
+  stdout.write(JSON.stringify(data, null, 2));
   stdout.write('\n');
 };
 
