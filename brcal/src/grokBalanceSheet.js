@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 // @ts-check
 /* global Buffer */
 
@@ -77,7 +78,7 @@ const example = {
 function getHeading(lines) {
   const [org, report, asOf] = lines.slice(0, 3).map(l => l.trim());
   const reportDate = parseDate(asOf.replace('As of ', ''));
-  return { org, report, reportDate: JSON.stringify(reportDate) };
+  return { org, report, reportDate: JSON.stringify(reportDate).slice(1, 11) };
 }
 
 /**
@@ -267,13 +268,81 @@ const getAccounts = details => {
   });
 };
 
+const trunc = ymd => ymd.slice(0, 'yyyy-mm'.length);
+
+/**
+ *
+ * @param {Detail[]} details
+ * @param {{ name: string, guid: string}[]} accounts
+ * @param {string} description
+ * @param {string} openingGuid
+ */
+const getInitialBalances = (details, accounts, description, openingGuid) => {
+  const acctGuid = fromEntries(accounts.map(({ name, guid }) => [name, guid]));
+  const transactions = details.map(
+    ({
+      period: {
+        end: [y, m],
+      },
+      name,
+      amt,
+    }) => {
+      const tx_guid = md5(JSON.stringify({ name, month: [y, m], amt }));
+      const tx = {
+        guid: tx_guid,
+        post_date: new Date(y, m - 1, 15).toISOString().slice(0, 10),
+        description,
+        splits: [
+          {
+            guid: md5(`${tx_guid}+`),
+            tx_guid,
+            account_guid: acctGuid[name],
+            value_num: amt * 100,
+            value_denom: 100,
+          },
+          {
+            guid: md5(`${tx_guid}-`),
+            tx_guid,
+            account_guid: openingGuid,
+            value_num: -amt * 100,
+            value_denom: 100,
+          },
+        ],
+      };
+      return tx;
+    },
+  );
+  return {
+    splits: transactions.map(({ splits }) => splits).flat(),
+    transactions: transactions.map(({ splits: _, ...tx }) => tx),
+  };
+};
+
+// gnucash picked this in one case
+const openingBalances = 'a509231ddc6043df93e7f6e231fb46e0';
+
 const main = async ({ stdin, stdout }) => {
   const txt = await read(stdin);
   const lines = txt.split('\n');
 
   const heading = getHeading(lines);
   const details = [...reportItems(lines.slice(3))];
-  const data = { heading, details, accounts: getAccounts(details) };
+  const accounts = getAccounts(details);
+
+  const current = details.filter(
+    ({ period: { end } }) =>
+      trunc(new Date(end[0], end[1] - 1, 1).toISOString()) ===
+      trunc(heading.reportDate),
+  );
+
+  const { transactions, splits } = getInitialBalances(
+    current,
+    accounts,
+    `${heading.report} ${trunc(heading.reportDate)}`,
+    openingBalances,
+  );
+  const tables = { accounts, transactions, splits };
+  const data = { heading, details, tables };
   stdout.write(JSON.stringify(data, null, 2));
   stdout.write('\n');
 };
