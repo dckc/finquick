@@ -31,7 +31,7 @@ const parseDate = txt => {
 };
 
 /** @param { string } txt */
-const parseAmt = txt => parseFloat(txt.replace(',', ''));
+const parseAmt = txt => parseFloat(txt.replace(/,/g, ''));
 
 /**
  * @param {T | undefined} x
@@ -228,7 +228,9 @@ const getAccounts = details => {
   const accounts = entries(byType)
     .map(([acctType, accts]) => {
       const childOf = fromEntries(
-        accts.map(({ name, acctPath }) => pairs([name, ...acctPath])).flat(),
+        accts
+          .map(({ name, acctPath }) => pairs([name, ...acctPath.reverse()]))
+          .flat(),
       );
       const children = fromEntries(
         entries(childOf).map(([child, parent]) => [
@@ -255,7 +257,7 @@ const getAccounts = details => {
     })
     .flat();
 
-  return accounts.map(({ acctType, name, parent }) => {
+  const gcAccts = accounts.map(({ acctType, name, parent }) => {
     const m = name.match(/(?<acct>(?<code>\d+)?\s*(?<name>.*))/);
     if (!m) throw TypeError();
     const { code } = the(m.groups);
@@ -264,8 +266,14 @@ const getAccounts = details => {
       name,
       account_type: acctType === 'ASSETS' ? 'ASSET' : 'LIABILITY',
       code,
+      parent,
     };
   });
+  const acctGuid = fromEntries(gcAccts.map(({ name, guid }) => [name, guid]));
+  return gcAccts.map(({ parent, ...a }) => ({
+    ...a,
+    parent_guid: parent ? acctGuid[parent] : null,
+  }));
 };
 
 const trunc = ymd => ymd.slice(0, 'yyyy-mm'.length);
@@ -286,8 +294,10 @@ const getInitialBalances = (details, accounts, description, openingGuid) => {
       },
       name,
       amt,
+      acctType,
     }) => {
       const tx_guid = md5(JSON.stringify({ name, month: [y, m], amt }));
+      const sign = acctType === 'ASSETS' ? 1 : -1;
       const tx = {
         guid: tx_guid,
         post_date: new Date(y, m - 1, 15).toISOString().slice(0, 10),
@@ -297,14 +307,14 @@ const getInitialBalances = (details, accounts, description, openingGuid) => {
             guid: md5(`${tx_guid}+`),
             tx_guid,
             account_guid: acctGuid[name],
-            value_num: amt * 100,
+            value_num: sign * amt * 100,
             value_denom: 100,
           },
           {
             guid: md5(`${tx_guid}-`),
             tx_guid,
             account_guid: openingGuid,
-            value_num: -amt * 100,
+            value_num: -sign * amt * 100,
             value_denom: 100,
           },
         ],
