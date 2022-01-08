@@ -1,26 +1,51 @@
+// @ts-check
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-continue */
 /* global Buffer */
 const { fromEntries } = Object;
+/** @param { number } n */
 const range = n => [...Array(n).keys()];
 const monthByName = fromEntries(
-  range(12).map(m => [new Date(2000, m, 1).toDateString().slice(4, 7), m]),
+  range(12).map(m => [
+    new Date(2000, m, 1)
+      .toDateString()
+      .slice(4, 7)
+      .toUpperCase(),
+    m,
+  ]),
 );
 
+/** @param { string } txt */
 const parseDate = txt => {
   const parts = txt.match(/(\w+) (\d+), (\d+)/);
   if (!parts) throw RangeError(txt);
   const [_all, monthName, day, yr] = parts;
-  const month = monthByName[monthName.slice(0, 3)];
+  const month = monthByName[monthName.slice(0, 3).toUpperCase()];
   return new Date(parseInt(yr, 10), month, parseInt(day, 10));
 };
 
+/** @param { string } txt */
+const parseAmt = txt => parseFloat(txt.replace(',', ''));
+
+/**
+ * @param {T | undefined} x
+ * @returns T
+ * @template T
+ */
+const the = x => {
+  if (!x) throw TypeError();
+  return x;
+};
 async function read(stream) {
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/**
+ * @param {string[]} lines
+ * @yields {Record<string, unknown>}
+ */
 function* reportItems(lines) {
   const [org, report, asOf] = lines.slice(0, 3).map(l => l.trim());
   const reportDate = parseDate(asOf.replace('As of ', ''));
@@ -28,8 +53,11 @@ function* reportItems(lines) {
 
   let state = 'date-cols';
   let acctType;
+  let periods;
+  /** @type { string[] } */
   const acctPath = [];
   let detail;
+  const n = txt => parseInt(txt, 10);
   for (const line of lines.slice(3)) {
     if (line.trim() === '') continue;
     switch (state) {
@@ -39,11 +67,17 @@ function* reportItems(lines) {
         );
         if (!parts) break;
         const [_m, ms1, me1, yr1, ms2, me2, yr2] = parts;
-        const dateCols = {
-          p1: { year: yr1, monthStart: ms1, monthEnd: me1 },
-          p2: { year: yr2, monthStart: ms2, monthEnd: me2 },
+        // TODO: end of month = start of next month - 1?
+        periods = {
+          p1: {
+            start: [n(yr1), monthByName[ms1] + 1],
+            end: [n(yr1), monthByName[me1] + 1],
+          },
+          p2: {
+            start: [n(yr2), monthByName[ms2] + 1],
+            end: [n(yr2), monthByName[me2] + 1],
+          },
         };
-        yield { dateCols };
         state = 'detail';
         break;
       }
@@ -53,32 +87,46 @@ function* reportItems(lines) {
             /^\s*(TOTAL )?(?<type>ASSETS|LIABILITIES AND EQUITY)/,
           ))
         ) {
-          acctType = detail.groups.type;
-          if (!detail[1]) yield detail.groups;
+          acctType = the(detail.groups).type;
         } else if (
           (detail = line.match(/\s*(?<basis>Accrual) Basis (?<dateTime>.*)/))
         ) {
-          yield detail.groups;
+          // TODO? yield detail.groups;
           state = 'date-cols';
         } else if (
           (detail = line.match(
             /^\s*(?<acct>(?<code>\d+)?\s*(?<name>(?: \S|\S)+))\s*$/,
           ))
         ) {
-          acctPath.push(detail.groups);
-          yield { acctType, acctPath };
+          acctPath.push(the(detail.groups).acct);
         } else if ((detail = line.match(/Total (?<acct>(?: \S|\S)+)/))) {
-          const [{ acct: old }] = acctPath.slice(-1);
-          if (old === detail.groups.acct) {
+          const [old] = acctPath.slice(-1);
+          if (old === the(detail.groups).acct) {
             acctPath.pop();
           }
-          yield { acctPath };
         } else if (
           (detail = line.match(
             /^\s*(?<name>(?: \S|\S)+) {2}\s+(?<amt1>\S+)? \s+(?<amt2>\S+)\s*$/,
           ))
         ) {
-          yield detail.groups;
+          const groups = the(detail.groups);
+          // TODO: account codes here too
+          if (the(detail.groups).amt1)
+            yield {
+              acctType,
+              name: groups.name,
+              // TODO: rationals?
+              amt: parseAmt(the(detail.groups).amt1),
+              period: the(periods).p1,
+              acctPath,
+            };
+          yield {
+            acctType,
+            name: groups.name,
+            amt: parseAmt(groups.amt2),
+            period: the(periods).p2,
+            acctPath,
+          };
         } else {
           console.error({ line });
           throw Error(`not impl`);
@@ -91,16 +139,18 @@ function* reportItems(lines) {
   }
 }
 
-const main = async ({ stdin }) => {
+const main = async ({ stdin, stdout }) => {
   const txt = await read(stdin);
   const lines = txt.split('\n');
 
-  for (const item of reportItems(lines)) {
-    console.log(item);
-  }
+  const items = reportItems(lines);
+  const { value: heading } = items.next();
+  const detail = [...items];
+  stdout.write(JSON.stringify({ heading, detail }, null, 2));
+  stdout.write('\n');
 };
 
 /* global require, module, process */
 if (require.main === module) {
-  main({ stdin: process.stdin }).catch(console.error);
+  main({ stdin: process.stdin, stdout: process.stdout }).catch(console.error);
 }
