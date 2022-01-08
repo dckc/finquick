@@ -110,6 +110,7 @@ function* reportItems(lines) {
           ))
         ) {
           const groups = the(detail.groups);
+          // console.error({ acctPath, ...groups });
           // TODO: account codes here too
           if (the(detail.groups).amt1)
             yield {
@@ -118,14 +119,14 @@ function* reportItems(lines) {
               // TODO: rationals?
               amt: parseAmt(the(detail.groups).amt1),
               period: the(periods).p1,
-              acctPath,
+              acctPath: [...acctPath],
             };
           yield {
             acctType,
             name: groups.name,
             amt: parseAmt(groups.amt2),
             period: the(periods).p2,
-            acctPath,
+            acctPath: [...acctPath],
           };
         } else {
           console.error({ line });
