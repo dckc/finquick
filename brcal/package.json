@@ -18,7 +18,7 @@
     "csv-parse": "^4.16.0",
     "esm": "^3.2.25",
     "fast-json-patch": "^3.0.0-1",
-    "follow-redirects": "^1.13.0",
+    "follow-redirects": "^1.14.7",
     "ical": "^0.8.0",
     "mysql": "^2.18.1",
     "require-text": "^0.0.1",
