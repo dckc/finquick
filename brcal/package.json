@@ -4,8 +4,11 @@
     "sync": "node -r esm src/main.js --sync",
     "sync:etherscan": "node -r esm src/etherscan.js",
     "sync:uniswap": "node -r esm src/unisync.js",
+    "sync:lunchmoney": "node -r esm src/lmSync.js",
+    "build:coinbase": "node -r esm src/coinbaseCard.js --csv $CB $>$CB-lm.csv",
     "lint:types": "tsc -p jsconfig.json",
     "build": "exit 0",
+    "test:grok-balance-sheet": "node src/grokBalanceSheet.js <test/balance-sheet.txt >test/balance-sheet.json",
     "test": "exit 1",
     "pretty-fix": "prettier --write '**/*.js'",
     "pretty-check": "prettier --check '**/*.js'",
@@ -15,6 +18,7 @@
     "lint:eslint": "eslint '**/*.js'"
   },
   "dependencies": {
+    "better-sqlite3": "^7.4.6",
     "csv-parse": "^4.16.0",
     "esm": "^3.2.25",
     "fast-json-patch": "^3.0.0-1",

@@ -29,7 +29,7 @@ export function WebApp(url, { https }, headers) {
   return freeze({
     url,
     pathjoin(/** @type { string } */ ref) {
-      return WebApp(`${new URL(ref, url)}`, { https });
+      return WebApp(`${new URL(ref, url)}`, { https }, headers);
     },
     withHeaders(/** @type { Headers } */ h) {
       return WebApp(url, { https }, { ...headers, ...h });

@@ -15,7 +15,7 @@ where tx_guid = ? and account_guid = (select guid from accounts where name = 'Im
 
 
 -- createSlotImport:
-create temporary table slot_import as
+create table slot_import as
 select string_val id, name, string_val from slots where 1 = 0;
 
 -- loadSlotImport:
@@ -37,7 +37,7 @@ where not exists (
 update slots sl
 join slot_import si on md5(si.id) = sl.obj_guid and si.name = sl.name
 set sl.string_val = si.string_val
-where sl.string_val != sl.string_val;
+;
 
 -- dropSlotImport:
-drop table slot_import;
+drop table if exists slot_import;
