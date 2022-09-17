@@ -1,5 +1,6 @@
 /* eslint-disable no-continue */
 // @ts-check
+const { finished } = require('stream/promises');
 const csv = require('csv-parse');
 
 const { entries, fromEntries, keys } = Object;
@@ -28,7 +29,7 @@ const loadBalanceSheet = async (db, tables) => {
 };
 
 const USAGE = `Usage:
- loadTables --tsv schema.csv
+ loadTables --tsv schema.csv dataDir dest.db
 
 or load output of grokBalanceSheet.js:
  loadTables src.json dest.db
@@ -43,7 +44,7 @@ const asRecords = (rows) => {
 };
 
 const insertDML = (columns, name) => {
-  const bindings = columns.map((c) => `@${c}`).join(', ');
+  const bindings = columns.map((c) => `?`).join(', ');
   const dml = `insert into ${name}_load (${columns.join(
     ', ',
   )}) values (${bindings})`;
@@ -76,11 +77,13 @@ const logged = (x) => {
 
 /**
  *
+ * @param {ReturnType<typeof import('better-sqlite3')>} db
  * @param {Record<string, string>[]} schema
  * @param {(name: string) => import('fs').ReadStream} readData
  * @param {*} [opts]
  */
 const loadDataFiles = async (
+  db,
   schema,
   readData,
   opts = { delimiter: '\t', relax_column_count: true, quote: false },
@@ -93,17 +96,40 @@ const loadDataFiles = async (
     }),
   );
   const tableInfo = [...groupBy(columnInfo, (c) => c.TABLE_NAME)];
-  tableInfo.forEach(([name, columns]) => {
+  db.pragma('journal_mode = WAL');
+  for (const [name, columns] of tableInfo) {
     // console.log({ name });
-    const insert = insertDML(
+    const dml = insertDML(
       columns.map((c) => c.COLUMN_NAME),
       name,
     );
+    console.warn(dml);
+
+    db.prepare(`drop table if exists ${name}_load`).run();
+    db.prepare(
+      `create table ${name}_load as select * from ${name} where 1=0`,
+    ).run();
+
+    const insert = db.prepare(dml);
+
     const rs = readData(name);
-    rs.pipe(csv(opts)).on('data', (row) => {
-      console.log({ insert, row });
+    let qty = 0;
+    const p = csv.parse(opts);
+    p.on('data', (row) => {
+      // console.debug({ dml, row });
+      const nulls = row.map((v) => (v === '\\N' ? null : v));
+      try {
+        insert.run(nulls);
+      } catch (e) {
+        console.error({ nulls }, e);
+        throw e;
+      }
+      qty += 1;
     });
-  });
+    rs.pipe(p);
+    await finished(p);
+    console.warn({ name, qty });
+  }
 };
 
 /**
@@ -120,18 +146,23 @@ const main = async (
 ) => {
   if (args.includes('--tsv')) {
     args.shift();
-    const [schemaFileName, dataDir] = args;
-    if (!schemaFileName || !dataDir) throw Error(USAGE);
+    const [schemaFileName, dataDir, dest] = args;
+    if (!schemaFileName || !dataDir || !dest) throw Error(USAGE);
     const text = await readFile(schemaFileName, 'utf-8');
     /** @type { Record<string, string>[] } */
     const schema = await new Promise((resolve, reject) =>
-      csv(text, { columns: true }, (err, records) =>
+      csv.parse(text, { columns: true }, (err, records) =>
         err ? reject(err) : resolve(records),
       ),
     );
-    return loadDataFiles(schema, (name) =>
-      createReadStream(pathJoin(dataDir, `${name}.txt`)),
-    );
+    console.warn({ dest });
+    const db = sqlite3(dest, {});
+
+    return loadDataFiles(db, schema, (name) => {
+      const path = pathJoin(dataDir, `${name}.txt`);
+      console.warn({ name, path });
+      return createReadStream(path);
+    });
   }
 
   const [src, dest] = args;
