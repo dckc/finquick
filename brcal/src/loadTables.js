@@ -4,24 +4,16 @@
 const { entries, keys } = Object;
 
 /**
- * @param {string[]} args
- * @param {Object} io
- * @param {typeof import('better-sqlite3')} io.sqlite3
- * @param {typeof import('fs/promises').readFile} io.readFile
+ * @param {ReturnType<typeof import('better-sqlite3')>} db
+ * @param {Record<string, Record<string, string>[]>} tables see grokBalanceSheet.js
  */
-const main = async (args, { sqlite3, readFile }) => {
-  const [src, dest] = args;
-  if (!src || !dest) throw Error(`usage: loadTables src.json dest.db`);
-
-  const txt = await readFile(src, 'utf-8');
-  const { tables } = JSON.parse(txt);
-  const db = sqlite3(dest, {});
+const loadBalanceSheet = async (db, tables) => {
   for (const [name, rows] of entries(tables)) {
     console.info({ name, rows: rows.length });
     if (rows.length === 0) continue;
 
     const columns = keys(rows[0]);
-    const bindings = columns.map(c => `@${c}`).join(', ');
+    const bindings = columns.map((c) => `@${c}`).join(', ');
     const dml = `insert into ${name}_load (${columns.join(
       ', ',
     )}) values (${bindings})`;
@@ -35,6 +27,22 @@ const main = async (args, { sqlite3, readFile }) => {
     const insert = db.prepare(dml);
     for (const row of rows) insert.run(row);
   }
+};
+
+/**
+ * @param {string[]} args
+ * @param {Object} io
+ * @param {typeof import('better-sqlite3')} io.sqlite3
+ * @param {typeof import('fs/promises').readFile} io.readFile
+ */
+const main = async (args, { sqlite3, readFile }) => {
+  const [src, dest] = args;
+  if (!src || !dest) throw Error(`usage: loadTables src.json dest.db`);
+
+  const txt = await readFile(src, 'utf-8');
+  const { tables } = JSON.parse(txt);
+  const db = sqlite3(dest, {});
+  await loadBalanceSheet(db, tables);
 };
 
 /* global require, module, process */
