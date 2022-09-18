@@ -1,6 +1,6 @@
 /* eslint-disable no-continue */
 // @ts-check
-const { finished } = require('stream/promises');
+const { pipeline } = require('stream');
 const csv = require('csv-parse');
 
 const { entries, fromEntries, keys } = Object;
@@ -76,6 +76,41 @@ const logged = (x) => {
 };
 
 /**
+ * TODO: refactor as readLines, map JSON.parse
+ *
+ * @param {AsyncIterable<Buffer>} data
+ * @yields { unknown }
+ */
+async function* readTSV(data) {
+  let buf = '';
+  let line = '';
+  for await (const chunk of data) {
+    buf += chunk;
+    for (let pos = buf.indexOf('\n'); pos >= 0; pos = buf.indexOf('\n')) {
+      line += buf.slice(0, pos);
+      if (line.endsWith('\\')) {
+        line = line.slice(0, line.length - 1);
+      } else {
+        const raw = [];
+        while (line.length > 0) {
+          const parts = line.match(/^\t?([^\\\t]|\\[\s\S])*/);
+          if (!parts) throw RangeError(line);
+          const [part] = parts;
+          raw.push(part.replace(/^\t/, ''));
+          line = line.slice(part.length);
+        }
+        const row = raw.map((v) =>
+          v === '\\N' ? null : v.replace(/\\(.)/g, '$1'),
+        );
+        yield row;
+        line = '';
+      }
+      buf = buf.slice(pos + 1);
+    }
+  }
+}
+
+/**
  *
  * @param {ReturnType<typeof import('better-sqlite3')>} db
  * @param {Record<string, string>[]} schema
@@ -114,21 +149,20 @@ const loadDataFiles = async (
 
     const rs = readData(name);
     let qty = 0;
-    const p = csv.parse(opts);
-    p.on('data', (row) => {
+    for await (const row of readTSV(rs)) {
       // console.debug({ dml, row });
-      const nulls = row.map((v) => (v === '\\N' ? null : v));
       try {
-        insert.run(nulls);
+        insert.run(row);
       } catch (e) {
-        console.error({ nulls }, e);
+        console.error({ row }, e);
         throw e;
       }
       qty += 1;
-    });
-    rs.pipe(p);
-    await finished(p);
+    }
     console.warn({ name, qty });
+    db.prepare(`delete from ${name}`).run();
+    db.prepare(`insert into ${name} select * from ${name}_load`).run();
+    db.prepare(`drop table ${name}_load`).run();
   }
 };
 
@@ -160,7 +194,7 @@ const main = async (
 
     return loadDataFiles(db, schema, (name) => {
       const path = pathJoin(dataDir, `${name}.txt`);
-      console.warn({ name, path });
+      // console.debug({ name, path });
       return createReadStream(path);
     });
   }
