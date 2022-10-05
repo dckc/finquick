@@ -13,6 +13,7 @@ select * from slots where name = 'lunchmoney.app/transactions';
 
 -- odd! views don't seem to work well.
 drop table if exists lm_categories ;
+drop view if exists lm_categories ;
 create table lm_categories as
 select
     obj_guid guid
@@ -23,8 +24,8 @@ select
   , data->>"$.is_income" = 'true' as is_income
   -- exclude_from_budget
   -- exclude_from_totals
-  , timestamp(replace(replace(data->>"$.updated_at", 'T', ' '), 'Z', '')) updated_at
-  , timestamp(replace(replace(data->>"$.created_at", 'T', ' '), 'Z', '')) created_at
+  , replace(replace(data->>"$.updated_at", 'T', ' '), 'Z', '') updated_at
+  , replace(replace(data->>"$.created_at", 'T', ' '), 'Z', '') created_at
   -- , json_type(data->>"$.is_group") ty
   , data->>"$.is_group" = 'true' is_group
   , data->>"$.group_id" group_id
@@ -35,16 +36,19 @@ select
   , data
 from (
 	select id, obj_guid, name
-	     , case when JSON_VALID(string_val) = 1 then cast(string_val as json) end data
+	     , string_val as data
 	from slots
 	where name = 'lunchmoney.app/categories'
+	and json_valid(string_val)
 ) detail
 left join (
   select a.guid, string_val, a.code, a.name, a.account_type
+       , s.name slot_name
+       , replace(string_val, 'lm:', '') + 0 lm
   from slots s join accounts a on a.guid = s.obj_guid
   where s.string_val like 'lm:%'
 ) ax
-on concat('lm:', data->>"$.id") = ax.string_val
+on data->>"$.id" = ax.lm
 ;
 select * from lm_categories where account_guid is not null;
 
@@ -76,8 +80,8 @@ select
   , data->>"$.plaid_account_id" plaid_account_id
   -- , data
 from (
-	select id, obj_guid, name
-	     , case when JSON_VALID(string_val) = 1 then cast(string_val as json) end data
+	select id, obj_guid, name, JSON_VALID(string_val) json_ok
+	     , string_val as data
 	from slots
 	where name = 'lunchmoney.app/transactions'
 ) detail
@@ -94,12 +98,12 @@ select
   -- currency, closed_on
   , data->>"$.type_name" type_name
   -- created_at
-  , timestamp(replace(replace(data->>"$.balance_as_of", 'T', ' '), 'Z', '')) balance_as_of
+  , replace(replace(data->>"$.balance_as_of", 'T', ' '), 'Z', '') balance_as_of
   -- institution_name
   , data
 from (
-	select id, obj_guid, name
-	     , case when JSON_VALID(string_val) = 1 then cast(string_val as json) end data
+	select id, obj_guid, name, JSON_VALID(string_val) json_ok
+	     , string_val as data
 	from slots
 	where name = 'lunchmoney.app/assets'
 ) detail
@@ -115,28 +119,29 @@ select
   , data->>"$.balance" + 0 balance
   , data->>"$.type" type
   , data->>"$.subtype" subtype
-  , timestamp(replace(replace(data->>"$.balance_last_update", 'T', ' '), 'Z', '')) balance_last_update
+  , replace(replace(data->>"$.balance_last_update", 'T', ' '), 'Z', '') balance_last_update
   -- mask, ...
   , ax.guid account_guid
   , ax.name account_name
   , ax.account_type
   , data
 from (
-	select id, obj_guid, name
-	     , case when JSON_VALID(string_val) = 1 then cast(string_val as json) end data
+	select id, obj_guid, name, JSON_VALID(string_val) json_ok
+	     , string_val as data
 	from slots
 	where name = 'lunchmoney.app/plaid_accounts'
 ) detail
 left join (
-  select a.guid, string_val, a.name, a.account_type
+  select a.guid, string_val, a.name, a.account_type, cast(replace(string_val, 'lm:', '') as int) lm
   from slots s join accounts a on a.guid = s.obj_guid
   where s.string_val like 'lm:%'
 ) ax
-on concat('lm:', data->>"$.id") = ax.string_val
+on data->>"$.id" = ax.lm
 ;
 select * from lm_plaid_accounts;
 
-create or replace view lm_detail as
+drop view if exists lm_detail;
+create view lm_detail as
 select tx.date, tx.payee, tx.amount, tx.notes
      , tx.category_id, cat.name category_name, cat.code, cat.account_guid cat_guid
      , coalesce(pa.id, a.id) account_id, coalesce(pa.display_name, pa.name, a.name) account_name
@@ -188,7 +193,7 @@ order by gc.hidden, gc.code
 select * from lm_detail where cat_guid is not null and account_guid is not null;
 
 -- Sync Discover between Lunch Money and GnuCash
-create or replace view tx_split as
+create view tx_split as
 	select post_date, tx.guid tx_guid
 	     , sa.guid split_guid, sa.account_guid, sa.value_num / sa.value_denom amount
 	from transactions tx
@@ -208,12 +213,15 @@ order by lm.date desc
 ;
 select * from lm_gc_sync;
 
-create or replace view lm_gc_sync_match as
+drop view if exists lm_gc_sync_match;
+create view lm_gc_sync_match as
 select sd.*
+     , x.amount, cast(sd.amount as number) = x.amount amt_same
      , x.id, x.payee, x.notes, x.category_name, x.cat_guid
 from split_detail sd
-join lm_gc_sync x on x.tx_guid = sd.tx_guid and sd.amount = x.amount
+join lm_gc_sync x on x.tx_guid = sd.tx_guid and cast(sd.amount as number) = x.amount
 where sd.path = 'Imbalance-USD';
+select * from lm_gc_sync_match ;
 
 -- IDEA: feed online_id back to lunchmoney? hm. are transactions from plaid accounts editable?
 
