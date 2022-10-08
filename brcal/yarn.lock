@@ -71,6 +71,13 @@
     "@nodelib/fs.scandir" "2.1.4"
     fastq "^1.6.0"
 
+"@types/better-sqlite3@^7.6.1":
+  version "7.6.1"
+  resolved "https://registry.yarnpkg.com/@types/better-sqlite3/-/better-sqlite3-7.6.1.tgz#4fc99e4cf490aba92f270d396a67019b99717dbb"
+  integrity sha512-2MuzBUSwAjY8GoT04vcLUojHmuuOCEFboESZfx6u9gpnHym5mYBMhCKGoe+R+yXkiho1xg348LRH8x27cJLHjw==
+  dependencies:
+    "@types/node" "*"
+
 "@types/follow-redirects@^1.13.0":
   version "1.13.0"
   resolved "https://registry.yarnpkg.com/@types/follow-redirects/-/follow-redirects-1.13.0.tgz#82d3767050314ddb44606576e6bf4fcfee5f4d05"
