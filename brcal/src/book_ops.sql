@@ -20,7 +20,7 @@ select string_val id, name, string_val from slots where 1 = 0;
 
 -- loadSlotImport:
 insert into slot_import (id, name, string_val)
-values ?;
+values (?, ?, ?);
 
 -- insertSlotImport:
 insert into slots (obj_guid, name, slot_type, string_val)
@@ -34,9 +34,14 @@ where not exists (
 );
 
 -- updateSlotImport:
-update slots sl
-join slot_import si on md5(si.id) = sl.obj_guid and si.name = sl.name
-set sl.string_val = si.string_val
+update slots
+set string_val = imp.string_val
+from (
+  select sl.id, si.string_val
+  from slots sl
+  join slot_import si on md5(si.id) = sl.obj_guid and si.name = sl.name
+) imp
+where slots.id = imp.id
 ;
 
 -- dropSlotImport:

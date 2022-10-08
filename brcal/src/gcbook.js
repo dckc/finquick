@@ -1,4 +1,5 @@
 // @ts-check
+import { createHash } from 'crypto';
 import { asPromise } from './asPromise';
 import { check } from './check';
 
@@ -36,45 +37,14 @@ function sqlStatements(text) {
 
 /**
  * @param {{
- *   connect: () => Promise<Connection>
+ *   exec: <T>(dml: string, out: T, params?: unknown[]) => Promise<T>
+ *   close: () => Promise<void>,
  *   process: { pid: number, hostname: () => string },
  * }} io
+ *
+ * @typedef {{ changes: number, lastInsertRowId: unknown }} RunInfo
  */
-function DB({ connect, process }) {
-  async function reconnect() {
-    const conn = await connect();
-    conn.on('error', err => {
-      console.log(err);
-      connP = reconnect();
-    });
-    return conn;
-  }
-  let connP = reconnect();
-
-  /**
-   * @param {string} dml
-   * @param {T} _outType
-   * @param {unknown[]=} params
-   * @returns {Promise<T>}
-   * @template T
-   */
-  async function exec(dml, _outType, params) {
-    const c = await connP;
-    // console.log('DEBUG: db.query: ', dml, params || '');
-
-    return new Promise((resolve, reject) =>
-      c.query(dml, params, (err, rows) => {
-        if (err) {
-          console.log('SQL error: ', c.format(dml, params || []));
-          return reject(err);
-        }
-        // console.log('DEBUG: db.query result: ',
-        //             dml, params, rows);
-        resolve(rows);
-      }),
-    );
-  }
-
+function DBwrap({ exec, close, process }) {
   /**
    * @returns {Promise<Transaction<T>>}
    * @template T
@@ -123,20 +93,132 @@ function DB({ connect, process }) {
     await exec('begin', null);
     return mkTx();
   }
+  /** @type {RunInfo} */
+  const runInfo = /**@type {any} */ (undefined);
+
+  return freeze({
+    /** @type { (sql: string, params?: unknown[]) => Promise<RunInfo> } */
+    exec: (sql, params) => exec(sql, runInfo, params),
+    query: exec,
+    begin,
+    close,
+  });
+}
+
+/**
+ * @param {{
+ *   connect: () => Promise<Connection>
+ *   process: { pid: number, hostname: () => string },
+ * }} io
+ */
+const DB = ({ connect, process }) => {
+  async function reconnect() {
+    const conn = await connect();
+    conn.on('error', err => {
+      console.log(err);
+      connP = reconnect();
+    });
+    return conn;
+  }
+  let connP = reconnect();
+
+  /**
+   * @param {string} dml
+   * @param {T} _outType
+   * @param {unknown[]=} params
+   * @returns {Promise<T>}
+   * @template T
+   */
+  async function exec(dml, _outType, params) {
+    const c = await connP;
+    // console.log('DEBUG: db.query: ', dml, params || '');
+
+    return new Promise((resolve, reject) =>
+      c.query(dml, params, (err, rows) => {
+        if (err) {
+          console.log('SQL error: ', c.format(dml, params || []));
+          return reject(err);
+        }
+        // console.log('DEBUG: db.query result: ',
+        //             dml, params, rows);
+        resolve(rows);
+      }),
+    );
+  }
 
   function close() {
     return connP.then(c => {
       asPromise(cb => c.end(err => cb(err, null)));
     });
   }
-  return freeze({
-    /** @type { (sql: string, params?: unknown[]) => Promise<void> } */
-    exec: (sql, params) => exec(sql, undefined, params),
-    query: exec,
-    begin,
-    close,
-  });
-}
+
+  return DBwrap({ exec, close, process });
+};
+
+/**
+ * @param {{
+ *   connect: () => SqliteDB
+ *   process: { pid: number, hostname: () => string },
+ * }} io
+ *
+ * @typedef {import('better-sqlite3').Database} SqliteDB
+ */
+export const DBsqlite = ({ connect, process }) => {
+  const db = connect();
+  db.pragma('journal_mode = WAL');
+  db.function('md5', content =>
+    createHash('md5').update(content).digest('hex'),
+  );
+
+  /**
+   * @param {string} dml
+   * @param {T} outSample
+   * @param {unknown[][]=} params
+   * @returns {Promise<T>}
+   * @template T
+   */
+  async function exec(dml, outSample, params) {
+    return new Promise((resolve, reject) => {
+      console.log('DEBUG:', outSample ? 'query:' : 'exec:', dml, outSample);
+      const stmt = db.prepare(dml);
+
+      if (outSample) {
+        try {
+          const rows = stmt.all(...(params || []));
+          // @ts-ignore caller is responsible for type-safety
+          resolve(rows);
+        } catch (err) {
+          reject(err);
+        }
+        return;
+      }
+
+      try {
+        let changes = 0;
+        if (Array.isArray(params)) {
+          for (const binding of params) {
+            const info = stmt.run(...binding);
+            changes += info.changes;
+          }
+        } else {
+          stmt.run();
+        }
+        // @ts-ignore caller is responsible for type-safety
+        resolve({ changes });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function close() {
+    return Promise.resolve().then(() => {
+      db.close();
+    });
+  }
+
+  return DBwrap({ exec, close, process });
+};
 
 /**
  * @typedef {{
@@ -166,16 +248,12 @@ const TX_EXAMPLE = {
 /**
  * GnuCash Book
  *
- * @param {() => Promise<Connection>} connect
+ * @param {ReturnType<typeof DB>} db
  * @param { (specifier: string) => string } requireText
  * @typedef {import('mysql').Connection} Connection
  */
-export function GCBook(connect, requireText) {
+export function GCBook(db, requireText) {
   const sql = sqlStatements(requireText('./book_ops.sql'));
-  const db = DB({
-    connect,
-    process: { pid: -1, hostname: () => '@@hostname' },
-  });
 
   return freeze({
     /**
@@ -213,14 +291,14 @@ export function GCBook(connect, requireText) {
       if (!records.length) return;
       await db.exec(sql.dropSlotImport);
       await db.exec(sql.createSlotImport);
-      await db.exec(sql.loadSlotImport, [
+      await db.exec(
+        sql.loadSlotImport,
         records.map(({ id, data }) => [id, name, JSON.stringify(data)]),
-      ]);
-      const changed = { changedRows: 1 };
-      const inserted = await db.query(sql.insertSlotImport, changed);
-      console.log('inserted', inserted.changedRows);
-      await db.query(sql.updateSlotImport, changed);
-      console.log('updated', inserted.changedRows);
+      );
+      const inserted = await db.exec(sql.insertSlotImport);
+      console.log('inserted', inserted.changes);
+      const updated = await db.exec(sql.updateSlotImport);
+      console.log('updated', updated.changes);
     },
     exec: db.exec,
     close: db.close,
