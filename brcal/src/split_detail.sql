@@ -49,7 +49,7 @@ left join slots on slots.obj_guid = s.guid and slots.name = 'online_id'
 
 DROP VIEW IF EXISTS tx_json;
 CREATE VIEW tx_json as
-select post_date, json_object('date', SUBSTRING(post_date, 1, 10)
+select post_date, tx_guid, s.guid, json_object('date', SUBSTRING(post_date, 1, 10)
   , 'num', case when tx.num > '' then tx.num else null end
   , 'description', tx.description
   , 'splits', json_group_array(
@@ -67,4 +67,4 @@ left join slots on slots.obj_guid = s.guid and slots.name = 'online_id'
 group by tx.guid
 ;
 
-SELECT tx FROM tx_json ORDER BY post_date DESC;
+SELECT tx FROM tx_json order by post_date, tx_guid, guid DESC;
