@@ -1,4 +1,8 @@
 -- Lunch Money
+CREATE INDEX tx_post_date_index ON transactions(post_date);
+CREATE INDEX splits_tx_guid_index ON splits(tx_guid);
+CREATE INDEX splits_account_guid_index ON splits(account_guid);
+CREATE INDEX slots_guid_index ON slots(obj_guid);
 
 -- delete from slots where name like 'lunchmoney.app/transactions';
 select * from slots where name = 'lunchmoney.app/categories';
@@ -11,10 +15,12 @@ select * from slots where name = 'lunchmoney.app/transactions';
 -- delete from slots where name = 'lunchmoney.app/categories' and string_val like '%"Education"%';
 
 
--- odd! views don't seem to work well.
+select * from accounts where account_type ='INCOME' and name = 'Paycheck' order by code;
+select * from accounts where account_type ='EXPENSE' and name = 'Projects' order by code;
+
 drop table if exists lm_categories ;
 drop view if exists lm_categories ;
-create table lm_categories as
+create view lm_categories as
 select
     obj_guid guid
 -- https://lunchmoney.dev/#categories
@@ -29,10 +35,6 @@ select
   -- , json_type(data->>"$.is_group") ty
   , data->>"$.is_group" = 'true' is_group
   , data->>"$.group_id" group_id
-  , ax.name account_name
-  , ax.guid account_guid
-  , ax.account_type
-  , ax.code
   , data
 from (
 	select id, obj_guid, name
@@ -41,21 +43,29 @@ from (
 	where name = 'lunchmoney.app/categories'
 	and json_valid(string_val)
 ) detail
-left join (
-  select a.guid, string_val, a.code, a.name, a.account_type
-       , s.name slot_name
-       , replace(string_val, 'lm:', '') + 0 lm
-  from slots s join accounts a on a.guid = s.obj_guid
-  where s.string_val like 'lm:%'
-) ax
-on data->>"$.id" = ax.lm
 ;
-select * from lm_categories where account_guid is not null;
+select * from lm_categories;
+
+drop table if exists lm_categories_tmp;
+create temporary table lm_categories_tmp as
+select * from lm_categories;
+
+drop table if exists lm_gc_cat;
+create temporary table lm_gc_cat as
+select g.code, g.name, g.account_type, lm.name name_lm, lm.id, g.guid
+from accounts g
+join (
+	select case when description like 'code: %' then replace(description, 'code: ', '') else null end code
+	     , lc.*
+	from lm_categories_tmp lc
+) lm on g.code = lm.code;
+select * from lm_gc_cat order by code;
 
 
 -- Lunch Money Transactions
-drop table lm_tx;
-create table lm_tx as
+drop table if exists lm_tx;
+drop view if exists lm_tx;
+create view lm_tx as
 select
     obj_guid guid
 -- https://lunchmoney.dev/#categories
@@ -67,6 +77,7 @@ select
   , data->>"$.amount" + 0 amount
   -- status, subtype
   , data->>"$.notes" notes
+  , data->>"$.status" status
   , data->>"$.asset_id" asset_id
   , data->>"$.group_id" group_id
   , data->>"$.is_group" is_group
@@ -80,13 +91,104 @@ select
   , data->>"$.plaid_account_id" plaid_account_id
   -- , data
 from (
-	select id, obj_guid, name, JSON_VALID(string_val) json_ok
+	select id, obj_guid, name
 	     , string_val as data
 	from slots
 	where name = 'lunchmoney.app/transactions'
 ) detail
-order by date
 ;
+drop table if exists lm_tx_tmp;
+create temporary table lm_tx_tmp as select * from lm_tx order by date;
+select * from lm_tx_tmp order by date desc;
+
+-- huh? extra Imbalance-USD account?
+-- update splits set account_guid = 'e77f70aabd57feb55be008ab79b4dcde' where account_guid = '41dcd12a7b4546d68147866f6adf7c6f';
+
+drop view if exists gc_register;
+create view gc_register as
+select post_date, num, tx.description, s.value_num / s.value_denom amount, a.name, a.account_type 
+from transactions tx
+join splits s on s.tx_guid = tx.guid 
+join accounts a on a.guid = s.account_guid;
+select * from gc_register where description like 'GUSTO%' order by post_date DESC ;
+
+-- INCOME: sync lm -> gc
+with uncat as (
+  select code, name, account_type, guid
+  from accounts where name = 'Imbalance-USD' and code = '9001'
+)
+, xl as (
+  select * from lm_gc_cat
+ -- where account_type = 'INCOME'
+)
+, lm_inc as (
+  select lt.date, lt.payee, lt.amount, lt.category_id, lt.status, xl.name_lm, xl.guid account_guid
+  from lm_tx_tmp lt
+  join xl on xl.id = lt.category_id
+  where lt.date >= '2022-01-01'
+)
+, gc_unc as (
+  select tx.post_date, tx.description
+       , (si.value_num * 1.0 / si.value_denom) amount
+       , si.memo
+       , uncat.name
+       , si.tx_guid
+       , si.guid split_guid
+       , lm_inc.*
+  from transactions tx
+  join splits si on si.tx_guid = tx.guid
+  join lm_inc on substring(post_date, 1, 10) = lm_inc.date and (si.value_num * 1.0 / si.value_denom) = lm_inc.amount
+  join uncat on uncat.guid = si.account_guid
+  where tx.post_date >= '2022-01-01'
+)
+select *
+from gc_unc
+order by post_date desc
+;
+
+
+-- EXPENSE: sync lm -> gc
+with uncat as (
+  select code, name, account_type, guid
+  from accounts where name = 'Imbalance-USD' and code = '9001'
+)
+, xl as (
+  select * from lm_gc_cat
+  where account_type = 'EXPENSE'
+)
+, lm_inc as (
+  select lt.date, lt.payee, lt.amount, lt.category_id, xl.name_lm, xl.guid
+  from lm_tx_tmp lt
+  join xl on xl.id = lt.category_id
+  where lt.date >= '2022-09-01'
+)
+, gc_unc as (
+  select tx.post_date, tx.description
+       , (si.value_num * 1.0 / si.value_denom) amount
+       , si.memo
+       , uncat.name
+       , si.account_guid
+       , lm_inc.*
+  from transactions tx
+  join splits si on si.tx_guid = tx.guid
+  join lm_inc on substring(post_date, 1, 10) = lm_inc.date and (si.value_num * 1.0 / si.value_denom) = lm_inc.amount
+  join uncat on uncat.guid = si.account_guid
+  where tx.post_date >= '2022-01-01'
+)
+select *
+from gc_unc
+order by post_date desc
+;
+
+
+select *
+from lm_tx
+join lm_gc_cat inc on inc.id = lm_tx.category_id
+where inc.account_type = 'INCOME'
+order by lm_tx.date desc
+;
+
+
 
 drop table if exists lm_assets;
 create table lm_assets as
