@@ -225,6 +225,7 @@ select
   -- mask, ...
   , ax.guid account_guid
   , ax.name account_name
+  , ax.code
   , ax.account_type
   , data
 from (
@@ -234,13 +235,13 @@ from (
 	where name = 'lunchmoney.app/plaid_accounts'
 ) detail
 left join (
-  select a.guid, string_val, a.name, a.account_type, cast(replace(string_val, 'lm:', '') as int) lm
+  select a.guid, string_val, a.name, a.account_type, a.code, cast(replace(string_val, 'lm:', '') as int) lm
   from slots s join accounts a on a.guid = s.obj_guid
   where s.string_val like 'lm:%'
 ) ax
 on data->>"$.id" = ax.lm
 ;
-select * from lm_plaid_accounts;
+select account_type, code, account_name, name, id from lm_plaid_accounts where code is not null;
 
 drop view if exists lm_detail;
 create view lm_detail as
