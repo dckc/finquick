@@ -2,9 +2,13 @@
 
 import requireText from 'require-text';
 import { WebApp } from './WebApp';
-import { GCBook } from './gcbook';
+import { DBsqlite, GCBook } from './gcbook';
 
 const { entries } = Object;
+
+const Usage = `
+lmSync gnucash.db
+`;
 
 const LunchMoneyAPI = {
   endpoint: 'https://dev.lunchmoney.app',
@@ -17,25 +21,28 @@ const LunchMoneyAPI = {
  * @param { typeof process.env } env
  * @param {{
  *   https: typeof import('https'),
- *   mysql: typeof import('mysql'),
+ *   openSqlite: (path: string) => SqliteDB
  *   require: typeof require,
  * }} io
+ * @typedef {import('better-sqlite3').Database} SqliteDB
  */
-export const lmSync = async (args, env, { https, mysql }) => {
+export const lmSync = async (args, env, { https, openSqlite }) => {
   const { LUNCH_MONEY_API_KEY: apiKey } = env;
   const creds = { Authorization: `Bearer ${apiKey}` };
 
+  const [filename] = args;
+  if (!filename) {
+    throw Error(Usage);
+  }
+
   function mkBook() {
-    const connect = () =>
-      Promise.resolve(
-        mysql.createConnection({
-          host: env.GC_HOST,
-          user: env.GC_USER,
-          password: env.GC_PASS,
-          database: env.GC_DB,
-        }),
-      );
-    return GCBook(connect, m => requireText(m, require));
+    const connect = () => openSqlite(filename);
+    const db = DBsqlite({
+      connect,
+      process: { pid: -1, hostname: () => '@@hostname' },
+    });
+
+    return GCBook(db, m => requireText(m, require));
   }
 
   /** @type { (app: ReturnType<WebApp>, kind:string) => Promise<Array<any>> } */
@@ -96,7 +103,7 @@ if (require.main === module) {
       // eslint-disable-next-line global-require
       https: require('https'),
       // eslint-disable-next-line global-require
-      mysql: require('mysql'),
+      openSqlite: path => require('better-sqlite3')(path),
       require,
     },
   ).catch(err => console.error(err));
