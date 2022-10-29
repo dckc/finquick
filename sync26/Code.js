@@ -9,6 +9,9 @@ function maybeNumber(amount) {
 
 function getNote(body) {
   const [_before, rest] = body.split("<!-- note -->");
+  if (!rest) {
+    return "";
+  }
   const [noteMarkup, _after] = rest.split("</td>");
   const tagPat = /<\/?[a-z]+>/g;
   const charRefPat = /&#(\d+);/g;
@@ -50,19 +53,22 @@ function loadVenmoReceipts() {
   const hd = headings.Receipts;
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
   let row = 2;
-  const query = 'from:(venmo.com) subject:completed "Payment ID"';
+  const query = 'from:(venmo.com) Completed "Payment ID"';
   console.warn("AMBIENT: GmailApp");
   const threads = GmailApp.search(query);
   threads.forEach((thread) =>
-    thread.getMessages().forEach((m) => {
+    thread.getMessages().forEach((m, ix) => {
+      if (ix > 0) return;
       const subject = m.getSubject();
       const body = m.getBody();
 
       const tx = maybeMatch(
         subject,
-        /You completed (?<payee>[^']+)'s \$(?<amount>[\d\.,]+) charge request/
+        /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/
       );
-
+      if (!tx.amount) {
+        console.warn("no amount??", subject);
+      }
       const acct = maybeMatch(
         body,
         /(from|via) your (?<account>[^\.]+)/m
