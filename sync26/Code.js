@@ -33,14 +33,14 @@ const headings = {
     "Payment ID",
   ],
   Transactions: [
-    "Date",
-    "Id",
+    "date",
+    "id",
     "Detail",
-    "Payee",
-    "Amount",
-    "Note",
-    "Account",
-    "Category",
+    "payee",
+    "amount",
+    "notes",
+    "plaid_account_id",
+    "category_id",
   ],
 };
 
@@ -125,30 +125,43 @@ function loadLunchMoneyTransactions() {
     start_date: "2022-09-01",
     end_date: "2050-01-01",
   });
-  console.log("txs", txs.length, txs.slice(0, 5));
+  console.log("txs", txs.length, txs.slice(0, 2));
 
-  console.warn("AMBIENT: SpreadsheetApp");
-  const sheet = SpreadsheetApp.getActive().getSheetByName("Transactions");
+  const sheet = doc.getSheetByName("Transactions");
   const hd = headings.Transactions;
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
-  let row = 2;
-  txs.forEach((tx) => {
-    const values = [
-      tx.date,
-      tx.id,
-      JSON.stringify(tx),
-      tx.payee,
-      tx.amount,
-      tx.notes,
-      tx.plaid_account_id,
-      tx.category_id,
-    ];
-    sheet.getRange(row, 1, 1, values.length).setValues([values]);
 
-    row += 1;
-    if (row % 20 === 0) {
-      console.log("row", row);
-    }
+  const rows = txs.map((tx) => [
+    tx.date,
+    tx.id,
+    JSON.stringify(tx),
+    tx.payee,
+    tx.amount,
+    tx.notes,
+    tx.plaid_account_id,
+    tx.category_id,
+  ]);
+  sheet.getRange(2, rows.length, 1, hd.length).setValues(rows);
+}
+
+function saveLunchMoneyTransactions() {
+  console.warn("AMBIENT: SpreadsheetApp");
+  const doc = SpreadsheetApp.getActive();
+  const { records: txs } = getSheetRecords(doc.getSheetByName("Transactions"));
+  const modTx = txs.filter((tx) => tx.Modified);
+  const apiKey = doc.getRangeByName("LM_API_KEY").getValue();
+  const creds = { Authorization: `Bearer ${apiKey}` };
+
+  modTx.forEach((tx) => {
+    const transaction = { payee: tx.payee, notes: tx.notes };
+    console.log("PUT", tx.id, transaction);
+    // https://lunchmoney.dev/#update-transaction
+    UrlFetchApp.fetch(`${LunchMoneyAPI.endpoint}/v1/transactions/${tx.id}`, {
+      headers: creds,
+      method: "PUT",
+      contentType: "application/json",
+      payload: JSON.stringify({ transaction }),
+    });
   });
 }
 
@@ -228,30 +241,31 @@ function updateTransactionDetailsFromReceipts() {
     let startOfCurrentDate;
     for (; dest > 1; dest -= 1) {
       tx = txs[dest - 2];
-      if (!currentDate || currentDate.getTime() !== tx.Date.getTime()) {
-        currentDate = tx.Date;
+      if (!currentDate || currentDate.getTime() !== tx.date.getTime()) {
+        currentDate = tx.date;
         startOfCurrentDate = dest;
       }
-      const delta = daysBetween(tx.Date, receipt.Date);
-      // console.log('match?', dest, short(tx.Date), delta, tx.Account, tx.Amount);
+      const delta = daysBetween(tx.date, receipt.Date);
+      // console.log('match?', dest, short(tx.Date), delta, tx.plaid_account_id, tx.Amount);
       if (delta < -3) continue; // not there yet
       if (delta > 3) {
         tx = null;
         break; // too far
       }
-      if (tx.Account !== account.id || tx.Amount !== receipt.Amount) continue;
+      if (tx.plaid_account_id !== account.id || tx.amount !== receipt.Amount)
+        continue;
       const detail = JSON.parse(tx.Detail);
       if (detail.original_name === "Venmo") break;
     }
     if (dest <= 1 || tx === null) {
       console.warn("cannot find transaction:", row, receipt);
-      if (daysBetween(receipt.Date, txs[0].Date) > 3) {
+      if (daysBetween(receipt.Date, txs[0].date) > 3) {
         console.warn(
           "remaining transactions are too old",
           row,
           short(receipt.Date),
           "<<",
-          short(txs[0].Date)
+          short(txs[0].date)
         );
         break;
       }
@@ -262,16 +276,16 @@ function updateTransactionDetailsFromReceipts() {
       "match!",
       { row, dest },
       short(receipt.Date),
-      short(tx.Date),
-      tx.Amount,
+      short(tx.date),
+      tx.amount,
       account.name,
       receipt.Payee,
       receipt.Note
     );
     updateRecord(doc.getSheetByName("Transactions"), txHd, dest, {
       Modified: 1,
-      Payee: receipt.Payee,
-      Note: receipt.Note,
+      payee: receipt.Payee,
+      notes: JSON.stringify([receipt.Note, { venmo: receipt["Payment ID"] }]),
     });
     // When we resume, resume at the beginning of the day.
     startOfLastMatchDate = startOfCurrentDate;
