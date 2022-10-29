@@ -43,7 +43,7 @@
   "devDependencies": {
     "eslint": "^2.3.0",
     "flow-bin": "^0.75.0",
-    "mocha": "~1.19.0",
+    "mocha": "~10.1.0",
     "flow-coverage-report": "^0.3.0",
     "flow-typed": "^2.4.0",
     "jspm": "^0.16.25"
