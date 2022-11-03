@@ -1,5 +1,24 @@
 // @ts-check
 
+/**
+ * @template V
+ * @param {V[][]} records
+ * @param {number} prop
+ */
+const groupBy = (records, prop) => {
+  /** @type {Map<V,V[][]>} */
+  const out = new Map();
+  records.forEach((r) => {
+    const key = r[prop];
+    const neighbors = out.get(key) || [];
+    neighbors.push(r);
+    if (!out.has(key)) {
+      out.set(key, neighbors);
+    }
+  });
+  return out;
+};
+
 const csvParse = (txt, skip = 0) => {
   const rows = [];
   let row = [];
@@ -33,7 +52,7 @@ const csvParse = (txt, skip = 0) => {
  */
 const makeReportTool = (summarySection, { elt }) => {
   /**
-   * @param {string[][]} rows
+   * @param {(string|number)[][]} rows
    */
   const fill = (rows) => {
     // summarySection.appendChild();
@@ -44,7 +63,7 @@ const makeReportTool = (summarySection, { elt }) => {
         elt(
           "tr",
           {},
-          hd.map((txt) => elt("th", {}, [txt]))
+          hd.map((val) => elt("th", {}, [`${val}`]))
         ),
       ]),
       elt(
@@ -54,13 +73,30 @@ const makeReportTool = (summarySection, { elt }) => {
           elt(
             "tr",
             {},
-            row.map((txt) => elt("td", {}, [txt]))
+            row.map((val) => elt("td", {}, [`${val}`]))
           )
         )
       ),
     ]);
     summarySection.appendChild(table);
   };
+
+  /**
+   *
+   * @param {string[]} hd
+   * @param {string[][]} body
+   */
+  const summary = (hd, body) => {
+    const tyCol = hd.findIndex((h) => h === "Transaction Type");
+    const qtyCol = hd.findIndex((h) => h === "Quantity Transacted");
+    const groups = groupBy(body, tyCol);
+    const agg = [...groups.entries()].map(([ty, txs]) => {
+      const tot = txs.reduce((acc, tx) => acc + Number(tx[qtyCol]), 0);
+      return [ty, tot];
+    });
+    return [["Transaction Type", "Quantity Transacted"], ...agg];
+  };
+
   const handler = (ev) => {
     console.log("@@@handler", ev);
     const [file] = ev.target?.files;
@@ -75,7 +111,8 @@ const makeReportTool = (summarySection, { elt }) => {
           ? fr.result
           : die(`expected string; got: ${fr.result}`);
       console.log({ txt: txt.slice(0, 80) });
-      fill(csvParse(txt, 7));
+      const [hd, ...body] = csvParse(txt, 7);
+      fill(summary(hd, body));
     });
     fr.readAsText(file);
   };
