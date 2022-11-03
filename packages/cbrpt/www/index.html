@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Report Thingy@@</title>
+  </head>
+  <body>
+    <fieldset>
+      <label>Report: <input type="file" name="report" /></label>
+      <br />
+    </fieldset>
+    <section id="summary">
+      <h2>Summary</h2>
+    </section>
+    <script type="module">
+      import { run } from "../src/report.js";
+      const $ = (sel) => document.querySelector(sel);
+
+      run({
+        $,
+        createElement: (tag) => document.createElement(tag),
+        createTextNode: (txt) => document.createTextNode(txt),
+      });
+    </script>
+  </body>
+</html>
