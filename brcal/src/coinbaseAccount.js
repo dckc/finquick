@@ -134,10 +134,13 @@ function makeCoinbase(endPoint, clock, api) {
 
     const sig = Coinbase.signature(api.secret, ts, 'GET', path);
     return JSON.parse(
-      logged(await endPoint
-        .pathjoin(path)
-        .withHeaders(Coinbase.fmtSig(api.key, sig, ts))
-             .get(), path),
+      logged(
+        await endPoint
+          .pathjoin(path)
+          .withHeaders(Coinbase.fmtSig(api.key, sig, ts))
+          .get(),
+        path,
+      ),
     );
   }
 
@@ -151,7 +154,7 @@ function makeCoinbase(endPoint, clock, api) {
     let path;
     while ((path = result.pagination.next_uri)) {
       result = await getJSON(path);
-      data = [...data, ...check.notNull(result.data)];  // ISSUE: use flat()?
+      data = [...data, ...check.notNull(result.data)]; // ISSUE: use flat()?
     }
     return data;
   }
@@ -350,7 +353,7 @@ async function save(bk, table, records, getId) {
  */
 async function main(args, { env, clock, setTimeout, https, mysql, require }) {
   // By default, each API key or app is rate limited at 10,000 requests per hour.
-  const period = 1 / (10000 / (60 * 60)) * 1000;
+  const period = (1 / (10000 / (60 * 60))) * 1000;
   /** @type {() => Promise<void> } */
   const delay = () => new Promise(resolve => setTimeout(resolve, period));
   const cb = makeCoinbase(
@@ -428,14 +431,16 @@ async function main(args, { env, clock, setTimeout, https, mysql, require }) {
   console.log('fetching coinbase data');
   const accounts = await cb.accounts().list();
 
-  const detail = async f => (
-    await Promise.all(
-      accounts.map(account =>
-                   f(cb.accounts(account.id))
-          .then(items => items.map(item => ({ _account_id: account.id, ...item }))),
-      ),
-    )
-  ).flat();
+  const detail = async f =>
+    (
+      await Promise.all(
+        accounts.map(account =>
+          f(cb.accounts(account.id)).then(items =>
+            items.map(item => ({ _account_id: account.id, ...item })),
+          ),
+        ),
+      )
+    ).flat();
   const kinds = {
     transactions: acct => acct.transactions(),
     buys: acct => acct.buys(),

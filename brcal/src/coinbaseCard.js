@@ -8,12 +8,12 @@ const csv = require('csv-parse');
 const { OFX } = require('./asOFX.js');
 
 /** @param { string } s */
-const parseDate = (s) => {
+const parseDate = s => {
   // e.g. 6:02pm 7/31/21
   const parts = s.match(/(\d+):(\d+)(am|pm) (\d+)\/(\d+)\/(\d+)/);
   if (!parts) throw RangeError(s);
   const [ap] = parts.splice(3, 1);
-  const [hr12, min, m, d, y] = parts.slice(1, 6).map((n) => parseInt(n, 10));
+  const [hr12, min, m, d, y] = parts.slice(1, 6).map(n => parseInt(n, 10));
   const hr24 = hr12 + (ap === 'pm' ? 12 : 0);
   const year = 2000 + y;
   return new Date(Date.UTC(year, m - 1, d, hr24, min));
@@ -30,9 +30,9 @@ const Info = {
 // ack: Linus Unnebäck Nov 18 '12
 // http://stackoverflow.com/a/13440842
 /** @type { (a: string[]) => string} */
-const min = (arr) => arr.reduce((p, v) => (p < v ? p : v));
+const min = arr => arr.reduce((p, v) => (p < v ? p : v));
 /** @type { (a: string[]) => string} */
-const max = (arr) => arr.reduce((p, v) => (p > v ? p : v));
+const max = arr => arr.reduce((p, v) => (p > v ? p : v));
 
 /**
  * @param { string } text
@@ -87,18 +87,18 @@ const main = async (args, { stdout, readFile, clock }) => {
       return;
     }
     const hd = Object.keys(txs[0]);
-    const quote = (s) => (s.match(/[,"]/) ? `"${s.replace(/"/g, '""')}"` : s);
-    const ymd = (s) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    const quote = s => (s.match(/[,"]/) ? `"${s.replace(/"/g, '""')}"` : s);
+    const ymd = s => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
     const rows = txs
       .map(({ DTPOSTED: dt, ...rest }) => ({ DTPOSTED: ymd(dt), ...rest }))
-      .map((tx) => hd.map((col) => quote(String(tx[col]))));
-    const line = (row) => row.join(',') + '\n';
+      .map(tx => hd.map(col => quote(String(tx[col]))));
+    const line = row => row.join(',') + '\n';
     stdout.write(line(hd));
     for (const row of rows) {
       stdout.write(line(row));
     }
   } else {
-    const dates = txs.map((t) => t.DTPOSTED);
+    const dates = txs.map(t => t.DTPOSTED);
     const endBalance = -1; // todo?
     const statement = OFX.bankStatement(
       Info.bankID,
@@ -121,5 +121,5 @@ if (require.main === module) {
     // eslint-disable-next-line global-require
     readFile: require('fs').promises.readFile,
     clock: () => new Date(),
-  }).catch((err) => console.error(err));
+  }).catch(err => console.error(err));
 }

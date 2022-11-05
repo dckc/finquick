@@ -53,8 +53,7 @@ const OFX = (() => {
     amex: {
       fid: 3101,
       fidOrg: 'AMEX',
-      url:
-        'https://online.americanexpress.com/myca/ofxdl/desktop/desktopDownload.do?request_type=nl_ofxdownload',
+      url: 'https://online.americanexpress.com/myca/ofxdl/desktop/desktopDownload.do?request_type=nl_ofxdownload',
       bankId: null /* not a bank */,
       accType: 'CREDITCARD',
     },
@@ -95,7 +94,8 @@ const OFX = (() => {
   function parseDate(s) {
     // '20160108170000.000'
     // '20151229050000.000[-7:MST]'
-    const syntax = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?(?:\[([-+])?(\d+(?:\.\d+)?)(?::([a-zA-Z]+))?)?/;
+    const syntax =
+      /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?(?:\[([-+])?(\d+(?:\.\d+)?)(?::([a-zA-Z]+))?)?/;
 
     const int10 = numeral => parseInt(numeral, 10);
     const the = match => {
