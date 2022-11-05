@@ -44,7 +44,7 @@ const Base16 = freeze({
 const Base64 = freeze({
   /** @param {string} txt */
   decode: txt => Buffer.from(txt, 'base64'),
-  /** @param {bs} Bytes */
+  /** @param {Bytes} bs */
   encode: bs => Buffer.from(bs).toString('base64'),
 });
 
