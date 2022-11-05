@@ -41,7 +41,7 @@ const max = arr => arr.reduce((p, v) => (p > v ? p : v));
 const toOFX = async (text, clock) => {
   /** @type { string[][] } */
   const rows = await new Promise((resolve, reject) =>
-    csv(text, { relax_column_count: true }, (err, records) =>
+    csv.parse(text, { relax_column_count: true }, (err, records) =>
       err ? reject(err) : resolve(records),
     ),
   );
