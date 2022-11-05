@@ -134,6 +134,7 @@ const OFX = (() => {
     endBalance,
     txs,
   ) {
+    const bank = false;
     return {
       BANKMSGSRSV1: {
         STMTTRNRS: {
@@ -144,12 +145,20 @@ const OFX = (() => {
           },
           STMTRS: {
             CURDEF: 'USD',
-            // TODO: CCACCTFROM
-            BANKACCTFROM: {
-              BANKID: bankID,
-              ACCTID: accountID,
-              ACCTTYPE: 'CHECKING',
-            },
+            ...(bank
+              ? {
+                  BANKACCTFROM: {
+                    BANKID: bankID,
+                    ACCTID: accountID,
+                    ACCTTYPE: 'CHECKING',
+                  },
+                }
+              : {
+                  // TODO: CCACCTFROM
+                  CCACCTFROM: {
+                    ACCTID: accountID,
+                  },
+                }),
 
             BANKTRANLIST: {
               DTSTART: startDate,
