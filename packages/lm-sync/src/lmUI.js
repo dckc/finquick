@@ -1,5 +1,5 @@
 // @ts-check
-const { freeze } = Object;
+const { freeze, entries } = Object;
 
 const maybe = (x, f) => (x ? [f(x)] : []);
 
@@ -7,6 +7,12 @@ const fail = why => {
   throw Error(why);
 };
 
+/**
+ * @param {Object} io
+ * @param {(sel: string) => Element} io.$
+ * @param {(tag: string) => Element} io.createElement
+ * @param {(tag: string) => Text} io.createTextNode
+ */
 const makeFields = ({ createElement, createTextNode, $ }) => {
   /**
    *
@@ -30,16 +36,23 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
   };
 
   /** @param {string} sel */
-  const selectInput = sel => {
+  const theInput = sel => {
     const it = $(sel);
     // eslint-disable-next-line no-undef
     if (!(it instanceof HTMLInputElement)) throw TypeError();
     return it;
   };
+  /** @param {string} sel */
+  const theSelect = sel => {
+    const it = $(sel);
+    // eslint-disable-next-line no-undef
+    if (!(it instanceof HTMLSelectElement)) throw TypeError();
+    return it;
+  };
   const control = freeze({
     endPoint: $('#endpoint'),
-    apiKey: selectInput('#apiKey'),
-    accounts: $('select[name="account"]'),
+    apiKey: theInput('#apiKey'),
+    accounts: theSelect('select[name="account"]'),
     accountsUpdate: $('#updateAccounts'),
     transactions: $('#transactionView'),
     transationsUpdate: $('#updateTransactions'),
@@ -64,6 +77,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
             control.accounts.appendChild(elt('option', { value: id }, [name])),
           );
       },
+      getCurrent: () => control.accounts.value,
     }),
     transactions: freeze({
       onClick: h => {
@@ -100,6 +114,8 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
   };
   return fields;
 };
+
+/** @typedef { Record<string, string|number|boolean> } Query */
 
 /**
  * @param {Object} io
@@ -156,6 +172,14 @@ export function ui({
         const resp = await fetch(url, { headers });
         return resp.json();
       },
+      query(/** @type {Query} */ params) {
+        const q = path.endsWith('?') ? '' : '?';
+        const encoded = entries(params)
+          .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
+          .join('&');
+        const there = `${path}${q}${encoded}`;
+        return remoteData(there);
+      },
     });
   };
 
@@ -177,10 +201,13 @@ export function ui({
   });
 
   fields.transactions.onClick(_ev => {
-    remote.transactions.get().then(({ transactions: txs }) => {
-      book.transactions.set(txs);
-      fields.transactions.set(txs);
-    });
+    remote.transactions
+      .query({ plaid_account_id: fields.accounts.getCurrent() })
+      .get()
+      .then(({ transactions: txs }) => {
+        book.transactions.set(txs);
+        fields.transactions.set(txs);
+      });
   });
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(book.accounts.get(), accts => fields.accounts.set(accts));
