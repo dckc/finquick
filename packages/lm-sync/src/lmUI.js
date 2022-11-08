@@ -1,26 +1,13 @@
+// @ts-check
 const { freeze } = Object;
-const { log } = console;
 
 const maybe = (x, f) => (x ? [f(x)] : []);
-const fmt = obj => JSON.stringify(obj, null, 2);
 
-/**
- * @param {Object} io
- * @param {typeof document.querySelector} io.$
- * @param {typeof fetch} io.fetch
- * @param {typeof localStorage} io.localStorage
- * @param {(tag: string) => Element} io.createElement
- * @param {(tag: string) => Text} io.createTextNode
- * @param {() => number} io.clock
- */
-export function ui({
-  $,
-  fetch,
-  localStorage,
-  createElement,
-  createTextNode,
-  clock,
-}) {
+const fail = why => {
+  throw Error(why);
+};
+
+const makeFields = ({ createElement, createTextNode, $ }) => {
   /**
    *
    * @param {string} tag
@@ -42,34 +29,47 @@ export function ui({
     return it;
   };
 
+  /** @param {string} sel */
+  const selectInput = sel => {
+    const it = $(sel);
+    // eslint-disable-next-line no-undef
+    if (!(it instanceof HTMLInputElement)) throw TypeError();
+    return it;
+  };
+  const control = freeze({
+    endPoint: $('#endpoint'),
+    apiKey: selectInput('#apiKey'),
+    accounts: $('select[name="account"]'),
+    accountsUpdate: $('#updateAccounts'),
+    transactions: $('#transactionView'),
+    transationsUpdate: $('#updateTransactions'),
+  });
   const fields = {
     endPoint: freeze({
-      get: () => $('#endpoint').getAttribute('href'),
+      get: () => control.endPoint.getAttribute('href') || fail('missing href'),
     }),
     apiKey: freeze({
-      set: val => ($('#apiKey').value = val),
-      onBlur: h => $('#apiKey').addEventListener('blur', h),
+      set: val => (control.apiKey.value = val),
+      onBlur: h => control.apiKey.addEventListener('blur', h),
     }),
     accounts: freeze({
       onClick: h => {
-        $('#updateAccounts').addEventListener('click', h);
+        control.accountsUpdate.addEventListener('click', h);
       },
       set: val => {
-        const control = $('select[name="account"]');
-        control.replaceChildren();
+        control.accounts.replaceChildren();
         val
           .filter(({ status }) => status !== 'inactive')
           .forEach(({ id, name }) =>
-            control.appendChild(elt('option', { value: id }, [name])),
+            control.accounts.appendChild(elt('option', { value: id }, [name])),
           );
       },
     }),
     transactions: freeze({
       onClick: h => {
-        $('#updateTransactions').addEventListener('click', h);
+        control.transationsUpdate.addEventListener('click', h);
       },
       set: val => {
-        const control = $('#transactionView');
         const cols = [
           'date',
           'payee',
@@ -79,7 +79,7 @@ export function ui({
           'plaid_account_id',
           'status',
         ];
-        control.replaceChildren(
+        control.transactions.replaceChildren(
           elt(
             'tr',
             {},
@@ -87,7 +87,7 @@ export function ui({
           ),
         );
         val.forEach(tx =>
-          control.appendChild(
+          control.transactions.appendChild(
             elt(
               'tr',
               { id: `tx${tx.id}`, title: JSON.stringify(tx) },
@@ -98,6 +98,27 @@ export function ui({
       },
     }),
   };
+  return fields;
+};
+
+/**
+ * @param {Object} io
+ * @param {(sel: string) => Element} io.$
+ * @param {typeof fetch} io.fetch
+ * @param {typeof localStorage} io.localStorage
+ * @param {(tag: string) => Element} io.createElement
+ * @param {(tag: string) => Text} io.createTextNode
+ * @param {() => number} io.clock
+ */
+export function ui({
+  $,
+  fetch,
+  localStorage,
+  createElement,
+  createTextNode,
+  clock,
+}) {
+  const fields = makeFields({ createElement, createTextNode, $ });
 
   /** @param {string} key */
   const storageItem = key => {
