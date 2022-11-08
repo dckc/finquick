@@ -11,6 +11,8 @@
   <br />
   <button id="updateAccounts">Update Accounts</button>
   from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
+  <br />
+  <button id="updateTransactions">Update Transactions</button>
   <hr />
   <label
     >API Key
@@ -18,6 +20,10 @@
   </label>
 </fieldset>
 
+<section>
+  <h2>Transactions</h2>
+  <table id="transactionView" border="1"></table>
+</section>
 <script type="module">
   import { ui } from './lmUI.js';
   const fail = why => {

@@ -51,6 +51,9 @@ export function ui({
       onBlur: h => $('#apiKey').addEventListener('blur', h),
     }),
     accounts: freeze({
+      onClick: h => {
+        $('#updateAccounts').addEventListener('click', h);
+      },
       set: val => {
         const control = $('select[name="account"]');
         control.replaceChildren();
@@ -60,8 +63,38 @@ export function ui({
             control.appendChild(elt('option', { value: id }, [name])),
           );
       },
+    }),
+    transactions: freeze({
       onClick: h => {
-        $('#updateAccounts').addEventListener('click', h);
+        $('#updateTransactions').addEventListener('click', h);
+      },
+      set: val => {
+        const control = $('#transactionView');
+        const cols = [
+          'date',
+          'payee',
+          'notes',
+          'amount',
+          'category_id',
+          'plaid_account_id',
+          'status',
+        ];
+        control.replaceChildren(
+          elt(
+            'tr',
+            {},
+            cols.map(name => elt('th', {}, [name])),
+          ),
+        );
+        val.forEach(tx =>
+          control.appendChild(
+            elt(
+              'tr',
+              { id: `tx${tx.id}`, title: JSON.stringify(tx) },
+              cols.map(field => elt('td', {}, [`${tx[field] || ''}`])),
+            ),
+          ),
+        );
       },
     }),
   };
@@ -90,10 +123,7 @@ export function ui({
   };
 
   const keyStore = storageItem('lunchmoney.app#apiKey');
-
-  const book = {
-    accounts: storageItem('lunchmoney.app/plaid_accounts'),
-  };
+  fields.apiKey.onBlur(ev => keyStore.set(ev.target.value));
 
   /** @param {string} path */
   const remoteData = path => {
@@ -108,10 +138,14 @@ export function ui({
     });
   };
 
-  fields.apiKey.onBlur(ev => keyStore.set(ev.target.value));
+  const book = {
+    accounts: storageItem('lunchmoney.app/plaid_accounts'),
+    transactions: storageItem('lunchmoney.app/transactions'),
+  };
 
   const remote = {
     accounts: remoteData('/v1/plaid_accounts'),
+    transactions: remoteData('/v1/transactions'),
   };
 
   fields.accounts.onClick(_click => {
@@ -121,6 +155,13 @@ export function ui({
     });
   });
 
+  fields.transactions.onClick(_ev => {
+    remote.transactions.get().then(({ transactions: txs }) => {
+      book.transactions.set(txs);
+      fields.transactions.set(txs);
+    });
+  });
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(book.accounts.get(), accts => fields.accounts.set(accts));
+  maybe(book.transactions.get(), txs => fields.transactions.set(txs));
 }
