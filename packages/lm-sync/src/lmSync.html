@@ -25,8 +25,8 @@
   const $ = s => document.querySelector(s) || fail(s);
 
   window.addEventListener('DOMContentLoaded', _event => {
-    console.log('DOMContentLoaded. button:', $('#fetch'));
-    ui({ $, fetch });
+    console.debug('DOMContentLoaded. button:', $('#fetch'));
+    ui({ $, fetch, localStorage });
   });
 </script>
 <noscript>
