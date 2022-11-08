@@ -4,16 +4,17 @@
 
 <fieldset>
   <label
+    >Account:
+    <select name="account"> </select
+  ></label>
+
+  <br />
+  <button id="updateAccounts">Update Accounts</button>
+  from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
+  <hr />
+  <label
     >API Key
     <input id="apiKey" />
-  </label>
-  <button id="fetch">Fetch</button>
-  <br />
-  from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
-  <br />
-  <label
-    >Result<br />
-    <textarea id="result" readonly="readonly" cols="60" rows="18"></textarea>
   </label>
 </fieldset>
 
@@ -25,8 +26,15 @@
   const $ = s => document.querySelector(s) || fail(s);
 
   window.addEventListener('DOMContentLoaded', _event => {
-    console.debug('DOMContentLoaded. button:', $('#fetch'));
-    ui({ $, fetch, localStorage });
+    console.debug('DOMContentLoaded. button:', $('#updateAccounts'));
+    ui({
+      $,
+      fetch,
+      localStorage,
+      createElement: tag => document.createElement(tag),
+      createTextNode: txt => document.createTextNode(txt),
+      clock: () => Date.now(),
+    });
   });
 </script>
 <noscript>
