@@ -1,0 +1,34 @@
+<head>
+  <title>Lunch Money Fetch</title>
+</head>
+
+<fieldset>
+  <label
+    >API Key
+    <input id="apiKey" />
+  </label>
+  <button id="fetch">Fetch</button>
+  <br />
+  from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
+  <br />
+  <label
+    >Result<br />
+    <textarea id="result" readonly="readonly" cols="60" rows="18"></textarea>
+  </label>
+</fieldset>
+
+<script type="module">
+  import { ui } from './lmUI.js';
+  const fail = why => {
+    throw Error(why);
+  };
+  const $ = s => document.querySelector(s) || fail(s);
+
+  window.addEventListener('DOMContentLoaded', _event => {
+    console.log('DOMContentLoaded. button:', $('#fetch'));
+    ui({ $, fetch });
+  });
+</script>
+<noscript>
+  Please turn on JS; this app isn't feasible without it.
+</noscript>
