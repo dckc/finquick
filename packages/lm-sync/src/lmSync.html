@@ -1,5 +1,29 @@
 <head>
   <title>Lunch Money Fetch</title>
+  <style>
+    .report {
+      border-collapse: collapse;
+      font-family: sans-serif;
+    }
+    th,
+    td {
+      border: 1px solid black;
+      padding: 4px;
+    }
+    .report tr:nth-child(odd) {
+      background-color: #fff;
+    }
+
+    .report tr:nth-child(even) {
+      background-color: #eee;
+    }
+
+    .report tr td:nth-child(4),
+    .report tr td:nth-child(5),
+    .report tr td:nth-child(6) {
+      text-align: right;
+    }
+  </style>
 </head>
 
 <fieldset>
@@ -22,7 +46,7 @@
 
 <section>
   <h2>Transactions</h2>
-  <table id="transactionView" border="1"></table>
+  <table id="transactionView" class="report"></table>
 </section>
 <script type="module">
   import { ui } from './lmUI.js';
