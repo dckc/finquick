@@ -127,8 +127,10 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
           control.transactions.appendChild(
             elt(
               'tr',
-              { id: `tx${tx.id}`, title: JSON.stringify(tx) },
-              cols.map(field => elt('td', {}, [`${tx[field] || ''}`])),
+              { id: `tx${tx.id}`, title: JSON.stringify(tx), class: tx.status },
+              cols.map(field =>
+                elt('td', {}, [elt('span', {}, [`${tx[field] || ''}`])]),
+              ),
             ),
           ),
         );

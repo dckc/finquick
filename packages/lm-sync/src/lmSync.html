@@ -18,10 +18,35 @@
       background-color: #eee;
     }
 
-    .report tr td:nth-child(4),
-    .report tr td:nth-child(5),
-    .report tr td:nth-child(6) {
+    .report tr td:nth-child(4) {
       text-align: right;
+    }
+
+    .report tr td:nth-child(7) {
+      text-align: center;
+    }
+    .report tr td:nth-child(7) span {
+      visibility: hidden;
+    }
+    .report tr.uncleared td:nth-child(7):before {
+      content: '?';
+    }
+    .report tr.cleared td:nth-child(7):before {
+      content: '✓';
+    }
+    .report tr.recurring td:nth-child(7):before {
+      content: '♲';
+      color: green;
+    }
+    .report tr.recurring_suggested td:nth-child(7):before {
+      content: '♲?';
+      color: grey;
+    }
+
+    tr.uncleared td:nth-child(5),
+    tr.uncleared td:nth-child(7) {
+      font-style: italic;
+      color: red;
     }
   </style>
 </head>
