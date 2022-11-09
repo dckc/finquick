@@ -52,6 +52,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
   const control = freeze({
     endPoint: $('#endpoint'),
     apiKey: theInput('#apiKey'),
+    user: $('#budget_name'),
     accounts: theSelect('select[name="account"]'),
     accountsUpdate: $('#updateAccounts'),
     transactions: $('#transactionView'),
@@ -64,6 +65,12 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     apiKey: freeze({
       set: val => (control.apiKey.value = val),
       onBlur: h => control.apiKey.addEventListener('blur', h),
+    }),
+    user: freeze({
+      set: user => {
+        control.user.textContent = user.budget_name;
+        control.user.setAttribute('title', JSON.stringify(user));
+      },
     }),
     accounts: freeze({
       onClick: h => {
@@ -184,16 +191,23 @@ export function ui({
   };
 
   const book = {
+    user: storageItem('lunchmoney.app/me'),
     accounts: storageItem('lunchmoney.app/plaid_accounts'),
     transactions: storageItem('lunchmoney.app/transactions'),
   };
 
   const remote = {
+    user: remoteData('/v1/me'),
     accounts: remoteData('/v1/plaid_accounts'),
     transactions: remoteData('/v1/transactions'),
   };
 
   fields.accounts.onClick(_click => {
+    remote.user.get().then(user => {
+      console.log('user', user);
+      book.user.set(user);
+      fields.user.set(user);
+    });
     remote.accounts.get().then(({ plaid_accounts: accts }) => {
       book.accounts.set(accts);
       fields.accounts.set(accts);
@@ -210,6 +224,7 @@ export function ui({
       });
   });
   maybe(keyStore.get(), k => fields.apiKey.set(k));
+  maybe(book.user.get(), user => fields.user.set(user));
   maybe(book.accounts.get(), accts => fields.accounts.set(accts));
   maybe(book.transactions.get(), txs => fields.transactions.set(txs));
 }
