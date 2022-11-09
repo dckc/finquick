@@ -143,30 +143,64 @@ export function ui({
 }) {
   const fields = makeFields({ createElement, createTextNode, $ });
 
-  /** @param {string} key */
-  const storageItem = key => {
-    const k = { d: `d.${key}`, m: `m.${key}` };
-    const init = localStorage.getItem(k.d);
-    let current;
-    if (init) {
-      try {
-        current = JSON.parse(init);
-      } catch (err) {
-        console.error(err);
+  /** @param {string} name */
+  const storageTable = name => {
+    const k = { d: `d.${name}`, m: `m.${name}` };
+    // ISSUE: awkward type. split item vs. table apart?
+    /** @type {{lastUpdated?: number} & ({value: unknown} & {keys: unknown[]})} */
+    let info = { value: undefined, keys: [] };
+    const tryInit = () => {
+      const init = localStorage.getItem(k.m);
+      if (init) {
+        try {
+          info = JSON.parse(init);
+        } catch (err) {
+          console.error(err);
+        }
       }
-    }
+      return info;
+    };
+    tryInit();
     return freeze({
-      get: () => current,
-      set: val => {
-        current = val;
-        const meta = { lastUpdated: clock() };
-        localStorage.setItem(k.d, JSON.stringify(val));
-        localStorage.setItem(k.m, JSON.stringify(meta));
+      get: () => info.value,
+      set: value => {
+        info = { ...info, value, lastUpdated: clock() };
+        localStorage.setItem(k.m, JSON.stringify(info));
+      },
+      /**
+       * @template {Record<string, any>} T
+       * @param {T[]} records
+       * @param {(r: T) => unknown} getKey
+       */
+      insertMany: (records, getKey = r => r.id) => {
+        const keys = records.map(getKey);
+        info = { ...info, keys, lastUpdated: clock() };
+        localStorage.setItem(k.m, JSON.stringify(info));
+        records.forEach((r, ix) => {
+          const key = keys[ix];
+          // ISSUE: garbage collect storage items?
+          localStorage.setItem(`${k.d}/${key}`, JSON.stringify(r));
+        });
+      },
+      keys: () => info.keys,
+      fetchMany: (maybeKeys = undefined) => {
+        if (!maybeKeys) {
+          tryInit();
+        }
+        const keys = info.keys;
+        const result = [];
+        for (const key of keys) {
+          const value = JSON.parse(
+            localStorage.getItem(`${k.d}/${key}`) || fail(`missing: ${key}`),
+          );
+          result.push(value);
+        }
+        return result;
       },
     });
   };
 
-  const keyStore = storageItem('lunchmoney.app#apiKey');
+  const keyStore = storageTable('lunchmoney.app#apiKey');
   fields.apiKey.onBlur(ev => keyStore.set(ev.target.value));
 
   /** @param {string} path */
@@ -190,10 +224,10 @@ export function ui({
     });
   };
 
-  const book = {
-    user: storageItem('lunchmoney.app/me'),
-    accounts: storageItem('lunchmoney.app/plaid_accounts'),
-    transactions: storageItem('lunchmoney.app/transactions'),
+  const store = {
+    user: storageTable('lunchmoney.app/me'),
+    accounts: storageTable('lunchmoney.app/plaid_accounts'),
+    transactions: storageTable('lunchmoney.app/transactions'),
   };
 
   const remote = {
@@ -205,11 +239,11 @@ export function ui({
   fields.accounts.onClick(_click => {
     remote.user.get().then(user => {
       console.log('user', user);
-      book.user.set(user);
+      store.user.set(user);
       fields.user.set(user);
     });
     remote.accounts.get().then(({ plaid_accounts: accts }) => {
-      book.accounts.set(accts);
+      store.accounts.insertMany(accts);
       fields.accounts.set(accts);
     });
   });
@@ -219,12 +253,12 @@ export function ui({
       .query({ plaid_account_id: fields.accounts.getCurrent() })
       .get()
       .then(({ transactions: txs }) => {
-        book.transactions.set(txs);
+        store.transactions.insertMany(txs);
         fields.transactions.set(txs);
       });
   });
   maybe(keyStore.get(), k => fields.apiKey.set(k));
-  maybe(book.user.get(), user => fields.user.set(user));
-  maybe(book.accounts.get(), accts => fields.accounts.set(accts));
-  maybe(book.transactions.get(), txs => fields.transactions.set(txs));
+  maybe(store.user.get(), user => fields.user.set(user));
+  fields.accounts.set(store.accounts.fetchMany());
+  fields.transactions.set(store.transactions.fetchMany());
 }
