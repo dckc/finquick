@@ -73,7 +73,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
         control.accounts.replaceChildren();
         val
           .filter(({ status }) => status !== 'inactive')
-          .forEach(({ id, name }) =>
+          .forEach(({ id, display_name: name }) =>
             control.accounts.appendChild(elt('option', { value: id }, [name])),
           );
       },
