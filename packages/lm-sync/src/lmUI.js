@@ -112,8 +112,8 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
           'payee',
           'notes',
           'amount',
-          'category_id',
-          'plaid_account_id',
+          'category',
+          'plaid_account',
           'status',
         ];
         control.transactions.replaceChildren(
@@ -275,8 +275,19 @@ export function ui({
       .query({ plaid_account_id: fields.accounts.getCurrent() })
       .get()
       .then(({ transactions: txs }) => {
-        store.transactions.insertMany(txs);
-        fields.transactions.set(txs);
+        const catById = new Map(
+          store.categories.fetchMany().map(c => [c.id, c.name]),
+        );
+        const acctById = new Map(
+          store.accounts.fetchMany().map(a => [a.id, a.display_name]),
+        );
+        const withNames = txs.map(tx => ({
+          ...tx,
+          category: catById.get(tx.category_id),
+          plaid_account: acctById.get(tx.plaid_account_id),
+        }));
+        store.transactions.insertMany(withNames);
+        fields.transactions.set(withNames);
       });
   });
   maybe(keyStore.get(), k => fields.apiKey.set(k));
