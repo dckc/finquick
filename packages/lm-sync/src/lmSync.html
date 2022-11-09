@@ -32,9 +32,14 @@
     >Account:
     <select name="account"> </select
   ></label>
+  <br />
+  <label
+    >Category:
+    <select name="category"> </select
+  ></label>
 
   <br />
-  <button id="updateAccounts">Update Accounts</button>
+  <button id="updateSetup">Update Setup</button>
   from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
   <br />
   <button id="updateTransactions">Update Transactions</button>
@@ -57,7 +62,7 @@
   const $ = s => document.querySelector(s) || fail(s);
 
   window.addEventListener('DOMContentLoaded', _event => {
-    console.debug('DOMContentLoaded. button:', $('#updateAccounts'));
+    console.debug('DOMContentLoaded. button:', $('#updateSetup'));
     ui({
       $,
       fetch,

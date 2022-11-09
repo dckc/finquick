@@ -54,10 +54,34 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     apiKey: theInput('#apiKey'),
     user: $('#budget_name'),
     accounts: theSelect('select[name="account"]'),
-    accountsUpdate: $('#updateAccounts'),
+    accountsUpdate: $('#updateSetup'),
+    categories: theSelect('select[name="category"]'),
     transactions: $('#transactionView'),
     transationsUpdate: $('#updateTransactions'),
   });
+
+  /**
+   * @param {HTMLSelectElement} ctrl
+   * @param {string} [nameProp]
+   * @param {Element} [btn]
+   */
+  const selectField = (ctrl, nameProp = 'name', btn = undefined) =>
+    freeze({
+      onClick: h => {
+        if (!btn) throw TypeError();
+        btn.addEventListener('click', h);
+      },
+      set: val => {
+        ctrl.replaceChildren();
+        val
+          .filter(({ status }) => status !== 'inactive')
+          .forEach(r =>
+            ctrl.appendChild(elt('option', { value: r.id }, [r[nameProp]])),
+          );
+      },
+      getCurrent: () => ctrl.value,
+    });
+
   const fields = {
     endPoint: freeze({
       get: () => control.endPoint.getAttribute('href') || fail('missing href'),
@@ -72,20 +96,12 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
         control.user.setAttribute('title', JSON.stringify(user));
       },
     }),
-    accounts: freeze({
-      onClick: h => {
-        control.accountsUpdate.addEventListener('click', h);
-      },
-      set: val => {
-        control.accounts.replaceChildren();
-        val
-          .filter(({ status }) => status !== 'inactive')
-          .forEach(({ id, display_name: name }) =>
-            control.accounts.appendChild(elt('option', { value: id }, [name])),
-          );
-      },
-      getCurrent: () => control.accounts.value,
-    }),
+    accounts: selectField(
+      control.accounts,
+      'display_name',
+      control.accountsUpdate,
+    ),
+    categories: selectField(control.categories),
     transactions: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
@@ -227,12 +243,14 @@ export function ui({
   const store = {
     user: storageTable('lunchmoney.app/me'),
     accounts: storageTable('lunchmoney.app/plaid_accounts'),
+    categories: storageTable('lunchmoney.app/categories'),
     transactions: storageTable('lunchmoney.app/transactions'),
   };
 
   const remote = {
     user: remoteData('/v1/me'),
     accounts: remoteData('/v1/plaid_accounts'),
+    categories: remoteData('/v1/categories'),
     transactions: remoteData('/v1/transactions'),
   };
 
@@ -245,6 +263,10 @@ export function ui({
     remote.accounts.get().then(({ plaid_accounts: accts }) => {
       store.accounts.insertMany(accts);
       fields.accounts.set(accts);
+    });
+    remote.categories.get().then(({ categories }) => {
+      store.categories.insertMany(categories);
+      fields.categories.set(categories);
     });
   });
 
@@ -260,5 +282,6 @@ export function ui({
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(store.user.get(), user => fields.user.set(user));
   fields.accounts.set(store.accounts.fetchMany());
+  fields.categories.set(store.categories.fetchMany());
   fields.transactions.set(store.transactions.fetchMany());
 }
