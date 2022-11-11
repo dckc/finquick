@@ -22,6 +22,10 @@ const getPort = (defaultPort, { env }) => {
 };
 
 const loc = {
+  gnucash: {
+    accounts: '/gnucash/accounts',
+    transactions: '/gnucash/transactions',
+  },
   lunchmoney: {
     transactions: '/lunchmoney/transactions',
   },
@@ -53,6 +57,17 @@ const attach = (app, db) => {
       .prepare(`select * from slots where name = ?`)
       .all('lunchmoney.app/transactions');
     const txs = rows.map(({ string_val: val }) => JSON.parse(val));
+    res.send(JSON.stringify(txs));
+  });
+  app.get(loc.gnucash.transactions, (req, res) => {
+    const code = req.query.code;
+    const rows = db
+      .prepare(
+        `select tx from tx_json where json_extract(tx, '$.splits[1].code') = ?
+        order by post_date desc, tx_guid, guid`,
+      )
+      .all(code);
+    const txs = rows.map(({ tx }) => JSON.parse(tx));
     res.send(JSON.stringify(txs));
   });
 };

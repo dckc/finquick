@@ -78,6 +78,19 @@
 <section>
   <h2>Transactions</h2>
   <table id="transactionView" class="report"></table>
+  <h3>GnuCash Journal</h3>
+  <table class="report">
+    <thead>
+      <tr>
+        <th>date</th>
+        <th>num</th>
+        <th>description</th>
+        <th>account</th>
+        <th>value</th>
+      </tr>
+    </thead>
+    <tbody id="txSplits"></tbody>
+  </table>
 </section>
 <script type="module">
   import { ui } from './lmUI.js';

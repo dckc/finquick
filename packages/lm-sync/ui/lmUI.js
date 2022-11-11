@@ -58,6 +58,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     categories: theSelect('select[name="category"]'),
     transactions: $('#transactionView'),
     transationsUpdate: $('#updateTransactions'),
+    txSplits: $('#txSplits'),
   });
 
   /**
@@ -102,6 +103,28 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
       control.accountsUpdate,
     ),
     categories: selectField(control.categories),
+    txSplit: freeze({
+      set: txs => {
+        // ['date', 'num', 'description', 'account', 'value'];
+        control.txSplits.replaceChildren(
+          ...txs.flatMap(tx => {
+            return tx.splits.map((split, ix) =>
+              elt(
+                'tr',
+                {},
+                [
+                  ...(ix === 0
+                    ? [tx.date, tx.num, tx.description]
+                    : ['', '', '']),
+                  split.value,
+                  split.account,
+                ].map(val => elt('td', {}, [`${val || ''}`])),
+              ),
+            );
+          }),
+        );
+      },
+    }),
     transactions: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
@@ -141,6 +164,18 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
 };
 
 /** @typedef { Record<string, string|number|boolean> } Query */
+
+/**
+ * @param {string} path
+ * @param {Query} params
+ */
+const urlQuery = (path, params) => {
+  const q = path.endsWith('?') ? '' : '?';
+  const encoded = entries(params)
+    .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
+    .join('&');
+  return `${path}${q}${encoded}`;
+};
 
 /**
  * @param {Object} io
@@ -232,14 +267,20 @@ export function ui({
         return resp.json();
       },
       query(/** @type {Query} */ params) {
-        const q = path.endsWith('?') ? '' : '?';
-        const encoded = entries(params)
-          .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
-          .join('&');
-        const there = `${path}${q}${encoded}`;
+        const there = urlQuery(path, params);
         return remoteData(there);
       },
     });
+  };
+
+  const db = {
+    transactions: {
+      /** @param {string} code */
+      get: code =>
+        fetch(urlQuery('/gnucash/transactions', { code })).then(resp =>
+          resp.json(),
+        ),
+    },
   };
 
   const store = {
@@ -247,6 +288,7 @@ export function ui({
     accounts: storageTable('lunchmoney.app/plaid_accounts'),
     categories: storageTable('lunchmoney.app/categories'),
     transactions: storageTable('lunchmoney.app/transactions'),
+    txSplits: storageTable('gnucash/txSplits'),
   };
 
   const remote = {
@@ -272,6 +314,8 @@ export function ui({
     });
   });
 
+  const IMBALANCE_USD = '9001';
+
   fields.transactions.onClick(_ev => {
     remote.transactions
       .query({ plaid_account_id: fields.accounts.getCurrent() })
@@ -291,7 +335,13 @@ export function ui({
         store.transactions.insertMany(withNames);
         fields.transactions.set(withNames);
       });
+
+    db.transactions.get(IMBALANCE_USD).then(txs => {
+      store.txSplits.insertMany(txs, tx => tx.tx_guid);
+      fields.txSplit.set(txs);
+    });
   });
+
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(store.user.get(), user => fields.user.set(user));
   fields.accounts.set(store.accounts.fetchMany());
