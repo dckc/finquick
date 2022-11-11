@@ -60,14 +60,17 @@ const attach = (app, db) => {
 /**
  *
  * @param {Object} io
- * @param {ReturnType<typeof import('express')>} io.app
+ * @param {typeof import('express')} io.express
+ * @param {typeof import('path')} io.path
  * @param {Record<string, string|undefined>} io.env
  * @param {(path: string) => SqliteDB} io.openSqlite
  *
  * @typedef {import('better-sqlite3').Database} SqliteDB
  */
-const main = ({ app, env, openSqlite }) => {
+const main = ({ env, path, express, openSqlite }) => {
   const db = openSqlite(env.GNUCASH_DB || fail(`missing $GNUCASH_DB`));
+  const app = express();
+  app.use('/ui', express.static(path.join(__dirname, '..', 'ui')));
   attach(app, db);
   const port = getPort(8000, { env });
   app.listen(port);
@@ -79,7 +82,9 @@ if (require.main === module) {
   main({
     env: process.env,
     // eslint-disable-next-line global-require
-    app: require('express')(),
+    express: require('express'),
+    // eslint-disable-next-line global-require
+    path: require('path'),
     // eslint-disable-next-line global-require
     openSqlite: path => require('better-sqlite3')(path),
   });
