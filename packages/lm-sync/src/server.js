@@ -59,6 +59,20 @@ const attach = (app, db) => {
     const txs = rows.map(({ string_val: val }) => JSON.parse(val));
     res.send(JSON.stringify(txs));
   });
+  app.get(loc.gnucash.accounts, (req, res) => {
+    const accts = db
+      .prepare(
+        `select a.*, s.string_val notes
+        from accounts a
+        left join slots s on s.obj_guid = a.guid and s.name = 'notes'
+        order by account_type, code, name`,
+      )
+      .all();
+    res.send(JSON.stringify(accts));
+  });
+  /**
+   * especially: get uncategorized transactions
+   */
   app.get(loc.gnucash.transactions, (req, res) => {
     const code = req.query.code;
     const rows = db
