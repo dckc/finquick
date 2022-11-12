@@ -75,7 +75,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
       set: val => {
         ctrl.replaceChildren();
         val
-          .filter(({ status }) => status !== 'inactive')
+          // .filter(({ status }) => status !== 'inactive')
           .forEach(r =>
             ctrl.appendChild(elt('option', { value: r.id }, [r[nameProp]])),
           );
@@ -97,11 +97,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
         control.user.setAttribute('title', JSON.stringify(user));
       },
     }),
-    accounts: selectField(
-      control.accounts,
-      'display_name',
-      control.accountsUpdate,
-    ),
+    accounts: selectField(control.accounts, 'name', control.accountsUpdate),
     categories: selectField(control.categories),
     txSplit: freeze({
       set: txs => {
@@ -175,6 +171,22 @@ const urlQuery = (path, params) => {
     .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
     .join('&');
   return `${path}${q}${encoded}`;
+};
+
+/** @param {string} notes */
+const extractLMid = notes => {
+  const parts = notes.match(/lm:(?<id>\d+)/);
+  if (!parts) return undefined;
+  return Number(parts?.groups?.id);
+};
+
+const withMatchingAccount = (gcAcct, lmAcctsById) => {
+  if (!gcAcct.notes) return gcAcct;
+  const id = extractLMid(gcAcct.notes);
+  if (!id) return gcAcct;
+  const lmAcct = lmAcctsById.get(id);
+  if (!lmAcct) return gcAcct;
+  return { ...gcAcct, plaid: lmAcct };
 };
 
 /**
@@ -274,6 +286,9 @@ export function ui({
   };
 
   const db = {
+    accounts: {
+      get: () => fetch('/gnucash/accounts').then(resp => resp.json()),
+    },
     transactions: {
       /** @param {string} code */
       get: code =>
@@ -285,9 +300,10 @@ export function ui({
 
   const store = {
     user: storageTable('lunchmoney.app/me'),
-    accounts: storageTable('lunchmoney.app/plaid_accounts'),
+    plaidAccounts: storageTable('lunchmoney.app/plaid_accounts'),
     categories: storageTable('lunchmoney.app/categories'),
     transactions: storageTable('lunchmoney.app/transactions'),
+    chartOfAccounts: storageTable('gnucash/accounts'),
     txSplits: storageTable('gnucash/txSplits'),
   };
 
@@ -304,10 +320,16 @@ export function ui({
       store.user.set(user);
       fields.user.set(user);
     });
-    remote.accounts.get().then(({ plaid_accounts: accts }) => {
-      store.accounts.insertMany(accts);
-      fields.accounts.set(accts);
-    });
+    Promise.all([db.accounts.get(), remote.accounts.get()]).then(
+      ([gcAccts, { plaid_accounts: lmAccts }]) => {
+        const byId = new Map(lmAccts.map(a => [a.id, a]));
+        const joined = gcAccts.map(a => withMatchingAccount(a, byId));
+        store.chartOfAccounts.insertMany(joined, a => a.guid);
+        store.plaidAccounts.insertMany(lmAccts);
+        const accts = joined.filter(a => !!a.plaid);
+        fields.accounts.set(accts);
+      },
+    );
     remote.categories.get().then(({ categories }) => {
       store.categories.insertMany(categories);
       fields.categories.set(categories);
@@ -316,25 +338,26 @@ export function ui({
 
   const IMBALANCE_USD = '9001';
 
+  const by = (prop, d = 1) => (a, b) =>
+    // eslint-disable-next-line no-nested-ternary
+    a[prop] === b[prop] ? 0 : d * (a[prop] < b[prop] ? -1 : 1);
+
   fields.transactions.onClick(_ev => {
-    remote.transactions
-      .query({ plaid_account_id: fields.accounts.getCurrent() })
-      .get()
-      .then(({ transactions: txs }) => {
-        const catById = new Map(
-          store.categories.fetchMany().map(c => [c.id, c.name]),
-        );
-        const acctById = new Map(
-          store.accounts.fetchMany().map(a => [a.id, a.display_name]),
-        );
-        const withNames = txs.map(tx => ({
-          ...tx,
-          category: catById.get(tx.category_id),
-          plaid_account: acctById.get(tx.plaid_account_id),
-        }));
-        store.transactions.insertMany(withNames);
-        fields.transactions.set(withNames);
-      });
+    remote.transactions.get().then(({ transactions: txs }) => {
+      const catById = new Map(
+        store.categories.fetchMany().map(c => [c.id, c.name]),
+      );
+      const acctById = new Map(
+        store.plaidAccounts.fetchMany().map(a => [a.id, a.display_name]),
+      );
+      const withNames = txs.sort(by('date', -1)).map(tx => ({
+        ...tx,
+        category: catById.get(tx.category_id),
+        plaid_account: acctById.get(tx.plaid_account_id),
+      }));
+      store.transactions.insertMany(withNames);
+      fields.transactions.set(withNames);
+    });
 
     db.transactions.get(IMBALANCE_USD).then(txs => {
       store.txSplits.insertMany(txs, tx => tx.tx_guid);
@@ -344,7 +367,7 @@ export function ui({
 
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(store.user.get(), user => fields.user.set(user));
-  fields.accounts.set(store.accounts.fetchMany());
+  fields.accounts.set(store.plaidAccounts.fetchMany());
   fields.categories.set(store.categories.fetchMany());
   fields.transactions.set(store.transactions.fetchMany());
 }
