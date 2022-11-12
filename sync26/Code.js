@@ -221,7 +221,7 @@ function updateTransactionDetailsFromReceipts() {
   const { hd: txHd, records: txs } = getSheetRecords(
     doc.getSheetByName("Transactions")
   );
-  let dest = txs.length;
+  let dest = txs.length + 1;
   let startOfLastMatchDate;
 
   const short = (dt) => dt.toISOString().slice(0, 10);
@@ -263,8 +263,10 @@ function updateTransactionDetailsFromReceipts() {
       const detail = JSON.parse(tx.Detail);
       if (detail.original_name === "Venmo") break;
     }
-    if (dest <= 1 || tx === null) {
-      console.warn("cannot find transaction:", row, receipt);
+    if (dest <= 1 || !tx) {
+      console.warn("cannot find transaction:", row, receipt, {
+        startOfLastMatchDate,
+      });
       if (daysBetween(receipt.Date, txs[0].date) > 3) {
         console.warn(
           "remaining transactions are too old",
@@ -275,7 +277,9 @@ function updateTransactionDetailsFromReceipts() {
         );
         break;
       }
-      dest = startOfLastMatchDate;
+      if (startOfLastMatchDate) {
+        dest = startOfLastMatchDate;
+      }
       continue;
     }
     console.log(
