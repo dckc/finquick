@@ -120,14 +120,20 @@ function paginate(kind, creds, params) {
   return pages.flat();
 }
 
+const short = (dt) => dt.toISOString().slice(0, 10);
+
 function loadLunchMoneyTransactions() {
   console.warn("AMBIENT: SpreadsheetApp");
   const doc = SpreadsheetApp.getActive();
   const apiKey = doc.getRangeByName("LM_API_KEY").getValue();
+  const range = {
+    start: doc.getRangeByName("loadStart").getValue(),
+    end: doc.getRangeByName("loadEnd").getValue(),
+  };
   const creds = { Authorization: `Bearer ${apiKey}` };
   const txs = paginate("transactions", creds, {
-    start_date: "2022-09-01",
-    end_date: "2050-01-01",
+    start_date: short(range.start),
+    end_date: short(range.end),
   });
   console.log("txs", txs.length, txs.slice(0, 2));
 
@@ -221,8 +227,6 @@ function updateTransactionDetailsFromReceipts() {
   );
   let dest = txs.length + 1;
   let startOfLastMatchDate;
-
-  const short = (dt) => dt.toISOString().slice(0, 10);
 
   for (let row = 2; true; row += 1) {
     const receipt = receipts[row - 2];
