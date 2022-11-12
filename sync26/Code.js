@@ -147,7 +147,7 @@ function loadLunchMoneyTransactions() {
     tx.plaid_account_id,
     tx.category_id,
   ]);
-  sheet.getRange(2, rows.length, 1, hd.length).setValues(rows);
+  sheet.getRange(2, 1, rows.length, hd.length).setValues(rows);
 }
 
 function saveLunchMoneyTransactions() {
