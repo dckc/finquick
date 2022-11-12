@@ -69,10 +69,8 @@ function loadVenmoReceipts() {
       if (!tx.amount) {
         console.warn("no amount??", subject);
       }
-      const acct = maybeMatch(
-        body,
-        /(from|via) your (?<account>[^\.]+)/m
-      ).account;
+      const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m)
+        .account;
       const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
 
       const values = [
