@@ -108,7 +108,10 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
       r => `${r.code}: ${r.name}`,
       control.accountsUpdate,
     ),
-    categories: selectField(control.categories),
+    categories: selectField(
+      control.categories,
+      r => `${r.code || '???'}: ${r.name}`,
+    ),
     txSplits: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
@@ -185,6 +188,13 @@ const extractLMid = notes => {
   const parts = notes.match(/lm:(?<id>\d+)/);
   if (!parts) return undefined;
   return Number(parts?.groups?.id);
+};
+
+/** @param {string} desc */
+const extractCode = desc => {
+  const parts = (desc || '').match(/code:\s*(?<code>\S+)/);
+  if (!parts) return undefined;
+  return parts?.groups?.code;
 };
 
 /**
@@ -466,6 +476,8 @@ export function ui({
     fields.txSplits.set(wanted, gcById, lmById);
   };
 
+  const withCodes = categories =>
+    categories.map(c => ({ ...c, code: extractCode(c.description) }));
   fields.accounts.onClick(_click => {
     remote.user.get().then(user => {
       console.log('user', user);
@@ -481,7 +493,7 @@ export function ui({
     );
     remote.categories.get().then(({ categories }) => {
       store.categories.insertMany(categories);
-      fields.categories.set(categories);
+      fields.categories.set(withCodes(categories));
     });
   });
 
@@ -510,6 +522,6 @@ export function ui({
     store.chartOfAccounts.fetchMany(),
     store.plaidAccounts.fetchMany(),
   );
-  fields.categories.set(store.categories.fetchMany());
+  fields.categories.set(withCodes(store.categories.fetchMany()));
   showTxs(store.transactions.fetchMany(), store.txSplits.fetchMany());
 }
