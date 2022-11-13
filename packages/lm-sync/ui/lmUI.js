@@ -1,7 +1,14 @@
 // @ts-check
+const IMBALANCE_USD = '9001';
+
 const { freeze, entries } = Object;
 
 const maybe = (x, f) => (x ? [f(x)] : []);
+const by = (prop, d = 1) => (a, b) =>
+  // eslint-disable-next-line no-nested-ternary
+  a[prop] === b[prop] ? 0 : d * (a[prop] < b[prop] ? -1 : 1);
+
+const short = dt => dt.toISOString().slice(0, 10);
 
 const fail = why => {
   throw Error(why);
@@ -22,9 +29,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
    */
   const elt = (tag, attrs = {}, children = []) => {
     const it = createElement(tag);
-    Object.entries(attrs).forEach(([name, value]) =>
-      it.setAttribute(name, value),
-    );
+    entries(attrs).forEach(([name, value]) => it.setAttribute(name, value));
     children.forEach(ch => {
       if (typeof ch === 'string') {
         it.appendChild(createTextNode(ch));
@@ -56,17 +61,18 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     accounts: theSelect('select[name="account"]'),
     accountsUpdate: $('#updateSetup'),
     categories: theSelect('select[name="category"]'),
-    transactions: $('#transactionView'),
+    txFrom: theInput('input[name="txFrom"]'),
+    txTo: theInput('input[name="txTo"]'),
     transationsUpdate: $('#updateTransactions'),
     txSplits: $('#txSplits'),
   });
 
   /**
    * @param {HTMLSelectElement} ctrl
-   * @param {string} [nameProp]
+   * @param {(r: Record<string, any>) => string} [getName]
    * @param {Element} [btn]
    */
-  const selectField = (ctrl, nameProp = 'name', btn = undefined) =>
+  const selectField = (ctrl, getName = r => r.name, btn = undefined) =>
     freeze({
       onClick: h => {
         if (!btn) throw TypeError();
@@ -77,7 +83,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
         val
           // .filter(({ status }) => status !== 'inactive')
           .forEach(r =>
-            ctrl.appendChild(elt('option', { value: r.id }, [r[nameProp]])),
+            ctrl.appendChild(elt('option', { value: r.id }, [getName(r)])),
           );
       },
       getCurrent: () => ctrl.value,
@@ -97,61 +103,62 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
         control.user.setAttribute('title', JSON.stringify(user));
       },
     }),
-    accounts: selectField(control.accounts, 'name', control.accountsUpdate),
+    accounts: selectField(
+      control.accounts,
+      r => `${r.code}: ${r.name}`,
+      control.accountsUpdate,
+    ),
     categories: selectField(control.categories),
-    txSplit: freeze({
-      set: txs => {
-        // ['date', 'num', 'description', 'account', 'value'];
-        control.txSplits.replaceChildren(
-          ...txs.flatMap(tx => {
-            return tx.splits.map((split, ix) =>
-              elt(
-                'tr',
-                {},
-                [
-                  ...(ix === 0
-                    ? [tx.date, tx.num, tx.description]
-                    : ['', '', '']),
-                  split.value,
-                  split.account,
-                ].map(val => elt('td', {}, [`${val || ''}`])),
-              ),
-            );
-          }),
-        );
-      },
-    }),
-    transactions: freeze({
+    txSplits: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
       },
-      set: val => {
-        const cols = [
-          'date',
-          'payee',
-          'notes',
-          'amount',
-          'category',
-          'plaid_account',
-          'status',
-        ];
-        control.transactions.replaceChildren(
-          elt(
-            'tr',
-            {},
-            cols.map(name => elt('th', {}, [name])),
-          ),
-        );
-        val.forEach(tx =>
-          control.transactions.appendChild(
-            elt(
+      getRange: () => ({
+        from: control.txFrom.valueAsDate,
+        to: control.txTo.valueAsDate,
+      }),
+      /**
+       *
+       * @param {TxJoin[]} joined
+       * @param {Map<string, GcTx>} gcTxs
+       * @param {Map<number, LmTx>} lmTxs
+       */
+      set: (joined, gcTxs, lmTxs) => {
+        control.txSplits.replaceChildren(
+          ...joined.map(j => {
+            const { tx_guid: guid, plaid } = j;
+            const txl = lmTxs.get(plaid) || fail(plaid);
+            const txg = gcTxs.get(guid || fail('wanted')) || fail(guid);
+            const title = JSON.stringify({ ...j, ...{ splits: txg.splits } });
+            const entriesLM = [
+              'date',
+              'plaid_account',
+              'payee',
+              'amount',
+              'category',
+              'notes',
+              'status',
+            ].map(p => [p, txl[p]]);
+            const entriesGC = [
+              ['description', txg.description],
+              ['memo', txg.splits[1].memo],
+            ];
+            return elt(
               'tr',
-              { id: `tx${tx.id}`, title: JSON.stringify(tx), class: tx.status },
-              cols.map(field =>
-                elt('td', {}, [elt('span', {}, [`${tx[field] || ''}`])]),
+              { id: `${plaid}`, title },
+              [...entriesLM, ...entriesGC].map(([prop, val]) =>
+                elt(
+                  'td',
+                  {
+                    class: `${prop} ${typeof val} ${
+                      prop === 'status' ? val : ''
+                    }`,
+                  },
+                  [elt('span', {}, [`${val || ''}`])],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         );
       },
     }),
@@ -180,13 +187,72 @@ const extractLMid = notes => {
   return Number(parts?.groups?.id);
 };
 
-const withMatchingAccount = (gcAcct, lmAcctsById) => {
-  if (!gcAcct.notes) return gcAcct;
+/**
+ * @param {GcAcct} gcAcct
+ * @param {Map<number, LmAcct>} lmAcctsById
+ * @typedef {{ guid: string, account_type: string, name: string, code?: string, notes?: string }} GcAcct
+ * @typedef {{ id: number, display_name: string }} LmAcct
+ * @returns {AcctJoin[]}
+ */
+const joinMatchingAccount = (gcAcct, lmAcctsById) => {
+  if (!gcAcct.code) return [];
+  if (!gcAcct.notes) return [];
   const id = extractLMid(gcAcct.notes);
-  if (!id) return gcAcct;
+  if (!id) return [];
   const lmAcct = lmAcctsById.get(id);
-  if (!lmAcct) return gcAcct;
-  return { ...gcAcct, plaid: lmAcct };
+  if (!lmAcct) return [];
+  return [
+    {
+      guid: gcAcct.guid,
+      code: gcAcct.code,
+      account_type: gcAcct.account_type,
+      plaid: lmAcct.id,
+    },
+  ];
+};
+
+/**
+ * Lunch Money left join GnuCash
+ *
+ * @param {LmTx} lmTx
+ * @param {AcctJoin[]} acctJoin
+ * @param {GcTx[]} gcTxs
+ *
+ * @typedef {{ plaid: number, tx_guid?: string }} TxJoin
+ * @typedef {{ guid: string, code: string, account_type: string, plaid: number }} AcctJoin
+ * @typedef {{
+ *   tx_guid: string,
+ *   num: string,
+ *   date: string,
+ *   description: string,
+ *   splits: {code: string, amount: number, value: number, account: string, split_guid: string, memo: string}[]}
+ * } GcTx
+ * @typedef {{
+ *   id: number,
+ *   date: string,
+ *   plaid_account_id?: number,
+ *   category_id?: number,
+ *   amount: string,
+ *   status: string
+ * }} LmTx
+ * @returns {TxJoin[]}
+ */
+const joinMatchingTx = (lmTx, acctJoin, gcTxs) => {
+  const acct = acctJoin.find(a => a.plaid === lmTx.plaid_account_id);
+  if (!acct) return [{ plaid: lmTx.id }];
+  const sign = -1; // ['BANK'].includes(acct.account_type) ? -1 : 1;
+  const found = gcTxs.filter(
+    tx =>
+      lmTx.date === tx.date &&
+      tx.splits[0].code === acct.code &&
+      Number(lmTx.amount) === sign * tx.splits[0].value,
+  );
+  if (found.length === 0) return [{ plaid: lmTx.id }];
+  if (found.length > 1) {
+    console.warn('AMBIGUOUS!', found);
+    return [];
+  }
+  return [{ tx_guid: found[0].tx_guid, plaid: lmTx.id }];
 };
 
 /**
@@ -208,12 +274,18 @@ export function ui({
 }) {
   const fields = makeFields({ createElement, createTextNode, $ });
 
-  /** @param {string} name */
-  const storageTable = name => {
+  /**
+   * @template I
+   * @template {Record<string, any>} R
+   * @param {string} name
+   * @param {I} itemEx
+   * @param {R} _rowEx
+   */
+  const storageTable = (name, itemEx, _rowEx) => {
     const k = { d: `d.${name}`, m: `m.${name}` };
     // ISSUE: awkward type. split item vs. table apart?
-    /** @type {{lastUpdated?: number} & ({value: unknown} & {keys: unknown[]})} */
-    let info = { value: undefined, keys: [] };
+    /** @type {{lastUpdated?: number} & ({value: I} & {keys: unknown[]})} */
+    let info = { value: itemEx, keys: [] };
     const tryInit = () => {
       const init = localStorage.getItem(k.m);
       if (init) {
@@ -228,14 +300,14 @@ export function ui({
     tryInit();
     return freeze({
       get: () => info.value,
+      /** @param {I} value */
       set: value => {
         info = { ...info, value, lastUpdated: clock() };
         localStorage.setItem(k.m, JSON.stringify(info));
       },
       /**
-       * @template {Record<string, any>} T
-       * @param {T[]} records
-       * @param {(r: T) => unknown} getKey
+       * @param {R[]} records
+       * @param {(r: R) => unknown} getKey
        */
       insertMany: (records, getKey = r => r.id) => {
         const keys = records.map(getKey);
@@ -265,12 +337,17 @@ export function ui({
     });
   };
 
-  const keyStore = storageTable('lunchmoney.app#apiKey');
+  const keyStore = storageTable('lunchmoney.app#apiKey', 's', {});
   fields.apiKey.onBlur(ev => keyStore.set(ev.target.value));
 
-  /** @param {string} path */
-  const remoteData = path => {
+  /**
+   * @template T
+   * @param {string} path
+   * @param {T} example
+   */
+  const remoteData = (path, example) => {
     return freeze({
+      /** @returns {Promise<T>} */
       get: async () => {
         const apiKey = keyStore.get();
         const headers = { Authorization: `Bearer ${apiKey}` };
@@ -280,17 +357,21 @@ export function ui({
       },
       query(/** @type {Query} */ params) {
         const there = urlQuery(path, params);
-        return remoteData(there);
+        return remoteData(there, example);
       },
     });
   };
 
   const db = {
     accounts: {
+      /** @returns {Promise<GcAcct[]>} */
       get: () => fetch('/gnucash/accounts').then(resp => resp.json()),
     },
     transactions: {
-      /** @param {string} code */
+      /**
+       * @param {string} code
+       * @returns {Promise<GcTx[]>}
+       */
       get: code =>
         fetch(urlQuery('/gnucash/transactions', { code })).then(resp =>
           resp.json(),
@@ -299,19 +380,90 @@ export function ui({
   };
 
   const store = {
-    user: storageTable('lunchmoney.app/me'),
-    plaidAccounts: storageTable('lunchmoney.app/plaid_accounts'),
-    categories: storageTable('lunchmoney.app/categories'),
-    transactions: storageTable('lunchmoney.app/transactions'),
-    chartOfAccounts: storageTable('gnucash/accounts'),
-    txSplits: storageTable('gnucash/txSplits'),
+    user: storageTable('lunchmoney.app/me', {}, {}),
+    plaidAccounts: storageTable(
+      'lunchmoney.app/plaid_accounts',
+      null,
+      /** @type {LmAcct} */ ({}),
+    ),
+    categories: storageTable('lunchmoney.app/categories', null, {}),
+    transactions: storageTable(
+      'lunchmoney.app/transactions',
+      null,
+      /** @type {LmTx} */ ({}),
+    ),
+    chartOfAccounts: storageTable(
+      'gnucash/accounts',
+      null,
+      /** @type {GcAcct} */ ({}),
+    ),
+    txSplits: storageTable('gnucash/txSplits', null, /** @type {GcTx} */ ({})),
+    acctJoin: storageTable('join/accounts', [/** @type {AcctJoin} */ ({})], {}),
+    txJoin: storageTable('join/tranactions', [/** @type {TxJoin} */ ({})], {}),
   };
 
   const remote = {
-    user: remoteData('/v1/me'),
-    accounts: remoteData('/v1/plaid_accounts'),
-    categories: remoteData('/v1/categories'),
-    transactions: remoteData('/v1/transactions'),
+    user: remoteData('/v1/me', {}),
+    accounts: remoteData('/v1/plaid_accounts', {
+      plaid_accounts: [/** @type {LmAcct} */ ({})],
+    }),
+    categories: remoteData('/v1/categories', {
+      categories: [{}],
+    }),
+    transactions: remoteData('/v1/transactions', {
+      transactions: [/** @type {LmTx} */ ({})],
+    }),
+  };
+
+  /**
+   * @param {GcAcct[]} gcAccts
+   * @param {LmAcct[]} lmAccts
+   */
+  const showAccounts = (gcAccts, lmAccts) => {
+    const byId = new Map(lmAccts.map(a => [a.id, a]));
+    const joined = gcAccts.flatMap(a => joinMatchingAccount(a, byId));
+    store.acctJoin.set(joined);
+    const accts = gcAccts.filter(a => joined.find(j => j.guid === a.guid));
+    fields.accounts.set(accts);
+  };
+
+  /**
+   * @param {LmTx[]} txs
+   * @param {GcTx[]} gcTxs
+   */
+  const showTxs = (txs, gcTxs) => {
+    const catById = new Map(
+      store.categories.fetchMany().map(c => [c.id, c.name]),
+    );
+    const acctById = new Map(
+      store.plaidAccounts.fetchMany().map(a => [a.id, a.display_name]),
+    );
+
+    const withNames = txs.sort(by('date', -1)).map(tx => ({
+      ...tx,
+      category: catById.get(tx.category_id),
+      plaid_account: acctById.get(tx.plaid_account_id),
+    }));
+
+    const acctJoin = store.acctJoin.get();
+
+    const joined = withNames.flatMap(tx => joinMatchingTx(tx, acctJoin, gcTxs));
+    store.txJoin.set(joined);
+
+    const lmById = new Map(withNames.map(tx => [tx.id, tx]));
+    const gcById = new Map(gcTxs.map(tx => [tx.tx_guid, tx]));
+    const wanted = joined.filter(
+      j =>
+        ['cleared', 'recurring'].includes(
+          (lmById.get(j.plaid) || fail(j.plaid)).status,
+        ) &&
+        j.tx_guid &&
+        gcById
+          .get(j.tx_guid)
+          ?.splits.map(s => s.code)
+          .includes(IMBALANCE_USD),
+    );
+    fields.txSplits.set(wanted, gcById, lmById);
   };
 
   fields.accounts.onClick(_click => {
@@ -322,12 +474,9 @@ export function ui({
     });
     Promise.all([db.accounts.get(), remote.accounts.get()]).then(
       ([gcAccts, { plaid_accounts: lmAccts }]) => {
-        const byId = new Map(lmAccts.map(a => [a.id, a]));
-        const joined = gcAccts.map(a => withMatchingAccount(a, byId));
-        store.chartOfAccounts.insertMany(joined, a => a.guid);
+        store.chartOfAccounts.insertMany(gcAccts, a => a.guid);
         store.plaidAccounts.insertMany(lmAccts);
-        const accts = joined.filter(a => !!a.plaid);
-        fields.accounts.set(accts);
+        showAccounts(gcAccts, lmAccts);
       },
     );
     remote.categories.get().then(({ categories }) => {
@@ -336,38 +485,31 @@ export function ui({
     });
   });
 
-  const IMBALANCE_USD = '9001';
+  fields.txSplits.onClick(_ev => {
+    const range = fields.txSplits.getRange();
+    Promise.all([
+      remote.transactions
+        .query({
+          start_date: short(range.from),
+          end_date: short(range.to),
+          limit: 128,
+        })
+        .get(),
+      db.transactions.get(IMBALANCE_USD),
+    ]).then(([{ transactions: txs }, gcTxs]) => {
+      store.transactions.insertMany(txs);
+      store.txSplits.insertMany(gcTxs, tx => tx.tx_guid);
 
-  const by = (prop, d = 1) => (a, b) =>
-    // eslint-disable-next-line no-nested-ternary
-    a[prop] === b[prop] ? 0 : d * (a[prop] < b[prop] ? -1 : 1);
-
-  fields.transactions.onClick(_ev => {
-    remote.transactions.get().then(({ transactions: txs }) => {
-      const catById = new Map(
-        store.categories.fetchMany().map(c => [c.id, c.name]),
-      );
-      const acctById = new Map(
-        store.plaidAccounts.fetchMany().map(a => [a.id, a.display_name]),
-      );
-      const withNames = txs.sort(by('date', -1)).map(tx => ({
-        ...tx,
-        category: catById.get(tx.category_id),
-        plaid_account: acctById.get(tx.plaid_account_id),
-      }));
-      store.transactions.insertMany(withNames);
-      fields.transactions.set(withNames);
-    });
-
-    db.transactions.get(IMBALANCE_USD).then(txs => {
-      store.txSplits.insertMany(txs, tx => tx.tx_guid);
-      fields.txSplit.set(txs);
+      showTxs(txs, gcTxs);
     });
   });
 
   maybe(keyStore.get(), k => fields.apiKey.set(k));
   maybe(store.user.get(), user => fields.user.set(user));
-  fields.accounts.set(store.plaidAccounts.fetchMany());
+  showAccounts(
+    store.chartOfAccounts.fetchMany(),
+    store.plaidAccounts.fetchMany(),
+  );
   fields.categories.set(store.categories.fetchMany());
-  fields.transactions.set(store.transactions.fetchMany());
+  showTxs(store.transactions.fetchMany(), store.txSplits.fetchMany());
 }

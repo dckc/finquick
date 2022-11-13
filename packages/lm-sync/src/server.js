@@ -1,4 +1,5 @@
 // @ts-check
+/* global __dirname */
 
 const firstSystemdFD = 3;
 
@@ -82,6 +83,12 @@ const attach = (app, db) => {
       )
       .all(code);
     const txs = rows.map(({ tx }) => JSON.parse(tx));
+    console.log(200, loc.gnucash.transactions, {
+      code,
+      rowCount: rows.length,
+      first: rows.slice(0, 1),
+      last: rows.slice(-1),
+    });
     res.send(JSON.stringify(txs));
   });
 };

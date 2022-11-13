@@ -18,33 +18,35 @@
       background-color: #eee;
     }
 
-    .report tr td:nth-child(4) {
+    .report td.amount {
       text-align: right;
     }
+    .report td.amount:before {
+      content: '$';
+    }
 
-    .report tr td:nth-child(7) {
+    .report td.status {
       text-align: center;
     }
-    .report tr td:nth-child(7) span {
+    .report td.status span {
       visibility: hidden;
     }
-    .report tr.uncleared td:nth-child(7):before {
+    .report td.uncleared:before {
       content: '?';
     }
-    .report tr.cleared td:nth-child(7):before {
+    .report td.cleared:before {
       content: '✓';
     }
-    .report tr.recurring td:nth-child(7):before {
+    .report td.recurring:before {
       content: '♲';
       color: green;
     }
-    .report tr.recurring_suggested td:nth-child(7):before {
+    .report td.recurring_suggested:before {
       content: '♲?';
       color: grey;
     }
 
-    tr.uncleared td:nth-child(5),
-    tr.uncleared td:nth-child(7) {
+    .report td.uncleared {
       font-style: italic;
       color: red;
     }
@@ -53,22 +55,10 @@
 
 <h1 id="budget_name">Budget</h1>
 <fieldset>
-  <label
-    >Account:
-    <select name="account"> </select
-  ></label>
-  <br />
-  <label
-    >Category:
-    <select name="category"> </select
-  ></label>
-
-  <br />
   <button id="updateSetup">Update Setup</button>
   from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
   <br />
-  <button id="updateTransactions">Update Transactions</button>
-  <hr />
+
   <label
     >API Key
     <input id="apiKey" type="password" />
@@ -77,16 +67,39 @@
 
 <section>
   <h2>Transactions</h2>
-  <table id="transactionView" class="report"></table>
-  <h3>GnuCash Journal</h3>
+  <button id="updateTransactions">Transactions</button>
+  <hr />
   <table class="report">
     <thead>
       <tr>
         <th>date</th>
-        <th>num</th>
-        <th>description</th>
         <th>account</th>
-        <th>value</th>
+        <th>payee<br />LM</th>
+        <th>amount</th>
+        <th>category<br />LM</th>
+        <th>notes<br />LM</th>
+        <th>status<br />LM</th>
+        <th>description<br />GC</th>
+        <th>memo<br />GC</th>
+      </tr>
+      <tr>
+        <th>
+          <label>>= <input type="date" name="txFrom"/></label><br />
+          <label>&lt;= <input type="date" name="txTo"/></label>
+        </th>
+        <th>
+          <select name="account"> </select>
+        </th>
+        <th>...</th>
+        <th>
+          >= ...<br />
+          &lt;= ...
+        </th>
+        <th>
+          <select name="category"> </select>
+        </th>
+        <th>...</th>
+        <th>...</th>
       </tr>
     </thead>
     <tbody id="txSplits"></tbody>
