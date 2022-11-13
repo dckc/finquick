@@ -1,5 +1,6 @@
 // @ts-check
 /* global __dirname */
+const bodyParser = require('body-parser');
 
 const firstSystemdFD = 3;
 
@@ -90,6 +91,13 @@ const attach = (app, db) => {
       last: rows.slice(-1),
     });
     res.send(JSON.stringify(txs));
+  });
+
+  app.use(bodyParser.json());
+  app.patch(loc.gnucash.transactions, (req, res) => {
+    console.log('PATCH tx:', JSON.stringify(req.body, null, 2));
+    res.status(500);
+    res.send('not impl@@@');
   });
 };
 
