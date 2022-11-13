@@ -1,6 +1,14 @@
 // @ts-check
 const IMBALANCE_USD = '9001';
 
+/**
+ * ref https://github.com/Gnucash/gnucash/blob/48b29f5/libgnucash/engine/kvp-value.hpp#L57-L73
+ */
+const KvpType = {
+  INT64: 1,
+  STRING: 4,
+};
+
 const { freeze, entries } = Object;
 
 const maybe = (x, f) => (x ? [f(x)] : []);
@@ -64,6 +72,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     txFrom: theInput('input[name="txFrom"]'),
     txTo: theInput('input[name="txTo"]'),
     transationsUpdate: $('#updateTransactions'),
+    transationsPatch: $('#patchTransactions'),
     txSplits: $('#txSplits'),
   });
 
@@ -115,6 +124,9 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     txSplits: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
+      },
+      onApply: h => {
+        control.transationsPatch.addEventListener('click', h);
       },
       getRange: () => ({
         from: control.txFrom.valueAsDate,
@@ -240,11 +252,14 @@ const joinMatchingAccount = (gcAcct, lmAcctsById) => {
  * @typedef {{
  *   id: number,
  *   date: string,
+ *   payee: string,
  *   plaid_account_id?: number,
- *   category_id?: number,
+ *   category_id: number | null,
+ *   notes: string | null,
  *   amount: string,
  *   status: string
  * }} LmTx
+ * @typedef {{ id: number, name: string, description: string }} LmCat
  * @returns {TxJoin[]}
  */
 const joinMatchingTx = (lmTx, acctJoin, gcTxs) => {
@@ -337,6 +352,7 @@ export function ui({
         const keys = info.keys;
         const result = [];
         for (const key of keys) {
+          /** @type {R} */
           const value = JSON.parse(
             localStorage.getItem(`${k.d}/${key}`) || fail(`missing: ${key}`),
           );
@@ -386,6 +402,12 @@ export function ui({
         fetch(urlQuery('/gnucash/transactions', { code })).then(resp =>
           resp.json(),
         ),
+      patch: updates =>
+        fetch('/gnucash/transactions', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(updates),
+        }),
     },
   };
 
@@ -396,7 +418,11 @@ export function ui({
       null,
       /** @type {LmAcct} */ ({}),
     ),
-    categories: storageTable('lunchmoney.app/categories', null, {}),
+    categories: storageTable(
+      'lunchmoney.app/categories',
+      null,
+      /** @type {LmCat} */ ({}),
+    ),
     transactions: storageTable(
       'lunchmoney.app/transactions',
       null,
@@ -412,13 +438,77 @@ export function ui({
     txJoin: storageTable('join/tranactions', [/** @type {TxJoin} */ ({})], {}),
   };
 
+  /**
+   * Collect category code, payee, and memo for each match.
+   *
+   * @param {TxJoin[]} matches
+   */
+  const collectMatches = matches => {
+    const lmById = new Map(
+      store.transactions.fetchMany().map(tx => [tx.id, tx]),
+    );
+    const gcById = new Map(
+      store.txSplits.fetchMany().map(tx => [tx.tx_guid, tx]),
+    );
+    const catById = new Map(store.categories.fetchMany().map(c => [c.id, c]));
+    const joined = matches.map(m => ({
+      txl: lmById.get(m.plaid) || fail(m.plaid),
+      txg: gcById.get(m.tx_guid || fail('wanted')) || fail(m.tx_guid),
+    }));
+
+    const updates = joined.flatMap(({ txl, txg }) => {
+      if (!txl.category_id) return [];
+      const cat = catById.get(txl.category_id) || fail(txl.category_id);
+      const code = extractCode(cat.description);
+      if (!code) {
+        console.warn('no code', cat);
+        return [];
+      }
+      // see also: wanted
+      const acctSplits = txg.splits.filter(s => s.code !== IMBALANCE_USD);
+      if (acctSplits.length !== 1) {
+        console.warn('ambiguous!', acctSplits);
+        return [];
+      }
+      const [acctSplit] = acctSplits;
+      const catSplits = txg.splits.filter(s => s.code === IMBALANCE_USD);
+      if (catSplits.length !== 1) {
+        console.warn('ambiguous!', catSplits);
+        return [];
+      }
+      const [catSplit] = catSplits;
+      return {
+        guid: txg.tx_guid,
+        description: txl.payee,
+        splits: [
+          {
+            slots: [
+              {
+                obj_guid: acctSplit.split_guid,
+                name: 'plaid',
+                slot_type: KvpType.INT64,
+                int64_val: txl.id,
+              },
+            ],
+          },
+          {
+            guid: catSplit.split_guid,
+            account: { code },
+            ...(txl.notes !== null ? { memo: txl.notes } : {}),
+          },
+        ],
+      };
+    });
+    return updates;
+  };
+
   const remote = {
     user: remoteData('/v1/me', {}),
     accounts: remoteData('/v1/plaid_accounts', {
       plaid_accounts: [/** @type {LmAcct} */ ({})],
     }),
     categories: remoteData('/v1/categories', {
-      categories: [{}],
+      categories: [/** @type {LmCat} */ ({})],
     }),
     transactions: remoteData('/v1/transactions', {
       transactions: [/** @type {LmTx} */ ({})],
@@ -437,6 +527,9 @@ export function ui({
     fields.accounts.set(accts);
   };
 
+  /** @type {TxJoin[]} */
+  let theUpdates;
+
   /**
    * @param {LmTx[]} txs
    * @param {GcTx[]} gcTxs
@@ -451,8 +544,10 @@ export function ui({
 
     const withNames = txs.sort(by('date', -1)).map(tx => ({
       ...tx,
-      category: catById.get(tx.category_id),
-      plaid_account: acctById.get(tx.plaid_account_id),
+      ...(tx.category_id ? { category: catById.get(tx.category_id) } : {}),
+      ...(tx.plaid_account_id
+        ? { plaid_account: acctById.get(tx.plaid_account_id) }
+        : {}),
     }));
 
     const acctJoin = store.acctJoin.get();
@@ -473,6 +568,7 @@ export function ui({
           ?.splits.map(s => s.code)
           .includes(IMBALANCE_USD),
     );
+    theUpdates = wanted;
     fields.txSplits.set(wanted, gcById, lmById);
   };
 
@@ -514,6 +610,11 @@ export function ui({
 
       showTxs(txs, gcTxs);
     });
+  });
+  fields.txSplits.onApply(_ev => {
+    if (!theUpdates) return;
+    const updates = collectMatches(theUpdates);
+    db.transactions.patch(updates);
   });
 
   maybe(keyStore.get(), k => fields.apiKey.set(k));

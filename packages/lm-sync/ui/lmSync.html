@@ -55,7 +55,7 @@
 
 <h1 id="budget_name">Budget</h1>
 <fieldset>
-  <button id="updateSetup">Update Setup</button>
+  <button type="button" id="updateSetup">Update Setup</button>
   from <a id="endpoint" href="https://dev.lunchmoney.app">endpoint</a>.
   <br />
 
@@ -67,7 +67,7 @@
 
 <section>
   <h2>Transactions</h2>
-  <button id="updateTransactions">Transactions</button>
+  <button type="button" id="updateTransactions">Transactions</button>
   <hr />
   <table class="report">
     <thead>
@@ -104,6 +104,7 @@
     </thead>
     <tbody id="txSplits"></tbody>
   </table>
+  <button type="button" id="patchTransactions">Apply Updates</button>
 </section>
 <script type="module">
   import { ui } from './lmUI.js';
