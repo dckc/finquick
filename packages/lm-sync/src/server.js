@@ -1,11 +1,84 @@
+/* eslint-disable no-continue */
 // @ts-check
 /* global __dirname */
 const bodyParser = require('body-parser');
 
 const firstSystemdFD = 3;
 
+/**
+ * ref https://github.com/Gnucash/gnucash/blob/48b29f5/libgnucash/engine/kvp-value.hpp#L57-L73
+ */
+const KvpType = {
+  INT64: 1,
+  STRING: 4,
+};
+
+const { freeze, keys } = Object;
+
 const fail = (/** @type {string} */ reason) => {
   throw Error(reason);
+};
+
+/**
+ * @param {string[]} fields
+ * @param {string} [sep]
+ */
+const clause = (fields, sep = ', ') =>
+  fields.map(n => `${n} = :${n}`).join(sep);
+
+/** @param {SqliteDB} db */
+const makeORM = db => {
+  const self = freeze({
+    /**
+     * @param {string} table
+     * @param {Record<string, unknown>} keyFields
+     */
+    lookup: (table, keyFields) =>
+      freeze({
+        get: () => {
+          const stmt = db.prepare(`
+            select * from ${table}
+            where ${clause([...keys(keyFields)], ' and ')}
+          `);
+          return stmt.get(keyFields);
+        },
+        /** @param {Record<string, unknown>} dataFields */
+        update: dataFields => {
+          const stmt = db.prepare(`
+            update ${table}
+            set ${clause([...keys(dataFields)])}
+            where ${clause([...keys(keyFields)], ' and ')}
+          `);
+          stmt.run({ ...dataFields, ...keyFields });
+        },
+      }),
+    /**
+     * @param {string} table
+     * @param {Record<string, unknown>} fields
+     */
+    insert: (table, fields) => {
+      const names = [...keys(fields)];
+      const params = names.map(n => `:${n}`).join(', ');
+      const stmt = db.prepare(`
+        insert into ${table} (${names.join(', ')}) values (${params})`);
+      stmt.run(fields);
+    },
+    /**
+     * @param {string} table
+     * @param {Record<string, unknown>} keyFields
+     * @param {Record<string, unknown>} dataFields
+     */
+    upsert: (table, keyFields, dataFields) => {
+      const it = self.lookup(table, keyFields);
+      const v = it.get();
+      if (v) {
+        it.update(dataFields);
+        return;
+      }
+      self.insert(table, { ...keyFields, ...dataFields });
+    },
+  });
+  return self;
 };
 
 /**
@@ -94,10 +167,62 @@ const attach = (app, db) => {
   });
 
   app.use(bodyParser.json());
+
+  const orm = makeORM(db);
   app.patch(loc.gnucash.transactions, (req, res) => {
-    console.log('PATCH tx:', JSON.stringify(req.body, null, 2));
-    res.status(500);
-    res.send('not impl@@@');
+    console.log('PATCH txs:', req.body.length);
+    db.prepare('begin transaction').run();
+    for (const tx of req.body) {
+      const { guid: txGuid, description } = tx;
+      if (typeof txGuid !== 'string') {
+        console.warn('bad tx', tx);
+        continue;
+      }
+      orm.lookup('transactions', { guid: txGuid }).update({ description });
+      for (const split of tx.splits || []) {
+        if ('account' in split) {
+          const {
+            guid: splitGuid,
+            account: { code },
+            memo,
+          } = split;
+          if (!(typeof splitGuid === 'string' && typeof code === 'string')) {
+            console.log('bad split', split);
+            continue;
+          }
+          const account = orm.lookup('accounts', { code }).get();
+          if (!(account && account.guid)) {
+            console.log('no account', { code });
+            continue;
+          }
+          orm.lookup('splits', { guid: splitGuid }).update({
+            account_guid: account.guid,
+            ...(typeof memo === 'string' ? { memo } : {}),
+          });
+        } else {
+          for (const slot of split.slots) {
+            const { obj_guid: objGuid, name, int64_val: val } = slot;
+            if (
+              !(
+                typeof objGuid === 'string' &&
+                typeof name === 'string' &&
+                typeof val === 'number'
+              )
+            ) {
+              console.warn('bad int64_val slot', slot);
+              continue;
+            }
+            orm.upsert(
+              'slots',
+              { obj_guid: objGuid, name },
+              { slot_type: KvpType.INT64, int64_val: val },
+            );
+          }
+        }
+      }
+    }
+    db.prepare('commit').run();
+    res.send(`${req.body.length}`);
   });
 };
 
@@ -107,12 +232,14 @@ const attach = (app, db) => {
  * @param {typeof import('express')} io.express
  * @param {typeof import('path')} io.path
  * @param {Record<string, string|undefined>} io.env
- * @param {(path: string) => SqliteDB} io.openSqlite
+ * @param {(path: string, opts: *) => SqliteDB} io.openSqlite
  *
  * @typedef {import('better-sqlite3').Database} SqliteDB
  */
 const main = ({ env, path, express, openSqlite }) => {
-  const db = openSqlite(env.GNUCASH_DB || fail(`missing $GNUCASH_DB`));
+  const db = openSqlite(env.GNUCASH_DB || fail(`missing $GNUCASH_DB`), {
+    verbose: console.log,
+  });
   const app = express();
   app.use('/ui', express.static(path.join(__dirname, '..', 'ui')));
   attach(app, db);
@@ -130,6 +257,6 @@ if (require.main === module) {
     // eslint-disable-next-line global-require
     path: require('path'),
     // eslint-disable-next-line global-require
-    openSqlite: path => require('better-sqlite3')(path),
+    openSqlite: (path, opts) => require('better-sqlite3')(path, opts),
   });
 }
