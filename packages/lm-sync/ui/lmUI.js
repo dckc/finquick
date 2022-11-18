@@ -1,14 +1,6 @@
 // @ts-check
 const IMBALANCE_USD = '9001';
 
-/**
- * ref https://github.com/Gnucash/gnucash/blob/48b29f5/libgnucash/engine/kvp-value.hpp#L57-L73
- */
-const KvpType = {
-  INT64: 1,
-  STRING: 4,
-};
-
 const { freeze, entries } = Object;
 
 const maybe = (x, f) => (x ? [f(x)] : []);
