@@ -575,16 +575,17 @@ export function ui({
 
     const lmById = new Map(withNames.map(tx => [tx.id, tx]));
     const gcById = new Map(gcTxs.map(tx => [tx.tx_guid, tx]));
-    const wanted = joined.filter(
-      j =>
-        fields.statuses
-          .getMulti()
-          .includes((lmById.get(j.plaid) || fail(j.plaid)).status) &&
-        j.tx_guid &&
-        gcById
-          .get(j.tx_guid)
-          ?.splits.map(s => s.code)
-          .includes(IMBALANCE_USD),
+    const matched = joined
+      .filter(j => j.tx_guid)
+      .map(j => ({
+        ...j,
+        txl: lmById.get(j.plaid) || fail(),
+        txg: gcById.get(j.tx_guid || fail()) || fail(),
+      }));
+    const wanted = matched.filter(
+      ({ txl, txg }) =>
+        fields.statuses.getMulti().includes(txl.status) &&
+        txg.splits.map(s => s.code).includes(IMBALANCE_USD),
     );
     theUpdates = wanted;
     fields.txSplits.set(wanted, gcById, lmById);
