@@ -1,17 +1,44 @@
+/**
+ * @file GnuCash sync service
+ * Back end: simple query API plus PATCH.
+ * Front end: fetch from other services and let the user compose patches.
+ */
+
 /* eslint-disable no-continue */
 // @ts-check
 /* global __dirname */
 const bodyParser = require('body-parser');
 
-const firstSystemdFD = 3;
+const loc = /** @type {const} */ ({
+  home: '/',
+  ui: '/ui',
+  gnucash: {
+    accounts: '/gnucash/accounts',
+    transactions: '/gnucash/transactions',
+  },
+  lunchmoney: {
+    transactions: '/lunchmoney/transactions',
+  },
+});
+
+const page = /** @type {const} */ ({
+  home: `
+      <ul>
+        <li>lunchmoney
+          <ul>
+            <li><a href="${loc.lunchmoney.transactions}">transactions</a></li>
+          </ul>
+        </li>
+      </ul>`,
+});
 
 /**
  * ref https://github.com/Gnucash/gnucash/blob/48b29f5/libgnucash/engine/kvp-value.hpp#L57-L73
  */
-const KvpType = {
+const KvpType = /** @type {const} */ ({
   INT64: 1,
   STRING: 4,
-};
+});
 
 const { freeze, keys } = Object;
 
@@ -81,6 +108,8 @@ const makeORM = db => {
   return self;
 };
 
+const firstSystemdFD = 3;
+
 /**
  *
  * @param {number} defaultPort
@@ -96,34 +125,82 @@ const getPort = (defaultPort, { env }) => {
   return { fd: firstSystemdFD + listenFDs - 1 };
 };
 
-const loc = {
-  gnucash: {
-    accounts: '/gnucash/accounts',
-    transactions: '/gnucash/transactions',
-  },
-  lunchmoney: {
-    transactions: '/lunchmoney/transactions',
-  },
-};
-
-const page = {
-  home: `
-    <ul>
-      <li>lunchmoney
-        <ul>
-          <li><a href="${loc.lunchmoney.transactions}">transactions</a></li>
-        </ul>
-      </li>
-    </ul>`,
+/**
+ * Patch a GnuCash transaction
+ *
+ * @param {ReturnType<typeof makeORM>} book
+ * @param {TxEdit} txEdit
+ * @typedef {{ guid: string }} GCKey GnuCash object keyed by uuid
+ * @typedef {GCKey & {
+ *   description: string,
+ *   splits: (SplitAcctEdit | SlotEdit)[]
+ * }} TxEdit
+ * @typedef {GCKey & {
+ *   account: { code: number },
+ *   memo: string
+ * }} SplitAcctEdit
+ * @typedef {GCKey & { slots: IntSlot[] }} SlotEdit
+ * @typedef {{ obj_guid: string, name: string, int64_val: number }} IntSlot
+ */
+const patchTransaction = (book, txEdit) => {
+  const { guid: txGuid, description } = txEdit;
+  if (typeof txGuid !== 'string') {
+    console.warn('bad tx', txEdit);
+    return;
+  }
+  book.lookup('transactions', { guid: txGuid }).update({ description });
+  for (const split of txEdit.splits || []) {
+    if ('account' in split) {
+      const {
+        guid: splitGuid,
+        account: { code },
+        memo,
+      } = split;
+      if (!(typeof splitGuid === 'string' && typeof code === 'string')) {
+        console.log('bad split', split);
+        continue;
+      }
+      const account = book.lookup('accounts', { code }).get();
+      if (!(account && account.guid)) {
+        console.log('no account', { code });
+        continue;
+      }
+      book.lookup('splits', { guid: splitGuid }).update({
+        account_guid: account.guid,
+        ...(typeof memo === 'string' ? { memo } : {}),
+      });
+    } else {
+      for (const slot of split.slots) {
+        const { obj_guid: objGuid, name, int64_val: val } = slot;
+        if (
+          !(
+            typeof objGuid === 'string' &&
+            typeof name === 'string' &&
+            typeof val === 'number'
+          )
+        ) {
+          console.warn('bad int64_val slot', slot);
+          continue;
+        }
+        book.upsert(
+          'slots',
+          { obj_guid: objGuid, name },
+          { slot_type: KvpType.INT64, int64_val: val },
+        );
+      }
+    }
+  }
 };
 
 /**
+ * Attach query routes to app.
  *
  * @param {ReturnType<typeof import('express')>} app
  * @param {SqliteDB} db
  */
-const attach = (app, db) => {
-  app.get('/', (_req, res) => res.send(page.home));
+const attachQueries = (app, db) => {
+  app.get(loc.home, (_req, res) => res.send(page.home));
+
   app.get(loc.lunchmoney.transactions, (_req, res) => {
     // const todo = `select * from (select * from slots where name = ?) slot
     // where slot.string_val->>'$.plaid_account_id' = ?
@@ -134,6 +211,7 @@ const attach = (app, db) => {
     const txs = rows.map(({ string_val: val }) => JSON.parse(val));
     res.send(JSON.stringify(txs));
   });
+
   app.get(loc.gnucash.accounts, (req, res) => {
     const accts = db
       .prepare(
@@ -145,6 +223,7 @@ const attach = (app, db) => {
       .all();
     res.send(JSON.stringify(accts));
   });
+
   /**
    * especially: get uncategorized transactions
    */
@@ -165,69 +244,32 @@ const attach = (app, db) => {
     });
     res.send(JSON.stringify(txs));
   });
+};
 
+/**
+ * Attach mutation routes to app.
+ *
+ * @param {ReturnType<typeof import('express')>} app
+ * @param {SqliteDB} db
+ */
+const attachMutations = (app, db) => {
   app.use(bodyParser.json());
 
   const orm = makeORM(db);
+  const applyPatch = db.transaction(edits => {
+    for (const edit of edits) {
+      patchTransaction(orm, edit);
+    }
+  });
+
   app.patch(loc.gnucash.transactions, (req, res) => {
     console.log('PATCH txs:', req.body.length);
-    db.prepare('begin transaction').run();
-    for (const tx of req.body) {
-      const { guid: txGuid, description } = tx;
-      if (typeof txGuid !== 'string') {
-        console.warn('bad tx', tx);
-        continue;
-      }
-      orm.lookup('transactions', { guid: txGuid }).update({ description });
-      for (const split of tx.splits || []) {
-        if ('account' in split) {
-          const {
-            guid: splitGuid,
-            account: { code },
-            memo,
-          } = split;
-          if (!(typeof splitGuid === 'string' && typeof code === 'string')) {
-            console.log('bad split', split);
-            continue;
-          }
-          const account = orm.lookup('accounts', { code }).get();
-          if (!(account && account.guid)) {
-            console.log('no account', { code });
-            continue;
-          }
-          orm.lookup('splits', { guid: splitGuid }).update({
-            account_guid: account.guid,
-            ...(typeof memo === 'string' ? { memo } : {}),
-          });
-        } else {
-          for (const slot of split.slots) {
-            const { obj_guid: objGuid, name, int64_val: val } = slot;
-            if (
-              !(
-                typeof objGuid === 'string' &&
-                typeof name === 'string' &&
-                typeof val === 'number'
-              )
-            ) {
-              console.warn('bad int64_val slot', slot);
-              continue;
-            }
-            orm.upsert(
-              'slots',
-              { obj_guid: objGuid, name },
-              { slot_type: KvpType.INT64, int64_val: val },
-            );
-          }
-        }
-      }
-    }
-    db.prepare('commit').run();
+    applyPatch(req.body);
     res.send(`${req.body.length}`);
   });
 };
 
 /**
- *
  * @param {Object} io
  * @param {typeof import('express')} io.express
  * @param {typeof import('path')} io.path
@@ -240,9 +282,13 @@ const main = ({ env, path, express, openSqlite }) => {
   const db = openSqlite(env.GNUCASH_DB || fail(`missing $GNUCASH_DB`), {
     verbose: console.log,
   });
+
   const app = express();
-  app.use('/ui', express.static(path.join(__dirname, '..', 'ui')));
-  attach(app, db);
+
+  app.use(loc.ui, express.static(path.join(__dirname, '..', 'ui')));
+  attachQueries(app, db);
+  attachMutations(app, db);
+
   const port = getPort(8000, { env });
   app.listen(port);
   console.log(`serving at http://localhost:${port}`);
