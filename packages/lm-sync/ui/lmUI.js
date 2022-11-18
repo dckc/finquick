@@ -63,17 +63,17 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     return it;
   };
   const control = freeze({
+    user: $('#budget_name'),
+    accountsUpdate: $('#updateSetup'),
     endPoint: $('#endpoint'),
     apiKey: theInput('#apiKey'),
-    user: $('#budget_name'),
-    accounts: theSelect('select[name="account"]'),
-    accountsUpdate: $('#updateSetup'),
-    categories: theSelect('select[name="category"]'),
+    transationsUpdate: $('#updateTransactions'),
     txFrom: theInput('input[name="txFrom"]'),
     txTo: theInput('input[name="txTo"]'),
-    transationsUpdate: $('#updateTransactions'),
-    transationsPatch: $('#patchTransactions'),
+    accounts: theSelect('select[name="account"]'),
+    categories: theSelect('select[name="category"]'),
     txSplits: $('#txSplits'),
+    transationsPatch: $('#patchTransactions'),
   });
 
   /**
