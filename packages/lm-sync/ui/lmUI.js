@@ -64,6 +64,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
     txTo: theInput('input[name="txTo"]'),
     accounts: theSelect('select[name="account"]'),
     categories: theSelect('select[name="category"]'),
+    status: theSelect('select[name="statusLM"]'),
     txSplits: $('#txSplits'),
     transationsPatch: $('#patchTransactions'),
   });
@@ -88,6 +89,10 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
           );
       },
       getCurrent: () => ctrl.value,
+      getMulti: () =>
+        [...ctrl.querySelectorAll('option')]
+          .filter(o => o.selected)
+          .map(o => o.value),
     });
 
   const fields = {
@@ -113,6 +118,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
       control.categories,
       r => `${r.code || '???'}: ${r.name}`,
     ),
+    statuses: selectField(control.status),
     txSplits: freeze({
       onClick: h => {
         control.transationsUpdate.addEventListener('click', h);
@@ -478,7 +484,6 @@ export function ui({
               {
                 obj_guid: acctSplit.split_guid,
                 name: 'plaid',
-                slot_type: KvpType.INT64,
                 int64_val: txl.id,
               },
             ],
@@ -551,9 +556,9 @@ export function ui({
     const gcById = new Map(gcTxs.map(tx => [tx.tx_guid, tx]));
     const wanted = joined.filter(
       j =>
-        ['cleared', 'recurring'].includes(
-          (lmById.get(j.plaid) || fail(j.plaid)).status,
-        ) &&
+        fields.statuses
+          .getMulti()
+          .includes((lmById.get(j.plaid) || fail(j.plaid)).status) &&
         j.tx_guid &&
         gcById
           .get(j.tx_guid)
