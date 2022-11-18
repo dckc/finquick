@@ -186,7 +186,7 @@ const makeFields = ({ createElement, createTextNode, $ }) => {
  * @param {Query} params
  */
 const urlQuery = (path, params) => {
-  const q = path.endsWith('?') ? '' : '?';
+  const q = path.match(/\?/) ? '&' : '?';
   const encoded = entries(params)
     .map(([prop, val]) => `${prop}=${encodeURIComponent(val)}`)
     .join('&');
@@ -370,19 +370,40 @@ export function ui({
    * @param {T} example
    */
   const remoteData = (path, example) => {
+    const query = (/** @type {Query} */ params) => {
+      const there = urlQuery(path, params);
+      return remoteData(there, example);
+    };
+
+    /** @returns {Promise<T>} */
+    const get = async () => {
+      const apiKey = keyStore.get();
+      const headers = { Authorization: `Bearer ${apiKey}` };
+      const url = new URL(path, fields.endPoint.get());
+      console.log('GET remoteData', `${url}`);
+      const resp = await fetch(url, {
+        headers,
+      });
+      return resp.json();
+    };
+
+    const paginate = async kind => {
+      const pages = [];
+      for (let offset = 0, qty = -1; qty !== 0; offset += qty) {
+        // eslint-disable-next-line no-await-in-loop
+        const page = await query({ offset, limit: 128 }).get();
+        const items = page[kind];
+        pages.push(items);
+        qty = items.length;
+        console.log(kind, { offset, qty });
+      }
+      return pages.flat();
+    };
+
     return freeze({
-      /** @returns {Promise<T>} */
-      get: async () => {
-        const apiKey = keyStore.get();
-        const headers = { Authorization: `Bearer ${apiKey}` };
-        const url = new URL(path, fields.endPoint.get());
-        const resp = await fetch(url, { headers });
-        return resp.json();
-      },
-      query(/** @type {Query} */ params) {
-        const there = urlQuery(path, params);
-        return remoteData(there, example);
-      },
+      get,
+      query,
+      paginate,
     });
   };
 
@@ -597,11 +618,11 @@ export function ui({
         .query({
           start_date: short(range.from),
           end_date: short(range.to),
-          limit: 128,
         })
-        .get(),
+        .paginate('transactions'),
       db.transactions.get(IMBALANCE_USD),
-    ]).then(([{ transactions: txs }, gcTxs]) => {
+    ]).then(([txs, gcTxs]) => {
+      console.log(txs.length, 'LM txs fetched');
       store.transactions.insertMany(txs);
       store.txSplits.insertMany(gcTxs, tx => tx.tx_guid);
 
