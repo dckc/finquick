@@ -267,8 +267,9 @@ const joinMatchingTx = (lmTx, acctJoin, gcTxs) => {
   const found = gcTxs.filter(
     tx =>
       lmTx.date === tx.date &&
-      tx.splits[0].code === acct.code &&
-      Number(lmTx.amount) === sign * tx.splits[0].value,
+      tx.splits.filter(
+        s => s.code === acct.code && Number(lmTx.amount) === sign * s.value,
+      ).length > 0,
   );
   if (found.length === 0) return [{ plaid: lmTx.id }];
   if (found.length > 1) {
