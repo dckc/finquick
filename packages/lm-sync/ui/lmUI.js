@@ -571,7 +571,18 @@ export function ui({
 
     const acctJoin = store.acctJoin.get();
 
-    const joined = withNames.flatMap(tx => joinMatchingTx(tx, acctJoin, gcTxs));
+    const wanted = {
+      txl: withNames.filter(txl =>
+        fields.statuses.getMulti().includes(txl.status),
+      ),
+      txg: gcTxs.filter(txg =>
+        txg.splits.map(s => s.code).includes(IMBALANCE_USD),
+      ),
+    };
+
+    const joined = wanted.txl.flatMap(tx =>
+      joinMatchingTx(tx, acctJoin, wanted.txg),
+    );
     store.txJoin.set(joined);
 
     const lmById = new Map(withNames.map(tx => [tx.id, tx]));
@@ -583,13 +594,9 @@ export function ui({
         txl: lmById.get(j.plaid) || fail(),
         txg: gcById.get(j.tx_guid || fail()) || fail(),
       }));
-    const wanted = matched.filter(
-      ({ txl, txg }) =>
-        fields.statuses.getMulti().includes(txl.status) &&
-        txg.splits.map(s => s.code).includes(IMBALANCE_USD),
-    );
-    theUpdates = wanted;
-    fields.txSplits.set(wanted, gcById, lmById);
+
+    theUpdates = matched;
+    fields.txSplits.set(matched, gcById, lmById);
   };
 
   const withCodes = categories =>
