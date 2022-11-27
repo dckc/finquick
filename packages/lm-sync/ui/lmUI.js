@@ -271,6 +271,7 @@ const joinMatchingTx = (lmTx, acctJoin, gcTxs) => {
         s => s.code === acct.code && Number(lmTx.amount) === sign * s.value,
       ).length > 0,
   );
+  // TODO: return the whole tx, not just the id
   if (found.length === 0) return [{ plaid: lmTx.id }];
   if (found.length > 1) {
     console.warn('AMBIGUOUS!', found);
