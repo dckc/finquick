@@ -231,10 +231,12 @@ const attachQueries = (app, db) => {
     const code = req.query.code;
     const rows = db
       .prepare(
-        `select tx from tx_json where json_extract(tx, '$.splits[1].code') = ?
+        `select tx from tx_json
+        where json_extract(tx, '$.splits[1].code') = :code
+        or json_extract(tx, '$.splits[0].code') = :code
         order by post_date desc, tx_guid, guid`,
       )
-      .all(code);
+      .all({ code });
     const txs = rows.map(({ tx }) => JSON.parse(tx));
     console.log(200, loc.gnucash.transactions, {
       code,
