@@ -28,7 +28,7 @@
     "csv-parse": "^1.0.1",
     "dbus-native": "^0.2.3",
     "docopt": "^0.6.2",
-    "express": "^4.16.3",
+    "express": "^4.17.3",
     "mysql": "^2.10.0",
     "mysql-events": "0.0.7",
     "nightmare": "^2.10.0",
