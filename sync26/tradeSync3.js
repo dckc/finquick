@@ -2,10 +2,22 @@ const tradeAccountingQuery = 'has:attachment from:me trade accounting';
 
 
 const headings2 = {
-  Trading: ['Date', 'Message Id', 'Subject', 'Attachments'],
+  Trading: ['Message Id', 'Date', 'Attachments', 'Subject'],
   StakeTax: ['timestamp'],
-  Osmosis: ['status'],
+  Osmosis: ['status', 'time'],
   Coinbase: ['Timestamp'],
+};
+
+const fixDates = {
+  StakeTax: ([t, ...rest]) => [Utilities.parseDate(t, 'GMT', "yyyy-MM-dd' 'HH:mm:ss"), ...rest],
+  Osmosis: ([s, t, ...rest]) => [s, Utilities.parseDate(t, 'GMT', "yyyy/MM/dd' 'HH:mm:ss"), ...rest],
+  Coinbase: ([t, ...rest]) => [Utilities.parseDate(t, 'GMT', "yyyy-MM-dd'T'HH:mm:ss'Z'"), ...rest],
+};
+
+const filterSince = {
+  StakeTax: since => ([t]) => t >= since,
+  Osmosis: since => ([s, t]) => s === 'success' && t >= since,
+  Coinbase: since => ([t]) => t >= since,
 };
 
 function reset_(active) {
@@ -27,9 +39,10 @@ function findHd_(rows) {
   throw Error(`cannot recognize header: ${rows[0]}`)
 }
 
-function loadCSV_(active, att) {
+function loadCSV_(active, att, since) {
   const rows = Utilities.parseCsv(att.getDataAsString());
-  const [name, hd, detail] = findHd_(rows);
+  const [name, hd, raw] = findHd_(rows);
+  const detail = raw.map(fixDates[name]).filter(filterSince[name](since));
 
   const sheet = active.getSheetByName(name);
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
@@ -52,15 +65,16 @@ function loadTradeAccountingMessages() {
   const threads = GmailApp.search(tradeAccountingQuery);
   const msgs = threads.flatMap(thread => thread.getMessages().filter((m, ix) => ix <= 1));
 
+  const since = active.getRangeByName('tradesSince').getValue();
   const rows = msgs.map((m, ix) => {
     const subject = m.getSubject();
     // const body = m.getBody();
     const atts = m.getAttachments();
 
-    const row = [m.getDate(), m.getId(), subject, atts.length];
+    const row = [m.getId(), m.getDate(), atts.length, subject];
     console.log('Message:', row);
 
-    atts.forEach(att => loadCSV_(active, att));
+    atts.forEach(att => loadCSV_(active, att, since));
 
     return row;
   });
