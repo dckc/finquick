@@ -4,175 +4,121 @@ function maybeMatch(txt, pat) {
 }
 
 function maybeNumber(amount) {
-  return amount ? Number(amount.replace(",", "")) : undefined;
+  return amount ? Number(amount.replace(',', '')) : undefined;
 }
 
 function getNote(body) {
-  const [_before, rest] = body.split("<!-- note -->");
+  const [_before, rest] = body.split('<!-- note -->');
   if (!rest) {
-    return "";
+    return '';
   }
-  const [noteMarkup, _after] = rest.split("</td>");
+  const [noteMarkup, _after] = rest.split('</td>');
   const tagPat = /<\/?[a-z]+>/g;
   const charRefPat = /&#(\d+);/g;
   const charRef = (_m, digits) => String.fromCharCode(Number(digits));
-  const note = noteMarkup
-    .replace(tagPat, "")
-    .replace(charRefPat, charRef)
-    .replace(/\s\s+/g, " ")
-    .trim();
+  const note = noteMarkup.replace(tagPat, '').replace(charRefPat, charRef).replace(/\s\s+/g, ' ').trim();
   return note;
 }
 
 const headings = {
-  Receipts: [
-    "Date",
-    "Message Id",
-    "Subject",
-    "Payee",
-    "Amount",
-    "Note",
-    "Account",
-    "Payment ID",
-  ],
-  Transactions: [
-    "date",
-    "id",
-    "Detail",
-    "payee",
-    "amount",
-    "notes",
-    "plaid_account_id",
-    "category_id",
-  ],
+  Receipts: ['Date', 'Message Id', 'Subject', 'Payee', 'Amount', 'Note', 'Account', 'Payment ID'],
+  Transactions: ['date', 'id', 'Detail', 'payee', 'amount', 'notes', 'plaid_account_id', 'category_id'],
 };
 
 function loadVenmoReceipts() {
-  console.warn("AMBIENT: SpreadsheetApp");
-  const sheet = SpreadsheetApp.getActive().getSheetByName("Receipts");
+  console.warn('AMBIENT: SpreadsheetApp');
+  const sheet = SpreadsheetApp.getActive().getSheetByName('Receipts');
   const hd = headings.Receipts;
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
   let row = 2;
   const query = 'from:(venmo.com) Completed "Payment ID"';
-  console.warn("AMBIENT: GmailApp");
+  console.warn('AMBIENT: GmailApp');
   const threads = GmailApp.search(query);
-  threads.forEach((thread) =>
-    thread.getMessages().forEach((m, ix) => {
-      if (ix > 0) return;
-      const subject = m.getSubject();
-      const body = m.getBody();
+  threads.forEach(thread => thread.getMessages().forEach((m, ix) => {
+    if (ix > 0) return;
+    const subject = m.getSubject();
+    const body = m.getBody();
 
-      const tx = maybeMatch(
-        subject,
-        /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/
-      );
-      if (!tx.amount) {
-        console.warn("no amount??", subject);
-      }
-      const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m)
-        .account;
-      const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
+    const tx = maybeMatch(subject, /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/);
+    if (!tx.amount) {
+      console.warn('no amount??', subject)
+    }
+    const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m).account;
+    const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
 
-      const values = [
-        m.getDate(),
-        m.getId(),
-        subject,
-        tx.payee,
-        maybeNumber(tx.amount),
-        getNote(body),
-        acct,
-        pmtId,
-      ];
-      sheet.getRange(row, 1, 1, values.length).setValues([values]);
+    const values = [m.getDate(), m.getId(), subject, tx.payee, maybeNumber(tx.amount), getNote(body), acct, pmtId];
+    sheet.getRange(row, 1, 1, values.length).setValues([values]);
 
-      row += 1;
-      if (row % 20 === 0) {
-        console.log("row", row);
-      }
-    })
-  );
+    row += 1;
+    if (row % 20 === 0) {
+      console.log('row', row);
+    }
+  }));
 }
 
 const LunchMoneyAPI = {
-  endpoint: "https://dev.lunchmoney.app",
+  endpoint: 'https://dev.lunchmoney.app',
 };
 
 function fmtParams(params) {
-  return Object.entries(params)
-    .map(([n, v]) => `${n}=${v}`)
-    .join("&");
+  return Object.entries(params).map(([n, v]) => `${n}=${v}`).join('&');
 }
 
 function paginate(kind, creds, params) {
   const pages = [];
-  console.warn("AMBIENT: UrlFetchApp");
+  console.warn('AMBIENT: UrlFetchApp');
   for (let offset = 0, qty = -1; qty !== 0; offset += qty) {
     const q = fmtParams({ ...params, offset, limit: 128 });
-    const resp = UrlFetchApp.fetch(
-      `${LunchMoneyAPI.endpoint}/v1/${kind}?${q}`,
-      { headers: creds }
-    );
+    const resp = UrlFetchApp.fetch(`${LunchMoneyAPI.endpoint}/v1/${kind}?${q}`, { headers: creds });
     const items = JSON.parse(resp.getContentText())[kind];
     pages.push(items);
     qty = items.length;
     console.log({ kind, offset, qty });
   }
   return pages.flat();
-}
+};
 
-const short = (dt) => dt.toISOString().slice(0, 10);
+const short = dt => dt.toISOString().slice(0, 10);
 
 function loadLunchMoneyTransactions() {
-  console.warn("AMBIENT: SpreadsheetApp");
+  console.warn('AMBIENT: SpreadsheetApp');
   const doc = SpreadsheetApp.getActive();
-  const apiKey = doc.getRangeByName("LM_API_KEY").getValue();
+  const apiKey = doc.getRangeByName('LM_API_KEY').getValue();
   const range = {
-    start: doc.getRangeByName("loadStart").getValue(),
-    end: doc.getRangeByName("loadEnd").getValue(),
+    start: doc.getRangeByName('loadStart').getValue(),
+    end: doc.getRangeByName('loadEnd').getValue(),
   };
   const creds = { Authorization: `Bearer ${apiKey}` };
-  const txs = paginate("transactions", creds, {
-    start_date: short(range.start),
-    end_date: short(range.end),
-  });
-  console.log("txs", txs.length, txs.slice(0, 2));
+  const txs = paginate('transactions', creds, { start_date: short(range.start), end_date: short(range.end) });
+  console.log('txs', txs.length, txs.slice(0, 2))
 
-  const sheet = doc.getSheetByName("Transactions");
+  const sheet = doc.getSheetByName('Transactions');
   const hd = headings.Transactions;
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
 
-  const rows = txs.map((tx) => [
-    tx.date,
-    tx.id,
-    JSON.stringify(tx),
-    tx.payee,
-    tx.amount,
-    tx.notes,
-    tx.plaid_account_id,
-    tx.category_id,
-  ]);
+  const rows = txs.map(tx => [tx.date, tx.id, JSON.stringify(tx), tx.payee, tx.amount, tx.notes, tx.plaid_account_id, tx.category_id]);
   sheet.getRange(2, 1, rows.length, hd.length).setValues(rows);
 }
 
 function saveLunchMoneyTransactions() {
-  console.warn("AMBIENT: SpreadsheetApp");
+  console.warn('AMBIENT: SpreadsheetApp');
   const doc = SpreadsheetApp.getActive();
-  const { records: txs } = getSheetRecords(doc.getSheetByName("Transactions"));
-  const modTx = txs.filter((tx) => tx.Modified);
-  const apiKey = doc.getRangeByName("LM_API_KEY").getValue();
+  const { records: txs } = getSheetRecords(doc.getSheetByName('Transactions'));
+  const modTx = txs.filter(tx => tx.Modified);
+  const apiKey = doc.getRangeByName('LM_API_KEY').getValue();
   const creds = { Authorization: `Bearer ${apiKey}` };
 
-  modTx.forEach((tx) => {
+  modTx.forEach(tx => {
     const transaction = { payee: tx.payee, notes: tx.notes };
-    console.log("PUT", tx.id, transaction);
+    console.log('PUT', tx.id, transaction);
     // https://lunchmoney.dev/#update-transaction
     UrlFetchApp.fetch(`${LunchMoneyAPI.endpoint}/v1/transactions/${tx.id}`, {
       headers: creds,
-      method: "PUT",
-      contentType: "application/json",
-      payload: JSON.stringify({ transaction }),
+      method: 'PUT',
+      'contentType': 'application/json',
+      payload: JSON.stringify({ transaction })
     });
-  });
+  })
 }
 
 const zip = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
@@ -185,17 +131,13 @@ function getRowRecord(sheet, row, headings) {
 
 function getSheetRecords(sheet) {
   const hd = [];
-  for (
-    let col = 1, name;
-    (name = sheet.getRange(1, col).getValue()) > "";
-    col += 1
-  ) {
+  for (let col = 1, name; (name = sheet.getRange(1, col).getValue()) > ''; col += 1) {
     hd.push(name);
   }
   const data = sheet.getRange(2, 1, sheet.getLastRow(), hd.length).getValues();
   const records = [];
   for (const values of data) {
-    const entries = zip(hd, values);
+    const entries = zip(hd, values)
     const record = Object.fromEntries(entries);
     if (!record[hd[0]]) break;
     records.push(record);
@@ -205,7 +147,7 @@ function getSheetRecords(sheet) {
 
 function updateRecord(sheet, hd, row, record) {
   for (const [name, value] of Object.entries(record)) {
-    const col = hd.findIndex((h) => h === name) + 1;
+    const col = hd.findIndex(h => h === name) + 1;
     sheet.getRange(row, col).setValues([[value]]);
   }
 }
@@ -217,14 +159,12 @@ function daysBetween(start, end) {
 }
 
 function updateTransactionDetailsFromReceipts() {
-  console.warn("AMBIENT: SpreadsheetApp");
+  console.warn('AMBIENT: SpreadsheetApp');
   const doc = SpreadsheetApp.getActive();
-  const { records: accounts } = getSheetRecords(doc.getSheetByName("Accounts"));
+  const { records: accounts } = getSheetRecords(doc.getSheetByName('Accounts'));
 
-  const { records: receipts } = getSheetRecords(doc.getSheetByName("Receipts"));
-  const { hd: txHd, records: txs } = getSheetRecords(
-    doc.getSheetByName("Transactions")
-  );
+  const { records: receipts } = getSheetRecords(doc.getSheetByName('Receipts'));
+  const { hd: txHd, records: txs } = getSheetRecords(doc.getSheetByName('Transactions'));
   let dest = txs.length + 1;
   let startOfLastMatchDate;
 
@@ -234,11 +174,10 @@ function updateTransactionDetailsFromReceipts() {
     // console.log('receipt', row, short(receipt.Date), receipt.Amount);
 
     const account = accounts.find(
-      (acct) => acct.venmo_name.toLowerCase() === receipt.Account.toLowerCase()
-    );
+      acct => acct.venmo_name.toLowerCase() === receipt.Account.toLowerCase());
 
     if (!account) {
-      console.warn("cannot find account:", row, receipt.Account);
+      console.warn('cannot find account:', row, receipt.Account);
       continue;
     }
     // console.log('account', row, short(receipt.Date), receipt.Amount,
@@ -249,7 +188,7 @@ function updateTransactionDetailsFromReceipts() {
     let startOfCurrentDate;
     for (; dest > 1; dest -= 1) {
       tx = txs[dest - 2];
-      if (!currentDate || currentDate.getTime() !== tx.date.getTime()) {
+      if (!currentDate || (currentDate.getTime() !== tx.date.getTime())) {
         currentDate = tx.date;
         startOfCurrentDate = dest;
       }
@@ -260,23 +199,14 @@ function updateTransactionDetailsFromReceipts() {
         tx = null;
         break; // too far
       }
-      if (tx.plaid_account_id !== account.id || tx.amount !== receipt.Amount)
-        continue;
+      if (tx.plaid_account_id !== account.id || tx.amount !== receipt.Amount) continue;
       const detail = JSON.parse(tx.Detail);
-      if (detail.original_name === "Venmo") break;
+      if (detail.original_name === 'Venmo') break;
     }
     if (dest <= 1 || !tx) {
-      console.warn("cannot find transaction:", row, receipt, {
-        startOfLastMatchDate,
-      });
+      console.warn('cannot find transaction:', row, receipt, { startOfLastMatchDate });
       if (daysBetween(receipt.Date, txs[0].date) > 3) {
-        console.warn(
-          "remaining transactions are too old",
-          row,
-          short(receipt.Date),
-          "<<",
-          short(txs[0].date)
-        );
+        console.warn('remaining transactions are too old', row, short(receipt.Date), '<<', short(txs[0].date));
         break;
       }
       if (startOfLastMatchDate) {
@@ -284,21 +214,9 @@ function updateTransactionDetailsFromReceipts() {
       }
       continue;
     }
-    console.log(
-      "match!",
-      { row, dest },
-      short(receipt.Date),
-      short(tx.date),
-      tx.amount,
-      account.name,
-      receipt.Payee,
-      receipt.Note
-    );
-    updateRecord(doc.getSheetByName("Transactions"), txHd, dest, {
-      Modified: 1,
-      payee: receipt.Payee,
-      notes: JSON.stringify([receipt.Note, { venmo: receipt["Payment ID"] }]),
-    });
+    console.log('match!', { row, dest }, short(receipt.Date), short(tx.date), tx.amount, account.name, receipt.Payee, receipt.Note);
+    updateRecord(doc.getSheetByName('Transactions'), txHd, dest,
+      { Modified: 1, payee: receipt.Payee, notes: JSON.stringify([receipt.Note, {venmo: receipt['Payment ID']}]) })
     // When we resume, resume at the beginning of the day.
     startOfLastMatchDate = startOfCurrentDate;
     dest = startOfLastMatchDate;
