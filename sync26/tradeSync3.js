@@ -2,20 +2,20 @@ const { parseDate } = Utilities;
 
 const StakeTax = {
   hd: ['timestamp'],
-  fixDates: ([t, ...rest]) => [parseDate(t, 'GMT', "yyyy-MM-dd' 'HH:mm:ss"), ...rest],
-  filterSince: since => ([t]) => t >= since,
+  dateFormat: "yyyy-MM-dd' 'HH:mm:ss",
+  dateColumn: 'timestamp',
 };
 
 const Osmosis = {
   hd: ['status', 'time'],
-  fixDates: ([s, t, ...rest]) => [s, parseDate(t, 'GMT', "yyyy/MM/dd' 'HH:mm:ss"), ...rest],
-  filterSince: since => ([s, t]) => s === 'success' && t >= since,
+  dateColumn: 'time',
+  dateFormat: "yyyy/MM/dd' 'HH:mm:ss",
 };
 
 const Coinbase = {
   hd: ['Timestamp'],
-  fixDates:  ([t, ...rest]) => [parseDate(t, 'GMT', "yyyy-MM-dd'T'HH:mm:ss'Z'"), ...rest],
-  filterSince: since => ([t]) => t >= since,
+  dateColumn: 'Timestamp',
+  dateFormat: "yyyy-MM-dd'T'HH:mm:ss'Z'",
 };
 
 const MailSearch = {
@@ -64,15 +64,27 @@ function sheetRecords_(sheet) {
   return detail.map(row => fromEntries(zip_(hd, row)));
 }
 
-function loadCSV_(active, att, since) {
+function byDate_(rows, source) {
+  const colIx = source.hd.indexOf(source.dateColumn);
+  const withDates = rows.map(row => {
+    const cells = [...row];
+    const txt = cells[colIx];
+    const dt = parseDate(txt, 'GMT', source.dateFormat);
+    cells[colIx] = dt;
+    return cells;
+  });
+  return withDates;
+};
+
+function loadCSV_(active, att) {
   const rows = Utilities.parseCsv(att.getDataAsString());
   const [name, hd, raw] = findHd_(rows);
   console.log('loading from', att.getName(), 'into', name);
   const source = SOURCES[name]
-  const detail = raw.map(source.fixDates).filter(source.filterSince(since));
+  const detail = byDate_(raw, source);
 
   const sheet = active.getSheetByName(name);
-  const last = sheet.getLastRow() + 1;
+  const last = sheet.getLastRow() + 2;
   console.log('loading', detail.length, 'rows from', att.getName(), 'into', name, 'at', last);
   setRange(sheet, hd, detail, 1, last);
 }
@@ -90,14 +102,13 @@ function loadTradeAccountingMessages() {
   const threads = GmailApp.search(MailSearch.query);
   const msgs = threads.flatMap(thread => thread.getMessages().filter((_m, ix) => ix <= 1));
 
-  const since = active.getRangeByName(MailSearch.sinceRange).getValue();
   const rows = msgs.map(m => {
     const atts = m.getAttachments();
 
     const row = [m.getId(), m.getDate(), atts.length, m.getSubject()];
 
     console.log('Found Message:', row);
-    atts.forEach(att => loadCSV_(active, att, since));
+    atts.forEach(att => loadCSV_(active, att));
 
     return row;
   });
@@ -117,14 +128,16 @@ function txfrSplits_(records) {
       sent_amount, sent_currency,
       received_amount, received_currency,
       wallet_address } = record;
-    const currency_name = sent_currency > '' ? sent_currency : received_currency;
     const amount = sent_currency > '' ? -sent_amount : received_amount;
-    const account = { wallet_address };
-    const split = { guid: { txid }, account, amount, url };
+    const action = sent_currency > '' ? 'Sell' : 'Buy';
+    const sym = sent_currency > '' ? sent_currency : received_currency;
+    // TODO: price
+    const split = { action, memo: txid, account: `${sym} ${wallet_address}`, amount, sym, reconcile: 'c', url };
     splits.push(split);
     if (splits.length === 1) {
-      const [_all, hash, _msg] = txid.match(/([^-]+)-(.*)/);
-      txs.push({ guid: { hash }, date_posted: timestamp, currency_name, splits })
+      const [_all, _hash, _msg] = txid.match(/([^-]+)-(.*)/);
+      const dateTime = timestamp.toISOString();
+      txs.push({ date_posted: dateTime.slice(0, 10), number: dateTime.slice(11, 16) + 'Z', splits })
     } else {
       splits = [];
     }
@@ -147,8 +160,13 @@ function flattenTxs_(txs) {
   const { keys } = Object;
   const records = [];
   for (const { splits, ...rest } of txs) {
-    records.push(flatten_(rest));
-    splits.forEach(split => records.push(flatten_(split)))
+    splits.forEach((split, ix) => {
+      if (ix === 0) {
+        records.push(flatten_({ ...rest, ...split }));
+      } else {
+        records.push(flatten_(split))
+      }
+    });
   }
   const hd = [...new Set(records.flatMap(r => keys(r)))];
   const rows = records.map(rec => hd.map(k => rec[k]));
@@ -158,12 +176,18 @@ function flattenTxs_(txs) {
 function buildTradeTransactions() {
   console.warn('AMBIENT: SpreadsheetApp');
   const active = SpreadsheetApp.getActive();
+  const since = active.getRangeByName(MailSearch.sinceRange).getValue();
   const stakeTax = active.getSheetByName('StakeTax');
   const records = sheetRecords_(stakeTax);
-  const splits = records.filter(({ tx_type }) => tx_type === 'TRANSFER');
+  const { dateColumn } = StakeTax;
+  const txfrs = records
+    .filter(({ tx_type }) => tx_type === 'TRANSFER')
+    .filter(({ [dateColumn]: dt }) => dt >= since);
+  const splits = txfrs
+    .sort((a, b) => a[dateColumn].getTime() - b[dateColumn].getTime());
   const txs = txfrSplits_(splits);
   const { hd, rows } = flattenTxs_(txs);
   console.log('Transfers:', hd, rows.length)
-  setRange(active.getSheetByName('trading'), hd, rows, 5)
+  setRange(active.getSheetByName('tx_import'), hd, rows)
 }
 
