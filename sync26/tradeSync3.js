@@ -64,6 +64,10 @@ function sheetRecords_(sheet) {
   return detail.map(row => fromEntries(zip_(hd, row)));
 }
 
+function parseBlockchainDate (txt = '2023-02-04 05:19:32', dateFormat = StakeTax.dateFormat) {
+  return parseDate(txt, 'GMT', dateFormat)
+}
+
 function byDate_(rows, source) {
   const colIx = source.hd.indexOf(source.dateColumn);
   const withDates = rows.map(row => {
@@ -115,6 +119,11 @@ function loadTradeAccountingMessages() {
   setRange(sheet, hd, rows);
 }
 
+function txDate_(timestamp) {
+  const dateTime = timestamp.toISOString();
+  return { date_posted: dateTime.slice(0, 10), number: dateTime.slice(11, 16) + 'Z' };
+}
+
 /**
  * pair up records and transform to gnucash format
  * TODO: amount vs. value, using prices
@@ -127,7 +136,7 @@ function txfrSplits_(records) {
     const { txid, url, timestamp,
       sent_amount, sent_currency,
       received_amount, received_currency,
-      wallet_address } = record;
+      exchange, wallet_address } = record;
     const amount = sent_currency > '' ? -sent_amount : received_amount;
     const action = sent_currency > '' ? 'Sell' : 'Buy';
     const sym = sent_currency > '' ? sent_currency : received_currency;
@@ -137,9 +146,10 @@ function txfrSplits_(records) {
     if (splits.length === 1) {
       const [_all, _hash, _msg] = txid.match(/([^-]+)-(.*)/);
       const dateTime = timestamp.toISOString();
-      txs.push({ date_posted: dateTime.slice(0, 10), number: dateTime.slice(11, 16) + 'Z', splits })
+      txs.push({ ...txDate_(timestamp), description: exchange, splits })
     } else {
       splits = [];
+      txs.at(-1).description += ` to ${exchange}`;
     }
   }
   return txs;
@@ -173,10 +183,40 @@ function flattenTxs_(txs) {
   return { records, hd, rows };
 }
 
-function buildTradeTransactions() {
-  console.warn('AMBIENT: SpreadsheetApp');
-  const active = SpreadsheetApp.getActive();
-  const since = active.getRangeByName(MailSearch.sinceRange).getValue();
+const max_ = xs => xs.reduce((acc, next) => next > acc ? next : acc);
+const sum_ = xs => xs.reduce((acc, next) => acc + next, 0);
+const select_ = (recs, prop) => recs.map(r => r[prop]);
+const round_ = (x, d) => Number(x.toPrecision(d))
+
+/**
+ * select max(Timestamp), Asset, sum(`Quantity Transacted`), sum(Total), sum(Fees) group by Asset")
+ */
+function coinbaseTrades(active, since, asset = 'ATOM') {
+  const coinbaseSheet = active.getSheetByName('Coinbase');
+  const records = sheetRecords_(coinbaseSheet);
+  const current = records
+    .filter(r => r[Coinbase.dateColumn] >= since &&
+     /Trade/.test(r['Transaction Type']) && 
+     r.Asset === asset);
+  const agg = {
+    Timestamp: max_(select_(current, 'Timestamp')),
+    quantity: sum_(select_(current, 'Quantity Transacted')),
+    proceeds: sum_(select_(current, 'Total (inclusive of fees and/or spread)')),
+    fees: sum_(select_(current, 'Fees and/or Spread')),
+  };
+
+  const reconcile = 'c';
+  const tx = {
+    ...txDate_(agg.Timestamp), description: `${asset} Trade`,
+    splits: [
+      { account: 'ATOM Wallet', action: 'Sell', amount: -agg.quantity, reconcile },
+      { account: 'USD Wallet', amount: agg.proceeds, memo: 'proceeds', reconcile },
+      { account: 'AIE:Fees', amount: agg.fees, memo: 'Fees', reconcile },
+    ]}
+  return [tx];
+}
+
+function stakeTaxTransfers(active, since) {
   const stakeTax = active.getSheetByName('StakeTax');
   const records = sheetRecords_(stakeTax);
   const { dateColumn } = StakeTax;
@@ -186,8 +226,24 @@ function buildTradeTransactions() {
   const splits = txfrs
     .sort((a, b) => a[dateColumn].getTime() - b[dateColumn].getTime());
   const txs = txfrSplits_(splits);
+  return txs;
+}
+
+function buildTradeTransactions() {
+  console.warn('AMBIENT: SpreadsheetApp');
+  const active = SpreadsheetApp.getActive();
+  const since = active.getRangeByName(MailSearch.sinceRange).getValue();
+
+  const txs = [
+    ...stakeTaxTransfers(active, since),
+    ...coinbaseTrades(active, since),
+  ].sort((a, b) => `${a.date_posted} ${a.number}` > `${b.date_posted} ${b.number}`);
+
   const { hd, rows } = flattenTxs_(txs);
-  console.log('Transfers:', hd, rows.length)
-  setRange(active.getSheetByName('tx_import'), hd, rows)
+  console.log('Transactions:', hd, rows.length);
+
+  const importSheet = active.getSheetByName('tx_import');
+  importSheet.clear();
+  setRange(importSheet, hd, rows)
 }
 
