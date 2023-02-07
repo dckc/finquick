@@ -1,36 +1,45 @@
-const tradeAccountingQuery = 'has:attachment from:me trade accounting';
+const { parseDate } = Utilities;
 
-
-const headings2 = {
-  Trading: ['Message Id', 'Date', 'Attachments', 'Subject'],
-  StakeTax: ['timestamp'],
-  Osmosis: ['status', 'time'],
-  Coinbase: ['Timestamp'],
+const StakeTax = {
+  hd: ['timestamp'],
+  fixDates: ([t, ...rest]) => [parseDate(t, 'GMT', "yyyy-MM-dd' 'HH:mm:ss"), ...rest],
+  filterSince: since => ([t]) => t >= since,
 };
 
-const fixDates = {
-  StakeTax: ([t, ...rest]) => [Utilities.parseDate(t, 'GMT', "yyyy-MM-dd' 'HH:mm:ss"), ...rest],
-  Osmosis: ([s, t, ...rest]) => [s, Utilities.parseDate(t, 'GMT', "yyyy/MM/dd' 'HH:mm:ss"), ...rest],
-  Coinbase: ([t, ...rest]) => [Utilities.parseDate(t, 'GMT', "yyyy-MM-dd'T'HH:mm:ss'Z'"), ...rest],
+const Osmosis = {
+  hd: ['status', 'time'],
+  fixDates: ([s, t, ...rest]) => [s, parseDate(t, 'GMT', "yyyy/MM/dd' 'HH:mm:ss"), ...rest],
+  filterSince: since => ([s, t]) => s === 'success' && t >= since,
 };
 
-const filterSince = {
-  StakeTax: since => ([t]) => t >= since,
-  Osmosis: since => ([s, t]) => s === 'success' && t >= since,
-  Coinbase: since => ([t]) => t >= since,
+const Coinbase = {
+  hd: ['Timestamp'],
+  fixDates:  ([t, ...rest]) => [parseDate(t, 'GMT', "yyyy-MM-dd'T'HH:mm:ss'Z'"), ...rest],
+  filterSince: since => ([t]) => t >= since,
 };
 
-function reset_(active) {
-  for (const name of Object.keys(headings2)) {
+const MailSearch = {
+  query: 'has:attachment from:me trade accounting',
+  hd: ['Message Id', 'Date', 'Attachments', 'Subject'],
+  sinceRange: 'tradesSince',
+};
+
+const SOURCES = { StakeTax, Osmosis, Coinbase };
+const SHEETS = { trading: MailSearch, ...SOURCES };
+
+function reset_(active, sheets = SHEETS) {
+  const { keys } = Object
+  for (const name of keys(sheets)) {
     const sheet = active.getSheetByName(name);
     console.log('clear sheet:', name)
     sheet.clear();
   }
 }
 
-function findHd_(rows) {
+function findHd_(rows, sources = SOURCES) {
+  const { entries } = Object;
   for (let ix = 0; ix < rows.length; ix++) {
-    for (const [name, [col1]] of Object.entries(headings2)) {
+    for (const [name, { hd: [col1] }] of entries(sources)) {
       if (rows[ix][0] === col1) {
         return [name, rows[ix], rows.slice(ix + 1)];
       }
@@ -39,16 +48,33 @@ function findHd_(rows) {
   throw Error(`cannot recognize header: ${rows[0]}`)
 }
 
+const zip_ = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
+
+function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
+  sheet.getRange(hdRow, 1, 1, hd.length).setValues([hd]);
+  sheet.getRange(detailRow, 1, rows.length, hd.length).setValues(rows);
+}
+
+function sheetRecords_(sheet) {
+  const { fromEntries } = Object;
+  const cols = sheet.getLastColumn();
+  const rows = sheet.getLastRow() - 1;
+  const [hd] = sheet.getRange(1, 1, 1, cols).getValues();
+  const detail = sheet.getRange(2, 1, rows, cols).getValues();
+  return detail.map(row => fromEntries(zip_(hd, row)));
+}
+
 function loadCSV_(active, att, since) {
   const rows = Utilities.parseCsv(att.getDataAsString());
   const [name, hd, raw] = findHd_(rows);
-  const detail = raw.map(fixDates[name]).filter(filterSince[name](since));
+  console.log('loading from', att.getName(), 'into', name);
+  const source = SOURCES[name]
+  const detail = raw.map(source.fixDates).filter(source.filterSince(since));
 
   const sheet = active.getSheetByName(name);
-  sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
-  const last = sheet.getLastRow();
+  const last = sheet.getLastRow() + 1;
   console.log('loading', detail.length, 'rows from', att.getName(), 'into', name, 'at', last);
-  sheet.getRange(last + 1, 1, detail.length, hd.length).setValues(detail);
+  setRange(sheet, hd, detail, 1, last);
 }
 
 function loadTradeAccountingMessages() {
@@ -58,42 +84,24 @@ function loadTradeAccountingMessages() {
 
   const sheet = active.getSheetByName('trading');
 
-  const hd = headings2.Trading;
-  sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
+  const { hd } = MailSearch;
 
   console.warn('AMBIENT: GmailApp');
-  const threads = GmailApp.search(tradeAccountingQuery);
-  const msgs = threads.flatMap(thread => thread.getMessages().filter((m, ix) => ix <= 1));
+  const threads = GmailApp.search(MailSearch.query);
+  const msgs = threads.flatMap(thread => thread.getMessages().filter((_m, ix) => ix <= 1));
 
-  const since = active.getRangeByName('tradesSince').getValue();
-  const rows = msgs.map((m, ix) => {
-    const subject = m.getSubject();
-    // const body = m.getBody();
+  const since = active.getRangeByName(MailSearch.sinceRange).getValue();
+  const rows = msgs.map(m => {
     const atts = m.getAttachments();
 
-    const row = [m.getId(), m.getDate(), atts.length, subject];
-    console.log('Message:', row);
+    const row = [m.getId(), m.getDate(), atts.length, m.getSubject()];
 
+    console.log('Found Message:', row);
     atts.forEach(att => loadCSV_(active, att, since));
 
     return row;
   });
-  sheet.getRange(2, 1, rows.length, hd.length).setValues(rows);
-}
-
-const zip_ = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
-const pairs_ = xs => xs.reduce(
-  ({ done, left }, next, ix) => (
-    ix % 2 === 0 ? { done, left: next} :
-     { done: [...done, [left, next]], left: undefined }), { done: [], left: undefined });
-
-function sheetRecords_(sheet) {
-  const { fromEntries } = Object;
-  const cols = sheet.getLastColumn();
-  const rows = sheet.getLastRow() - 1;
-  const [hd] = sheet.getRange(1, 1, 1, cols).getValues();
-  const detail = sheet.getRange(2, 1, rows, cols).getValues();
-  return detail.map(row => fromEntries(zip_(hd, row)));
+  setRange(sheet, hd, rows);
 }
 
 /**
@@ -147,11 +155,6 @@ function flattenTxs_(txs) {
   return { records, hd, rows };
 }
 
-function setRange(sheet, hd, rows, hdRow = 1) {
-  sheet.getRange(hdRow, 1, 1, hd.length).setValues([hd]);
-  sheet.getRange(hdRow + 1, 1, rows.length, hd.length).setValues(rows);
-}
-
 function buildTradeTransactions() {
   console.warn('AMBIENT: SpreadsheetApp');
   const active = SpreadsheetApp.getActive();
@@ -160,7 +163,7 @@ function buildTradeTransactions() {
   const splits = records.filter(({ tx_type }) => tx_type === 'TRANSFER');
   const txs = txfrSplits_(splits);
   const { hd, rows } = flattenTxs_(txs);
-  console.log('@@@stakeTax', hd, rows)
+  console.log('Transfers:', hd, rows.length)
   setRange(active.getSheetByName('trading'), hd, rows, 5)
 }
 
