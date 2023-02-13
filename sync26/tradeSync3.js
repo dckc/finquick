@@ -50,11 +50,6 @@ function findHd_(rows, sources = SOURCES) {
 
 const zip_ = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
 
-function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
-  sheet.getRange(hdRow, 1, 1, hd.length).setValues([hd]);
-  sheet.getRange(detailRow, 1, rows.length, hd.length).setValues(rows);
-}
-
 function sheetRecords_(sheet) {
   const { fromEntries } = Object;
   const cols = sheet.getLastColumn();

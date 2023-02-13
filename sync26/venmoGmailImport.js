@@ -1,3 +1,15 @@
+const Venmo = {
+  sheet: 'Receipts',
+  hd: ['Date', 'Message Id', 'Subject', 'Payee', 'Amount', 'Note', 'Account', 'Payment ID'],
+  queryRange: 'venmoQuery',
+}
+
+const headings = {
+  Receipts: ['Date', 'Message Id', 'Subject', 'Payee', 'Amount', 'Note', 'Account', 'Payment ID'],
+  Transactions: ['date', 'id', 'Detail', 'payee', 'amount', 'notes', 'plaid_account_id', 'category_id'],
+};
+
+
 function maybeMatch(txt, pat) {
   const parts = txt.match(pat);
   return parts ? parts.groups : {};
@@ -20,40 +32,76 @@ function getNote(body) {
   return note;
 }
 
-const headings = {
-  Receipts: ['Date', 'Message Id', 'Subject', 'Payee', 'Amount', 'Note', 'Account', 'Payment ID'],
-  Transactions: ['date', 'id', 'Detail', 'payee', 'amount', 'notes', 'plaid_account_id', 'category_id'],
-};
+function messageDetail_(m) {
+  const subject = m.getSubject();
+  const body = m.getBody();
 
-function loadVenmoReceipts() {
+  const tx = maybeMatch(subject, /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/);
+  if (!tx.amount) {
+    console.warn('no amount??', subject)
+  }
+  const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m).account;
+  const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
+
+  return [m.getDate(), m.getId(), subject, tx.payee, maybeNumber(tx.amount), getNote(body), acct, pmtId];
+}
+
+function LoadVenmoReceipts() {
   console.warn('AMBIENT: SpreadsheetApp');
-  const sheet = SpreadsheetApp.getActive().getSheetByName('Receipts');
-  const hd = headings.Receipts;
-  sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
-  let row = 2;
-  const query = 'from:(venmo.com) Completed "Payment ID"';
+  const doc = SpreadsheetApp.getActive()
+  const sheet = doc.getSheetByName(Venmo.sheet);
+
+  const query = doc.getRangeByName(Venmo.queryRange).getValue();
   console.warn('AMBIENT: GmailApp');
   const threads = GmailApp.search(query);
+  const rows = [];
   threads.forEach(thread => thread.getMessages().forEach((m, ix) => {
     if (ix > 0) return;
-    const subject = m.getSubject();
-    const body = m.getBody();
-
-    const tx = maybeMatch(subject, /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/);
-    if (!tx.amount) {
-      console.warn('no amount??', subject)
-    }
-    const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m).account;
-    const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
-
-    const values = [m.getDate(), m.getId(), subject, tx.payee, maybeNumber(tx.amount), getNote(body), acct, pmtId];
-    sheet.getRange(row, 1, 1, values.length).setValues([values]);
-
-    row += 1;
-    if (row % 20 === 0) {
-      console.log('row', row);
-    }
+    const values = messageDetail_(m);
+    rows.push(values);
   }));
+  setRange(sheet, Venmo.hd, rows);
+}
+
+function venmoEdits_(tx, receipts) {
+
+}
+
+function VenmoLookup(tx) {
+  console.warn('AMBIENT: SpreadsheetApp');
+  const doc = SpreadsheetApp.getActive()
+
+  const { records: receipts } = getSheetRecords(doc.getSheetByName('Receipts'));
+  const sameAmount = receipts.filter(item => item.Amount === -tx.Amount)
+  const ok = sameAmount.filter(item => {
+    const delta = daysBetween(item.Date, tx.Date);
+    return delta >= 0 && delta <= 4;
+  });
+  // console.log('amount and date', ok)
+  if (ok.length < 1) {
+    throw Error(`no matches`)
+  }
+  if (ok.length > 1) {
+    throw Error(`too many matches: ${ok.length}`)
+  }
+  const [it] = ok;
+
+  const memo = JSON.stringify([it.Note, {venmo: it['Payment ID']}]);
+  const edits = { Description: it.Payee, memo }
+  console.log(tx.Date, tx.Amount, edits);
+  return edits;
+}
+
+function testVenmoLookup(rowNum = 77) {
+  console.warn('AMBIENT: SpreadsheetApp');
+  const active = SpreadsheetApp.getActive();
+
+  const sheet = active.getSheetByName('Transactions (2)');
+  const cols = sheet.getLastColumn()
+  const [hd] = sheet.getRange(1, 1, 1, cols).getValues();
+  const rec = getRowRecord(sheet, rowNum, hd);
+
+  VenmoLookup(rec);
 }
 
 function UpdateTransactionDetailsFromReceipts() {
