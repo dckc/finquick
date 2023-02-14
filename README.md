@@ -20,7 +20,16 @@ My ideal personal accounting system would
 
 ### Journal: blog items, commits
 
-- 2022-01: [ingest balance sheet report · PR \#19](https://github.com/dckc/finquick/pull/19)
+- 2023-02: 106517f \* trade accounting from staketax, osmosis, coinbase via google sheets
+- 2022-11: 4aaa5b4 \* sync lunchmoney, GnuCash using vanilla localStorage UI,
+  GET/PATCH back-end
+- 2022-11: 2c8e875 \* write lunchmoney transactions in OFX format
+- 2022-10: 0238e9d \* sync venmo email receipts, lunchmoney, gnucash via Google Sheets
+- 2022-10: bb3fd06 \* move to line-delimited JSON for flat-file serialization
+  - `pipx install sqlite-diffable`
+  - https://github.com/simonw/sqlite-diffable 9a6d64d Aug 18 2022
+- 2022-08: 321a09e \* watch downloads; fix dates on statements etc.
+- 2022-01: 461c01c \* ingest balance sheet report
   - [ingest 2021 Q2 balance sheet into RVote agenda · PR \#63](https://github.com/rchain/reference/pull/63)
 - 2021-09: sync with LunchMoney: 86cda00 thru 49e7a75
   - LunchMoney is delightful in a lot of ways, but it's not good enough to replace GnuCash yet. And while syncing between the two seems feasible in theory, I have yet to manage in practice.

@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "journal": "git log --pretty=format:'- %ad: %h \\* %s' --date='format:%Y-%m'"
+  },
   "devDependencies": {
     "@agoric/eslint-config": "^0.3.3",
     "@agoric/eslint-plugin": "^0.2.3",
