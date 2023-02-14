@@ -3,7 +3,9 @@ const LunchMoneyAPI = {
 };
 
 function fmtParams(params) {
-  return Object.entries(params).map(([n, v]) => `${n}=${v}`).join('&');
+  return Object.entries(params)
+    .map(([n, v]) => `${n}=${v}`)
+    .join('&');
 }
 
 function paginate(kind, creds, params) {
@@ -11,14 +13,17 @@ function paginate(kind, creds, params) {
   console.warn('AMBIENT: UrlFetchApp');
   for (let offset = 0, qty = -1; qty !== 0; offset += qty) {
     const q = fmtParams({ ...params, offset, limit: 128 });
-    const resp = UrlFetchApp.fetch(`${LunchMoneyAPI.endpoint}/v1/${kind}?${q}`, { headers: creds });
+    const resp = UrlFetchApp.fetch(
+      `${LunchMoneyAPI.endpoint}/v1/${kind}?${q}`,
+      { headers: creds },
+    );
     const items = JSON.parse(resp.getContentText())[kind];
     pages.push(items);
     qty = items.length;
     console.log({ kind, offset, qty });
   }
   return pages.flat();
-};
+}
 
 const short = dt => dt.toISOString().slice(0, 10);
 
@@ -31,14 +36,26 @@ function loadLunchMoneyTransactions() {
     end: doc.getRangeByName('loadEnd').getValue(),
   };
   const creds = { Authorization: `Bearer ${apiKey}` };
-  const txs = paginate('transactions', creds, { start_date: short(range.start), end_date: short(range.end) });
-  console.log('txs', txs.length, txs.slice(0, 2))
+  const txs = paginate('transactions', creds, {
+    start_date: short(range.start),
+    end_date: short(range.end),
+  });
+  console.log('txs', txs.length, txs.slice(0, 2));
 
   const sheet = doc.getSheetByName('Transactions');
   const hd = headings.Transactions;
   sheet.getRange(1, 1, 1, hd.length).setValues([hd]);
 
-  const rows = txs.map(tx => [tx.date, tx.id, JSON.stringify(tx), tx.payee, tx.amount, tx.notes, tx.plaid_account_id, tx.category_id]);
+  const rows = txs.map(tx => [
+    tx.date,
+    tx.id,
+    JSON.stringify(tx),
+    tx.payee,
+    tx.amount,
+    tx.notes,
+    tx.plaid_account_id,
+    tx.category_id,
+  ]);
   sheet.getRange(2, 1, rows.length, hd.length).setValues(rows);
 }
 
@@ -57,8 +74,8 @@ function saveLunchMoneyTransactions() {
     UrlFetchApp.fetch(`${LunchMoneyAPI.endpoint}/v1/transactions/${tx.id}`, {
       headers: creds,
       method: 'PUT',
-      'contentType': 'application/json',
-      payload: JSON.stringify({ transaction })
+      contentType: 'application/json',
+      payload: JSON.stringify({ transaction }),
     });
-  })
+  });
 }

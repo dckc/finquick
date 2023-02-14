@@ -1,5 +1,3 @@
-
-
 function GetAllSheetNames() {
   console.warn('AMBIENT: SpreadsheetApp');
   const sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
@@ -21,13 +19,17 @@ function getRowRecord(sheet, row, headings) {
 
 function getSheetRecords(sheet) {
   const hd = [];
-  for (let col = 1, name; (name = sheet.getRange(1, col).getValue()) > ''; col += 1) {
+  for (
+    let col = 1, name;
+    (name = sheet.getRange(1, col).getValue()) > '';
+    col += 1
+  ) {
     hd.push(name);
   }
   const data = sheet.getRange(2, 1, sheet.getLastRow(), hd.length).getValues();
   const records = [];
   for (const values of data) {
-    const entries = zip(hd, values)
+    const entries = zip(hd, values);
     const record = Object.fromEntries(entries);
     if (!record[hd[0]]) break;
     records.push(record);

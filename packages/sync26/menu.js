@@ -7,16 +7,24 @@ function onOpen() {
 
   // Or DocumentApp or FormApp.
   ui.createMenu('Family Finances')
-      .addItem('Tx Lookup', 'TxLookup')
-      .addSubMenu(ui.createMenu('Lunch Money')
+    .addItem('Tx Lookup', 'TxLookup')
+    .addSubMenu(
+      ui
+        .createMenu('Lunch Money')
         .addItem('Load Txs', 'loadLunchMoneyTransactions')
-        .addItem('Save Txs', 'saveLunchMoneyTransactions'))
-      .addSeparator()
-      .addSubMenu(ui.createMenu('Venmo')
-          .addItem('Load Receipts', 'LoadVenmoReceipts')
-          .addItem('Update Tx from Receipt', 'UpdateTransactionDetailsFromReceipts')
-          )
-      .addToUi();
+        .addItem('Save Txs', 'saveLunchMoneyTransactions'),
+    )
+    .addSeparator()
+    .addSubMenu(
+      ui
+        .createMenu('Venmo')
+        .addItem('Load Receipts', 'LoadVenmoReceipts')
+        .addItem(
+          'Update Tx from Receipt',
+          'UpdateTransactionDetailsFromReceipts',
+        ),
+    )
+    .addToUi();
 }
 
 function TxLookup() {
@@ -26,11 +34,11 @@ function TxLookup() {
   const active = SpreadsheetApp.getActive();
 
   const sel = active.getSelection();
-  const range = sel.getActiveRange()
-  const sheet = range.getSheet()
-  const cols = sheet.getLastColumn()
+  const range = sel.getActiveRange();
+  const sheet = range.getSheet();
+  const cols = sheet.getLastColumn();
   const [hd] = sheet.getRange(1, 1, 1, cols).getValues();
-  const rowNum = range.getRow()
+  const rowNum = range.getRow();
   const rec = getRowRecord(sheet, rowNum, hd);
 
   let edits;
@@ -39,8 +47,9 @@ function TxLookup() {
       edits = VenmoLookup(rec);
       break;
     default:
-      SpreadsheetApp.getUi()
-       .alert(`${sheet.getName()}: row ${rowNum} ???: ${values(rec)}`);
+      SpreadsheetApp.getUi().alert(
+        `${sheet.getName()}: row ${rowNum} ???: ${values(rec)}`,
+      );
       return;
   }
   // SpreadsheetApp.getUi()
