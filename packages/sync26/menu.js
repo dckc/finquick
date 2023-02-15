@@ -42,7 +42,10 @@ function TxLookup() {
   const rec = getRowRecord(sheet, rowNum, hd);
 
   let edits;
-  switch (rec.Description) {
+  switch (rec.Description.replace(/^Pending ~ /, '')) {
+    case 'Amazon':
+      edits = AmazonLookup(rec);
+      break;
     case 'Venmo':
       edits = VenmoLookup(rec);
       break;
