@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "pull": "clasp -P . pull $SCRIPT_ID"
+  }
+}
