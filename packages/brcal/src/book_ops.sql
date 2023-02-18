@@ -9,6 +9,38 @@ join split_detail acct on acct.tx_guid = uncat.tx_guid
 where acct.path != 'Imbalance-USD'
 order by uncat.post_date;
 
+-- categoriesSyncSheets:
+with anc as (
+with recursive
+  rel(guid, parent_guid, parent_path, path, hidden) as (
+  select guid, parent_guid, null, name, hidden from accounts
+  where parent_guid in (select guid from accounts where parent_guid is null)
+  union all
+  select a.guid, a.parent_guid, rel.path, rel.path || ':' || a.name
+       , case when rel.hidden = 1 or a.hidden = 1 then 1 else 0 end hidden
+  from rel
+  join accounts a on rel.guid = a.parent_guid
+  )
+select * from rel
+)
+select a.code, a.name `Category`, anc.parent_path `Group`
+     , case a.account_type
+       when 'EXPENSE' then 'Expense'
+       when 'INCOME' then 'Income'
+       when 'ASSET' then 'Transfer'
+       end `Type`
+from accounts a
+join anc on a.guid = anc.guid
+and parent_path is not null
+and code > ''
+and (
+  a.account_type in ('INCOME', 'EXPENSE')
+  or
+  (a.account_type in ('ASSET') and anc.parent_path like 'AR%'))
+and anc.hidden = 0
+order by a.account_type, anc.parent_path, a.code
+;
+
 -- updateSplitAccounts:
 update splits set account_guid = (select guid from accounts where code = ?)
 where tx_guid = ? and account_guid = (select guid from accounts where name = 'Imbalance-USD');
