@@ -2,40 +2,40 @@ const Colo = {
   sheet: 'Expenses',
   queryRange: 'coloInvoiceQuery',
   hd: [
-  'Date',
-  'Message Id',
-  'Subject',
-  // 'Payee',
-  // 'Amount',
-  // 'Note',
-  // 'Account',
-  // 'Payment ID',
-],
+    'Date',
+    'Message Id',
+    'From',
+    'Subject',
+    'Item #',
+    'Description',
+    'Amount',
+  ],
 };
 
-function messageDetail_(m) {
-  const subject = m.getSubject();
-  // const body = m.getBody();
+function tableRecord_($) {
+  const { fromEntries } = Object;
 
-  // const tx = maybeMatch(
-  //   subject,
-  //   /You (?:paid|completed) (?<payee>[^'\$]+)(?:'s )?\$(?<amount>[\d\.,]+)/,
-  // );
-  // if (!tx.amount) {
-  //   console.warn('no amount??', subject);
-  // }
-  // const acct = maybeMatch(body, /(from|via) your (?<account>[^\.]+)/m).account;
-  // const pmtId = maybeMatch(body, /Payment ID: (?<id>\d+)/m).id;
+  const [hd, detail] = $('tr', 'table');
+  const td = [...$('td', detail)];
+  const entries = [...$('th', hd)].map((th, col) => {
+    return [$(th).text(), $(td[col]).text()];
+  })
+
+  return fromEntries(entries);
+}
+
+function messageDetail_(m) {
+  const $ = Cheerio.load(m.getBody());
+  const detail = tableRecord_($);
 
   return [
     m.getDate(),
     m.getId(),
-    subject,
-    // tx.payee,
-    // maybeNumber(tx.amount),
-    // getNote(body),
-    // acct,
-    // pmtId,
+    m.getFrom(),
+    m.getSubject(),
+    detail['Item #'],
+    detail['Description'],
+    detail['Amount'],
   ];
 }
 
