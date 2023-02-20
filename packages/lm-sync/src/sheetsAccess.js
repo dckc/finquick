@@ -1,5 +1,8 @@
 // @ts-check
 
+import { GoogleSpreadsheetRow } from 'google-spreadsheet';
+import { makeORM } from './server.js';
+
 // based on
 // https://github.com/Agoric/testnet-notes/blob/main/subm/src/sheetAccess.js
 // 8dbbe50 on Dec 23, 2021
@@ -9,7 +12,7 @@
  * @param {string | number} key
  * @throws on not found
  */
-const lookup = async (sheet, key) => {
+export const lookup = async (sheet, key) => {
   // load primary key column
   // @ts-expect-error types are wrong?
   await sheet.loadCells({
@@ -37,7 +40,7 @@ const lookup = async (sheet, key) => {
  * @param {Record<string, string | number>} record
  * @typedef {import('google-spreadsheet').GoogleSpreadsheetWorksheet} GoogleSpreadsheetWorksheet
  */
-const upsert = async (sheet, key, record) => {
+export const upsert = async (sheet, key, record) => {
   let row;
   try {
     row = await lookup(sheet, key);
@@ -59,6 +62,95 @@ const upsert = async (sheet, key, record) => {
 /** @param {string} message */
 const fail = message => {
   throw Error(message);
+};
+
+/** @type {<K, V>(m: Map<K, Promise<V>>, k: K, f: (k: K) => Promise<V>) => Promise<V>} */
+const provide = (m, k, f) => {
+  const p = m.get(k);
+  if (p) return p;
+  const p1 = new Promise((resolve, reject) => {
+    f(k).then(resolve, reject);
+  });
+  m.set(k, p1);
+  return p1;
+};
+
+/** @param {import('google-spreadsheet').GoogleSpreadsheet} doc */
+export const makeSheetsORM = doc => {
+  const { entries, freeze } = Object;
+
+  const tables = {
+    Accounts: 'Accounts',
+    Categories: 'Categories',
+    Transactions: 'Transactions (2)',
+  };
+
+  /** @type {Map<string, Promise<GoogleSpreadsheetRow[]>>} */
+  const cache = new Map();
+
+  return freeze({
+    /**
+     * @param {keyof tables} table
+     * @param {Record<string, string | number>} keyFields
+     */
+    lookup: async (table, keyFields) => {
+      const rows = await provide(cache, table, async k => {
+        const sheet = doc.sheetsByTitle[tables[table]];
+        const rows = await sheet.getRows();
+        return rows;
+      });
+      // match by string form
+      const found = rows.filter(row =>
+        entries(keyFields).every(([col, val]) => row[col] === `${val}`),
+      );
+      if (found.length !== 1)
+        throw `found ${found.length} in ${table} matching ${JSON.stringify(
+          keyFields,
+        )}`;
+      const [it] = found;
+      return freeze({
+        get: () => it,
+        /** @param {Record<string, unknown>} dataFields */
+        update: dataFields => Object.assign(it, dataFields),
+      });
+    },
+    /**
+     * @param {keyof tables} table
+     * @param {number} [offset]
+     * @param {number} [limit]
+     */
+    getPage: async (table, offset, limit) => {
+      const sheet = doc.sheetsByTitle[tables[table]];
+      return sheet.getRows({ offset, limit });
+    },
+  });
+};
+
+/**
+ * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
+ * @param {ReturnType<makeORM>} gc GnuCash "ORM"
+ */
+export const matchTxs = async (sc, gc) => {
+  const trial = 15;
+  const txs = await sc.getPage('Transactions', 0, trial);
+
+  for await (const tx of txs) {
+    const { ['Account #']: acctNum, ['Account']: acctName } = tx;
+    const acct = await sc
+      .lookup('Accounts', {
+        'Account #': acctNum,
+        Account: acctName,
+      })
+      .then(it => it.get());
+    const detail = gc
+      .lookup('split_detail', {
+        post_date: tx.Date,
+        amount: Number(tx.Amount.replace(/[,$]/g, '')),
+        code: acct.code,
+      })
+      .get();
+    console.log('found split:', detail);
+  }
 };
 
 /**
@@ -83,9 +175,11 @@ const makeConfig = env =>
  * @param {Record<string, string | undefined>} env
  * @param {Object} io
  * @param {typeof import('fs/promises')} io.fsp
+ * @param {(path: string, opts: *) => SqliteDB} io.openSqlite
  * @param {typeof import('google-spreadsheet').GoogleSpreadsheet} io.GoogleSpreadsheet
+ * @typedef {import('better-sqlite3').Database} SqliteDB
  */
-const integrationTest = async (_argv, env, { fsp, GoogleSpreadsheet }) => {
+const main = async (_argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
   const config = makeConfig(env);
   const creds = await fsp
     .readFile(config.PROJECT_CREDS, 'utf-8')
@@ -98,31 +192,34 @@ const integrationTest = async (_argv, env, { fsp, GoogleSpreadsheet }) => {
   await doc.useServiceAccountAuth(creds);
 
   await doc.loadInfo(); // loads document properties and worksheets
-
-  const sheet = doc.sheetsByIndex[0]; // or use doc.sheetsById[id] or doc.sheetsByTitle[title]
   console.log({
     doc: { title: doc.title },
-    sheet0: { title: sheet.title, rowCount: sheet.rowCount },
   });
 
-  //   await upsert(sheet, '358096357862408195', {
-  //     userID: '358096357862408195',
-  //     email: 'dckc@agoric.com',
-  //   });
+  const db = openSqlite(config.GNUCASH_DB, {
+    verbose: console.log,
+  });
+
+  const scORM = makeSheetsORM(doc);
+  const gcORM = makeORM(db);
+  await matchTxs(scORM, gcORM);
 };
 
 /* global require, process */
-if (require.main === module) {
-  integrationTest(
-    process.argv.slice(2),
-    { ...process.env },
-    {
-      fsp: require('fs/promises'),
-      // eslint-disable-next-line global-require
-      GoogleSpreadsheet: require('google-spreadsheet').GoogleSpreadsheet, // please excuse CJS
-    },
-  ).catch(err => console.error(err));
+if (process.env.SHEET1_ID) {
+  Promise.all([
+    await import('fs/promises'),
+    import('better-sqlite3'),
+    import('google-spreadsheet'),
+  ]).then(([fsp, sqlite3, GoogleSpreadsheet]) =>
+    main(
+      process.argv.slice(2),
+      { ...process.env },
+      {
+        fsp: fsp.default,
+        openSqlite: (path, opts) => sqlite3.default(path, opts),
+        GoogleSpreadsheet: GoogleSpreadsheet.GoogleSpreadsheet,
+      },
+    ).catch(err => console.error(err)),
+  );
 }
-
-/* global module */
-module.exports = { lookup, upsert };

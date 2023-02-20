@@ -7,7 +7,7 @@
 /* eslint-disable no-continue */
 // @ts-check
 /* global __dirname */
-const bodyParser = require('body-parser');
+import bodyParser from 'body-parser';
 
 const loc = /** @type {const} */ ({
   home: '/',
@@ -54,7 +54,7 @@ const clause = (fields, sep = ', ') =>
   fields.map(n => `${n} = :${n}`).join(sep);
 
 /** @param {SqliteDB} db */
-const makeORM = db => {
+export const makeORM = db => {
   const self = freeze({
     /**
      * @param {string} table
@@ -297,7 +297,7 @@ const main = ({ env, path, express, openSqlite }) => {
 };
 
 /* global require, module, process */
-if (require.main === module) {
+if (typeof require !== 'undefined' && require.main === module) {
   main({
     env: process.env,
     // eslint-disable-next-line global-require
