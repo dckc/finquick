@@ -5,7 +5,8 @@
   "dependencies": {
     "better-sqlite3": "^7.6.2",
     "body-parser": "^1.20.1",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "google-spreadsheet": "^3.3.0"
   },
   "devDependencies": {
     "@agoric/eslint-config": "^0.3.3",
