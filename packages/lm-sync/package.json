@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "push-txids": "node src/sheetsAccess.js",
     "start": "node src/server.js"
   },
   "type": "module",

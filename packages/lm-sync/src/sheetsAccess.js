@@ -1,5 +1,10 @@
 // @ts-check
 
+/**
+ * @file Match Sheetsync with GnuCash
+ * @see {matchTxs} for main feature
+ */
+
 import { GoogleSpreadsheetRow } from 'google-spreadsheet';
 import { makeORM } from './server.js';
 
@@ -65,13 +70,13 @@ const fail = message => {
 };
 
 /** @type {<K, V>(m: Map<K, Promise<V>>, k: K, f: (k: K) => Promise<V>) => Promise<V>} */
-const provide = (m, k, f) => {
-  const p = m.get(k);
+const provide = (store, key, make) => {
+  const p = store.get(key);
   if (p) return p;
   const p1 = new Promise((resolve, reject) => {
-    f(k).then(resolve, reject);
+    make(key).then(resolve, reject);
   });
-  m.set(k, p1);
+  store.set(key, p1);
   return p1;
 };
 
@@ -115,26 +120,94 @@ export const makeSheetsORM = doc => {
       });
     },
     /**
+     * Get a range of rows.
+     *
+     * Also loads cells in this range in preparation for update.
+     *
      * @param {keyof tables} table
-     * @param {number} [offset]
-     * @param {number} [limit]
+     * @param {number} [offset] starting row
+     * @param {number} [limit] number of rows
      */
     getPage: async (table, offset, limit) => {
       const sheet = doc.sheetsByTitle[tables[table]];
-      return sheet.getRows({ offset, limit });
+      /** @type {import('google-spreadsheet').WorksheetGridRange} */
+      const cellRange = {
+        startRowIndex: (offset || 0) + 1, // skip header
+        endRowIndex: (offset || 0) + (limit || 0) + 1, // + 1 for header
+        startColumnIndex: 0,
+        endColumnIndex: sheet.columnCount,
+      };
+      const [_cells, rows] = await Promise.all([
+        sheet.loadCells(cellRange),
+        sheet.getRows({ offset, limit }),
+      ]);
+      return rows;
+    },
+    /**
+     * Schedule update of fields of a row.
+     *
+     * Use .commit() to carry out pending updates.
+     *
+     * @param {keyof tables} table
+     * @param {number} rowIndex 0-based, unlike row.rowIndex
+     * @param {Record<string, string | number>} edits
+     */
+    update: (table, rowIndex, edits) => {
+      const sheet = doc.sheetsByTitle[tables[table]];
+      entries(edits).forEach(([k, v]) => {
+        const columnIndex = sheet.headerValues.findIndex(v => v === k);
+        // console.log('updating:', { rowIndex, k, columnIndex });
+        const cell = sheet.getCell(rowIndex, columnIndex);
+        cell.value = v;
+      });
+    },
+    /**
+     * @param {keyof tables} table
+     */
+    commit: async table => {
+      const sheet = doc.sheetsByTitle[tables[table]];
+      return sheet.saveUpdatedCells();
     },
   });
 };
 
 /**
+ * Match Syncsheets transactions with GnuCash.
+ *
+ * For each row that does not yet have a tx_guid,
+ * look it up in split_detail by date, amount, and account code.
+ * Update tx_guid and online_id in Syncsheets.
+ *
+ * update sheets.Transactions dest
+ * set dest.tx_guid = x.tx_guid
+ *   , dest.online_id = x.online_id
+ * from (
+ *   select dest.rowNum, src.tx_guid, src.online_id
+ *   from sheets.Transactions dest
+ *   join gnucash.split_detail src
+ *   on src.date = dest.date
+ *   and src.amount = dest.amount
+ *   and src.code = dest.code
+ *   where dest.tx_guid is null
+ * ) x where x.rowNum = dest.rowNum
+ *
  * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
  * @param {ReturnType<makeORM>} gc GnuCash "ORM"
+ * @param {object} [pageOptions]
+ * @param {number} [pageOptions.offset]
+ * @param {number} [pageOptions.limit]
  */
-export const matchTxs = async (sc, gc) => {
-  const trial = 15;
-  const txs = await sc.getPage('Transactions', 0, trial);
+export const matchTxs = async (sc, gc, { offset, limit } = {}) => {
+  const txs = await sc.getPage('Transactions', offset, limit);
+  //   const sample = {
+  //     first: txs[0]._rawData,
+  //     last: txs.at(-1)?._rawData,
+  //   };
+  console.log('Sheetsync txs:', txs.length);
+  let modified = 0;
 
-  for await (const tx of txs) {
+  for (const tx of txs) {
+    if (tx.tx_guid >= '') continue;
     const { ['Account #']: acctNum, ['Account']: acctName } = tx;
     const acct = await sc
       .lookup('Accounts', {
@@ -149,11 +222,25 @@ export const matchTxs = async (sc, gc) => {
         code: acct.code,
       })
       .get();
-    console.log('found split:', detail);
+    if (detail) {
+      //   console.log('found split:', detail);
+      const edits = {
+        tx_guid: detail.tx_guid,
+        ...(detail.online_id ? { online_id: detail.online_id } : {}),
+      };
+      sc.update('Transactions', tx.rowIndex - 1, edits);
+      modified += 1;
+    }
+  }
+  console.log('modified:', modified, { limit, offset });
+  if (modified > 0) {
+    await sc.commit('Transactions');
   }
 };
 
 /**
+ * Make an object that throws on access to missing property.
+ *
  * @param {Record<string, string | undefined>} env
  * @returns {Record<string, string>}
  */
@@ -171,24 +258,28 @@ const makeConfig = env =>
   });
 
 /**
- * @param {string[]} _argv
- * @param {Record<string, string | undefined>} env
- * @param {Object} io
+ * @param {string[]} argv
+ * @param {object} env
+ * @param {string} env.PROJECT_CREDS - file of credentials as per [Google Apps Auth][1]
+ * @param {string} env.SHEET1_ID - id of SheetSync Google Sheet
+ * @param {string} env.GNUCASH_DB - path to GnuCash DB
+ * @param {object} io
  * @param {typeof import('fs/promises')} io.fsp
  * @param {(path: string, opts: *) => SqliteDB} io.openSqlite
  * @param {typeof import('google-spreadsheet').GoogleSpreadsheet} io.GoogleSpreadsheet
  * @typedef {import('better-sqlite3').Database} SqliteDB
+ *
+ * [1]: https://theoephraim.github.io/node-google-spreadsheet/#/getting-started/authentication
  */
-const main = async (_argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
+const main = async (argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
   const config = makeConfig(env);
   const creds = await fsp
     .readFile(config.PROJECT_CREDS, 'utf-8')
     .then(s => JSON.parse(s));
 
-  // Initialize the sheet - doc ID is the long id in the sheets URL
-  const doc = new GoogleSpreadsheet(env.SHEET1_ID);
+  const doc = new GoogleSpreadsheet(config.SHEET1_ID);
 
-  // Initialize Auth - see https://theoephraim.github.io/node-google-spreadsheet/#/getting-started/authentication
+  // Initialize Auth - see
   await doc.useServiceAccountAuth(creds);
 
   await doc.loadInfo(); // loads document properties and worksheets
@@ -196,13 +287,12 @@ const main = async (_argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
     doc: { title: doc.title },
   });
 
-  const db = openSqlite(config.GNUCASH_DB, {
-    verbose: console.log,
-  });
+  const opts = argv.includes('-v') ? { verbose: console.log } : {};
+  const db = openSqlite(config.GNUCASH_DB, opts);
 
   const scORM = makeSheetsORM(doc);
   const gcORM = makeORM(db);
-  await matchTxs(scORM, gcORM);
+  await matchTxs(scORM, gcORM, { limit: 1396 });
 };
 
 /* global require, process */
@@ -214,7 +304,7 @@ if (process.env.SHEET1_ID) {
   ]).then(([fsp, sqlite3, GoogleSpreadsheet]) =>
     main(
       process.argv.slice(2),
-      { ...process.env },
+      /** @type {any} */ ({ ...process.env }),
       {
         fsp: fsp.default,
         openSqlite: (path, opts) => sqlite3.default(path, opts),
