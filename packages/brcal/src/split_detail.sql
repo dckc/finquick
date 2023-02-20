@@ -32,7 +32,7 @@ left join accounts a4
 
 DROP VIEW IF EXISTS split_detail;
 create view split_detail as
-select tx.post_date, tx.description
+select date(tx.post_date) post_date, tx.description
      , (s.value_num * 1.0 / s.value_denom) as amount
      , s.memo
      , a.code
