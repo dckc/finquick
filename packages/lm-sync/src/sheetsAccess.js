@@ -168,6 +168,22 @@ export const makeSheetsORM = doc => {
       });
     },
     /**
+     *
+     * @param {string} table
+     * @param {number} rowIndex
+     * @param {Record<string, unknown>} record
+     */
+    highlight: (table, rowIndex, record) => {
+      const sheet = doc.sheetsByTitle[tables[table]];
+      const yellow = { red: 1, green: 1, blue: 0, alpha: 1 };
+      entries(record).forEach(([k, _]) => {
+        const columnIndex = sheet.headerValues.findIndex(v => v === k);
+        // console.log('updating:', { rowIndex, k, columnIndex });
+        const cell = sheet.getCell(rowIndex, columnIndex);
+        cell.backgroundColor = yellow;
+      });
+    },
+    /**
      * @param {keyof tables} table
      */
     commit: async table => {
@@ -252,6 +268,9 @@ const die = message => {
 const mustGet = k => m => m.get(k) || die(`no ${k}`);
 /** @type {<T, R extends Record<string, T>>(p: string) => (rs: R[]) => Map<unknown, R> } */
 const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
+/** @type {<T>(prop: string) => (a: T, b: T) => -1 | 0 | 1 } */
+const sortDescBy = prop => (a, b) =>
+  a[prop] === b[prop] ? 0 : (a[prop] < b[prop] ? 1 : -1);
 
 /**
  * For uncategorized GnuCash transactions (account code 9001)
@@ -276,17 +295,26 @@ const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
 const pullCategories = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
   console.log('await Transactions and Categories...');
   const [stxByGuid, catByName] = await Promise.all([
-    sc
-      .getPage('Transactions', offset, limit)
-      .then(txs => txs.filter(tx => tx.Category > ''))
-      .then(indexBy('tx_guid')),
+    sc.getPage('Transactions', offset, limit).then(indexBy('tx_guid')),
     sc.getPage('Categories', 0, 1000).then(indexBy('Category')),
   ]);
+  let modified = 0;
 
   const acctByCode = indexBy('code')(gc.query('accounts', {}));
-  for (const detail of gc.query('split_detail', { code: '9001' })) {
+  const uncat = gc
+    .query('split_detail', { code: '9001' })
+    .sort(sortDescBy('post_date'));
+  for (const detail of uncat) {
     const stx = stxByGuid.get(detail.tx_guid);
     if (!stx) continue;
+
+    // If a category is needed, highlight it.
+    if (!(stx.Category > '')) {
+      sc.highlight('Transactions', stx.rowIndex - 1, { Category: true });
+      modified += 1;
+      continue;
+    }
+
     const code = mustGet(stx.Category)(catByName).code;
     const acct = mustGet(code)(acctByCode);
     console.log(
@@ -315,6 +343,9 @@ const pullCategories = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
       { guid: detail.tx_guid },
       { description: stx.Description },
     );
+  }
+  if (modified > 0) {
+    await sc.commit('Transactions');
   }
 };
 
