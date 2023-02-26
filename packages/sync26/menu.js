@@ -8,6 +8,7 @@ function onOpen() {
   // Or DocumentApp or FormApp.
   ui.createMenu('Family Finances')
     .addItem('Tx Lookup', 'TxLookup')
+    .addItem('Load Trade Accounting', 'loadTradeAccountingMessages')
     .addSubMenu(
       ui
         .createMenu('Lunch Money')
