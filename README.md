@@ -12,6 +12,7 @@ My ideal personal accounting system would
 
 | System      | Start   | Stop    | Double-Entry | Open    | SQL | Web UI | Bank/Card Sync |
 | ----------- | ------- | ------- | ------------ | ------- | --- | ------ | -------------- |
+| Sheetsync   | 2023-   |         | **NO**       | Web API | NO  | yes    | yes            |
 | LunchMoney  | 2021-   |         | **NO**       | Web API | NO  | yes    | yes            |
 | GnuCash     | 2010-06 |         | yes          | yes     | yes | **NO** | some           |
 | Mint        | 2011?   | 2012-02 | **NO**       | NO\*    | NO  | yes    | yes            |
