@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "push-txids": "node src/sheetsAccess.js",
-    "pull-categories": "node src/sheetsAccess.js --uncat",
+    "push-txids": "node src/sheetsAccess.js --push-txids",
+    "pull-categories": "node src/sheetsAccess.js --pull-cats",
     "start": "node src/server.js"
   },
   "type": "module",

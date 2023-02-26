@@ -2,11 +2,14 @@
 
 /**
  * @file Match Sheetsync with GnuCash
- * @see {matchTxs} for main feature
+ * main features:
+ * @see {pushTxIds}
+ * @see {pullCategories}
+ * @see {main}
  */
 
 import { GoogleSpreadsheetRow } from 'google-spreadsheet';
-import { makeORM } from './server.js';
+import { makeORM } from './gcORM.js';
 
 // based on
 // https://github.com/Agoric/testnet-notes/blob/main/subm/src/sheetAccess.js
@@ -43,7 +46,10 @@ export const lookup = async (sheet, key) => {
  * @param {GoogleSpreadsheetWorksheet} sheet
  * @param {string | number} key
  * @param {Record<string, string | number>} record
+ *
  * @typedef {import('google-spreadsheet').GoogleSpreadsheetWorksheet} GoogleSpreadsheetWorksheet
+ * @typedef {import('google-spreadsheet').GoogleSpreadsheet} GoogleSpreadsheet
+ * @typedef {import('google-spreadsheet').WorksheetGridRange} WorksheetGridRange
  */
 export const upsert = async (sheet, key, record) => {
   let row;
@@ -80,7 +86,7 @@ const provide = (store, key, make) => {
   return p1;
 };
 
-/** @param {import('google-spreadsheet').GoogleSpreadsheet} doc */
+/** @param {GoogleSpreadsheet} doc */
 export const makeSheetsORM = doc => {
   const { entries, freeze } = Object;
 
@@ -130,7 +136,7 @@ export const makeSheetsORM = doc => {
      */
     getPage: async (table, offset, limit) => {
       const sheet = doc.sheetsByTitle[tables[table]];
-      /** @type {import('google-spreadsheet').WorksheetGridRange} */
+      /** @type {WorksheetGridRange} */
       const cellRange = {
         startRowIndex: (offset || 0) + 1, // skip header
         endRowIndex: (offset || 0) + (limit || 0) + 1, // + 1 for header
@@ -197,7 +203,7 @@ export const makeSheetsORM = doc => {
  * @param {number} [pageOptions.offset]
  * @param {number} [pageOptions.limit]
  */
-export const matchTxs = async (sc, gc, { offset, limit } = {}) => {
+export const pushTxIds = async (sc, gc, { offset, limit = 3000 } = {}) => {
   const txs = await sc.getPage('Transactions', offset, limit);
   //   const sample = {
   //     first: txs[0]._rawData,
@@ -242,10 +248,10 @@ export const matchTxs = async (sc, gc, { offset, limit } = {}) => {
 const die = message => {
   throw Error(message);
 };
-/** @type {<T, R extends Record<string, T>>(p: string) => (rs: R[]) => Map<unknown, R> } */
-const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
 /** @type {<K, V>(k: K) => (m: Map<K, V>) => V} */
 const mustGet = k => m => m.get(k) || die(`no ${k}`);
+/** @type {<T, R extends Record<string, T>>(p: string) => (rs: R[]) => Map<unknown, R> } */
+const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
 
 /**
  * For uncategorized GnuCash transactions (account code 9001)
@@ -267,7 +273,7 @@ const mustGet = k => m => m.get(k) || die(`no ${k}`);
  * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
  * @param {ReturnType<makeORM>} gc GnuCash "ORM"
  */
-const updateGCFromSC = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
+const pullCategories = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
   console.log('await Transactions and Categories...');
   const [stxByGuid, catByName] = await Promise.all([
     sc
@@ -332,15 +338,16 @@ const makeConfig = env =>
   });
 
 /**
- * @param {string[]} argv
+ * @param {string[]} argv [-v] --push-txids | --pull-cats
  * @param {object} env
  * @param {string} env.PROJECT_CREDS - file of credentials as per [Google Apps Auth][1]
  * @param {string} env.SHEET1_ID - id of SheetSync Google Sheet
  * @param {string} env.GNUCASH_DB - path to GnuCash DB
  * @param {object} io
- * @param {typeof import('fs/promises')} io.fsp
+ * @param {{ readFile: typeof import('fs/promises').readFile}} io.fsp
  * @param {(path: string, opts: *) => SqliteDB} io.openSqlite
  * @param {typeof import('google-spreadsheet').GoogleSpreadsheet} io.GoogleSpreadsheet
+ *
  * @typedef {import('better-sqlite3').Database} SqliteDB
  *
  * [1]: https://theoephraim.github.io/node-google-spreadsheet/#/getting-started/authentication
@@ -367,17 +374,19 @@ const main = async (argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
   const scORM = makeSheetsORM(doc);
   const gcORM = makeORM(db);
 
-  if ('--uncat') {
-    await updateGCFromSC(scORM, gcORM);
+  if (argv.includes('--push-txids')) {
+    await pushTxIds(scORM, gcORM);
+  } else if (argv.includes('--pull-cats')) {
+    await pullCategories(scORM, gcORM);
   } else {
-    await matchTxs(scORM, gcORM, { limit: 1396 });
+    throw Error('Usage');
   }
 };
 
 /* global require, process */
 if (process.env.SHEET1_ID) {
   Promise.all([
-    await import('fs/promises'),
+    import('fs/promises'),
     import('better-sqlite3'),
     import('google-spreadsheet'),
   ]).then(([fsp, sqlite3, GoogleSpreadsheet]) =>
