@@ -56,6 +56,17 @@ const clause = (fields, sep = ', ') =>
 /** @param {SqliteDB} db */
 export const makeORM = db => {
   const self = freeze({
+    query: (table, keyFields = {}) => {
+      const stmt = db.prepare(`
+      select * from ${table}
+      where ${
+        keys(keyFields).length > 0
+          ? clause([...keys(keyFields)], ' and ')
+          : '1=1'
+      }
+    `);
+      return stmt.all(keyFields);
+    },
     /**
      * @param {string} table
      * @param {Record<string, unknown>} keyFields

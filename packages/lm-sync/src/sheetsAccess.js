@@ -238,6 +238,70 @@ export const matchTxs = async (sc, gc, { offset, limit } = {}) => {
   }
 };
 
+/** @param {string} message */
+const die = message => {
+  throw Error(message);
+};
+/** @type {<T, R extends Record<string, T>>(p: string) => (rs: R[]) => Map<unknown, R> } */
+const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
+/** @type {<K, V>(k: K) => (m: Map<K, V>) => V} */
+const mustGet = k => m => m.get(k) || die(`no ${k}`);
+
+/**
+ * For uncategorized GnuCash transactions (account code 9001)
+ * apply category from Sheetsync where available.
+ *
+ * update splits
+ * from (
+ *   select tx_guid, guid split_guid, acct.guid account_guid
+ *        , sd.memo
+ *   from split_detail sd
+ *   join sheets.Transaction stx on stx.tx_guid = sd.tx_guid
+ *   join accounts acct on acct.code = sd.code
+ *   where sd.code = '9001' and stx.Category > ''
+ * ) xwalk
+ * set splits.account_guid = xwalk.account_guid
+ *   , splits.memo = xwalk.memo
+ * where splits.guid = xwalk.split_guid;
+ *
+ * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
+ * @param {ReturnType<makeORM>} gc GnuCash "ORM"
+ */
+const updateGCFromSC = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
+  console.log('await Transactions and Categories...');
+  const [stxByGuid, catByName] = await Promise.all([
+    sc
+      .getPage('Transactions', offset, limit)
+      .then(txs => txs.filter(tx => tx.Category > ''))
+      .then(indexBy('tx_guid')),
+    sc.getPage('Categories', 0, 1000).then(indexBy('Category')),
+  ]);
+
+  const acctByCode = indexBy('code')(gc.query('accounts', {}));
+  for (const detail of gc.query('split_detail', { code: '9001' })) {
+    const stx = stxByGuid.get(detail.tx_guid);
+    if (!stx) continue;
+    const code = mustGet(stx.Category)(catByName).code;
+    const acct = mustGet(code)(acctByCode);
+    console.log(
+      'update',
+      {
+        post_date: detail.post_date,
+        description: detail.description,
+        memo: detail.memo,
+        amount: detail.amount,
+      },
+      '->',
+      {
+        Description: stx.Description,
+        memo: stx.memo,
+        Category: stx.Category,
+        code,
+      },
+    );
+  }
+};
+
 /**
  * Make an object that throws on access to missing property.
  *
@@ -292,7 +356,12 @@ const main = async (argv, env, { fsp, openSqlite, GoogleSpreadsheet }) => {
 
   const scORM = makeSheetsORM(doc);
   const gcORM = makeORM(db);
-  await matchTxs(scORM, gcORM, { limit: 1396 });
+
+  if ('--uncat') {
+    await updateGCFromSC(scORM, gcORM);
+  } else {
+    await matchTxs(scORM, gcORM, { limit: 1396 });
+  }
 };
 
 /* global require, process */
