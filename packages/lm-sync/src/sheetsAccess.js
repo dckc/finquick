@@ -299,6 +299,16 @@ const updateGCFromSC = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
         code,
       },
     );
+    gc.upsert(
+      'splits',
+      { guid: detail.guid },
+      { account_guid: acct.guid, memo: stx.memo },
+    );
+    gc.upsert(
+      'transactions',
+      { guid: detail.tx_guid },
+      { description: stx.Description },
+    );
   }
 };
 
