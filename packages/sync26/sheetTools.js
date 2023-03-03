@@ -17,7 +17,7 @@ function getRowRecord(sheet, row, headings) {
   return Object.fromEntries(entries);
 }
 
-function getSheetRecords(sheet) {
+function getHeading(sheet) {
   const hd = [];
   for (
     let col = 1, name;
@@ -26,6 +26,11 @@ function getSheetRecords(sheet) {
   ) {
     hd.push(name);
   }
+  return hd;
+}
+
+function getSheetRecords(sheet) {
+  const hd = getHeading(sheet);
   const data = sheet.getRange(2, 1, sheet.getLastRow(), hd.length).getValues();
   const records = [];
   for (const values of data) {
