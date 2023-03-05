@@ -9,6 +9,23 @@ join split_detail acct on acct.tx_guid = uncat.tx_guid
 where acct.path != 'Imbalance-USD'
 order by uncat.post_date;
 
+drop view account_tree;
+
+-- acctTree:
+create view account_tree as
+with recursive
+  rel(guid, parent_guid, parent_path, path, hidden) as (
+  select guid, parent_guid, null, name, hidden from accounts
+  where parent_guid in (select guid from accounts where parent_guid is null)
+  union all
+  select a.guid, a.parent_guid, rel.path, rel.path || ':' || a.name
+       , case when rel.hidden = 1 or a.hidden = 1 then 1 else 0 end hidden
+  from rel
+  join accounts a on rel.guid = a.parent_guid
+  )
+select guid, path, hidden from rel
+;
+
 -- categoriesSyncSheets:
 with anc as (
 with recursive
@@ -78,3 +95,57 @@ where slots.id = imp.id
 
 -- dropSlotImport:
 drop table if exists slot_import;
+
+-- hiddenSync
+select * from (
+select guid, account_type, name
+     , date(min(post_date)) date_lo, date(max(post_date)) date_hi
+     , hidden
+     , 2022 - (0 + strftime('%Y', max(post_date))) age
+from (
+select acct.guid, acct.account_type, acct.name, acct.hidden , tx.post_date
+from accounts acct
+join splits s on s.account_guid = acct.guid
+join transactions tx on tx.guid = s.tx_guid
+)
+group by guid, name, account_type, hidden
+)
+where ((hidden = 1 and age < 1) OR
+       (hidden = 0 and age > 1))
+order by hidden, age, account_type, name
+;
+
+-- incomeStatement:
+with period as (select '2022-01-01' as lo, '2022-03-31' as hi)
+, acct as (select account_type, code, guid from accounts where account_type in ('INCOME', 'EXPENSE'))
+, tx as (select post_date, guid from transactions join period where date(post_date) between lo and hi)
+, split as (
+  select tx_guid, account_guid, code, account_type, s.value_num * -1.0 / s.value_denom value from splits s
+  join tx on s.tx_guid = tx.guid
+  join acct on s.account_guid = acct.guid
+)
+, by_acct as (
+select account_type, code, a.path, sum(value) income
+from split join account_tree a on split.account_guid = a.guid
+group by split.account_guid
+)
+, by_type as (
+  select account_type, null, 'Total:', sum(income)
+  from by_acct
+  group by account_type
+)
+, net_income as (
+  select lo || ' - ' || hi, null, 'Net Income', sum(income)
+  from by_acct join period
+)
+select 1 o, a.* from by_acct a where account_type = 'INCOME'
+union all
+select 2 o, t.* from by_type t where account_type = 'INCOME'
+union all
+select 3 o, a.* from by_acct a where account_type = 'EXPENSE'
+union all
+select 4 o, t.* from by_type t where account_type = 'EXPENSE'
+union ALL
+select 5 o, n.* from net_income n
+order by o, path
+;
