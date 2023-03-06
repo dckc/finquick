@@ -116,9 +116,9 @@ order by hidden, age, account_type, name
 ;
 
 -- incomeStatement:
-with period as (select '2022-01-01' as lo, '2022-03-31' as hi)
+with period as (select '2022-01-01' as lo, '2022-06-30' as hi)
 , acct as (select account_type, code, guid from accounts where account_type in ('INCOME', 'EXPENSE'))
-, tx as (select post_date, guid from transactions join period where date(post_date) between lo and hi)
+, tx as (select post_date, guid from transactions join period where date(post_date) >= lo and date(post_date) <= hi)
 , split as (
   select tx_guid, account_guid, code, account_type, s.value_num * -1.0 / s.value_denom value from splits s
   join tx on s.tx_guid = tx.guid
@@ -147,5 +147,53 @@ union all
 select 4 o, t.* from by_type t where account_type = 'EXPENSE'
 union ALL
 select 5 o, n.* from net_income n
+order by o, path
+;
+
+-- balanceSheet:
+with period as (select '2021-12-31' as hi)
+, acct as (
+  select code, guid, name
+       , case account_type
+         when 'MUTUAL' then 'ASSET'
+         when 'CREDIT' then 'LIABILITY'
+         when 'BANK' then 'ASSET'
+         when 'CASH' then 'ASSET'
+         when 'RECEIVABLE' then 'ASSET'
+         else account_type end account_type
+  from accounts
+  where account_type not in ('INCOME', 'EXPENSE')
+  and commodity_guid in (select guid from commodities where mnemonic = 'USD')
+ )
+, tx as (select post_date, guid from transactions join period where date(post_date) <= hi)
+, split as (
+  select tx_guid, account_guid, code, account_type, s.value_num * 1.0 / s.value_denom value from splits s
+  join tx on s.tx_guid = tx.guid
+  join acct on s.account_guid = acct.guid
+)
+, by_acct as (
+select account_type, code, a.path, round(sum(value), 2) balance -- TODO: parameterize 2 by log10(commodities.fraction)
+from split join account_tree a on split.account_guid = a.guid
+where a.path not like 'History:%'
+group by split.account_guid
+)
+, by_type as (
+  select account_type, null, 'Total:', round(sum(balance), 2)
+  from by_acct
+  group by account_type
+)
+, net_worth as (
+  select hi, null, 'Net Worth', round(sum(balance), 2)
+  from by_acct join period
+)
+select 1 o, a.* from by_acct a where account_type = 'ASSET' and (balance < 0 or balance > 0)
+union all
+select 2 o, t.* from by_type t where account_type = 'ASSET'
+union all
+select 3 o, a.* from by_acct a where account_type = 'LIABILITY' and balance != 0
+union all
+select 4 o, t.* from by_type t where account_type = 'LIABILITY'
+union ALL
+select 5 o, n.* from net_worth n
 order by o, path
 ;
