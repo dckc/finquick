@@ -12,6 +12,12 @@ const Osmosis = {
   dateFormat: "yyyy/MM/dd' 'HH:mm:ss",
 };
 
+const OsmoReward = {
+  hd: ['time'],
+  dateColumn: 'time',
+  dateFormat: 'yyyy/MM/dd',
+};
+
 const Coinbase = {
   hd: ['Timestamp'],
   dateColumn: 'Timestamp',
@@ -85,7 +91,8 @@ function byDate_(rows, source) {
 
 function loadCSV_(active, att) {
   const rows = Utilities.parseCsv(att.getDataAsString());
-  const [name, hd, raw] = findHd_(rows);
+  const [name, hd, raw] = findHd_(rows, { ...SOURCES, OsmoReward });
+  if (name === 'OsmoReward') return; // skip, at least for now
   console.log('loading from', att.getName(), 'into', name);
   const source = SOURCES[name];
   const detail = byDate_(raw, source);
@@ -296,7 +303,7 @@ function buildTradeTransactions() {
   const { hd, rows } = flattenTxs_(txs);
   console.log('Transactions:', hd, rows.length);
 
-  const importSheet = active.getSheetByName('tx_import');
+  const importSheet = active.getSheetByName('gc_trades');
   importSheet.clear();
   setRange(importSheet, hd, rows);
 }
