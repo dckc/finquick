@@ -5,19 +5,24 @@ const Rules = {
 
 const { entries, fromEntries } = Object;
 function checkRule(tx, rule) {
-  for (const [prop, expected] of entries(rule)) {
-    let actual;
+  for (let [prop, expected] of entries(rule)) {
+    if (expected === '') continue;
+    let ok;
     switch (prop) {
       case 'part':
         continue;
       case 'Day of Month':
-        actual = tx.Date.getDate();
+        ok = expected === tx.Date.getDate();
         break;
       default:
-        actual = tx[prop];
+        if (typeof expected === 'string' && expected.includes('*')) {
+          ok = globToRegexp(expected).test(tx[prop]);
+          break;
+        }
+        ok = tx[prop] === expected;
         break;
     }
-    if (actual !== expected) {
+    if (!ok) {
       return false;
     }
   }
