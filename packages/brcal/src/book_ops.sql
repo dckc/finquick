@@ -197,3 +197,75 @@ union ALL
 select 5 o, n.* from net_worth n
 order by o, path
 ;
+
+-- TODO: 1099-B
+-- Currency Name	Purchase Date	Cost Basis	Date Sold	Proceeds
+-- but FIFO in SQL looks kinda tricky
+
+-- BitCoin.Tax format
+-- Date,Action,Account,Symbol,Volume,Price,Currency,Fee
+-- 2020-01-01 13:00:00 -0800,BUY,Coinbase,BTC,1,500,USD,5.50
+
+-- bitCoinTaxTradeExport:
+with period as (select '2022-01-01' lo, '2022-12-31' as hi)
+, tx as (select * from transactions tx join period where tx.post_date between lo and hi)
+, asset as (
+	select a.account_type, code, name, mnemonic, a.guid
+	from accounts a
+	join commodities c on a.commodity_guid = c.guid
+	where c.mnemonic != 'USD'
+)
+, trade as (
+select tx.post_date, tx.num, tx.description, a.name, a.mnemonic, s.action
+     , 1.0 * value_num / value_denom value
+     , 1.0 * quantity_num / quantity_denom quantity
+from tx
+join splits s on s.tx_guid = tx.guid
+join asset a on s.account_guid = a.guid
+where s.action in ('Buy', 'Sell')
+)
+select date(post_date) || ' ' || num 'Date'
+     , case when action in ('Buy') then 'BUY'
+       else 'SELL' end Action
+     , name Account
+     , mnemonic Symbol
+     , abs(quantity) Volume
+     , value / quantity Price
+     , 'USD' Currency
+     , description
+from trade
+order by post_date, num
+;
+
+-- Date,Action,Account,Symbol,Volume
+-- 2020-01-01 13:00:00 -0800,INCOME,"Blockchain Wallet",BTC,1
+
+-- bitCoinTaxIncomeExport:
+with period as (select '2022-01-01' lo, '2022-12-31' as hi)
+, tx as (select * from transactions tx join period where tx.post_date between lo and hi)
+, asset as (
+	select a.account_type, code, name, mnemonic, a.guid
+	from accounts a
+	join commodities c on a.commodity_guid = c.guid
+	where c.mnemonic != 'USD'
+)
+, trade as (
+select tx.post_date, tx.num, tx.description, a.name, a.mnemonic, s.action
+     , 1.0 * value_num / value_denom value
+     , 1.0 * quantity_num / quantity_denom quantity
+from tx
+join splits s on s.tx_guid = tx.guid
+join asset a on s.account_guid = a.guid
+where s.action in ('Grant', 'Claim')
+)
+select date(post_date) || ' ' || num 'Date'
+     , case when action is 'Grant' then 'INCOME' else 'MINING' end Action
+     , name Account
+     , description Memo
+     , mnemonic Symbol
+     , abs(quantity) Volume
+     , value Total
+     , 'USD' Currency
+from trade
+order by post_date, num
+;
