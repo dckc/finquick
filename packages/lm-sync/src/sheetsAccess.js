@@ -421,14 +421,10 @@ if (process.env.SHEET1_ID) {
     import('better-sqlite3'),
     import('google-spreadsheet'),
   ]).then(([fsp, sqlite3, GoogleSpreadsheet]) =>
-    main(
-      process.argv.slice(2),
-      /** @type {any} */ ({ ...process.env }),
-      {
-        fsp: fsp.default,
-        openSqlite: (path, opts) => sqlite3.default(path, opts),
-        GoogleSpreadsheet: GoogleSpreadsheet.GoogleSpreadsheet,
-      },
-    ).catch(err => console.error(err)),
+    main(process.argv.slice(2), /** @type {any} */ ({ ...process.env }), {
+      fsp: fsp.default,
+      openSqlite: (path, opts) => sqlite3.default(path, opts),
+      GoogleSpreadsheet: GoogleSpreadsheet.GoogleSpreadsheet,
+    }).catch(err => console.error(err)),
   );
 }
