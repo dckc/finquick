@@ -1,0 +1,49 @@
+.report {
+  border-collapse: collapse;
+  font-family: sans-serif;
+}
+th,
+td {
+  border: 1px solid black;
+  padding: 4px;
+}
+.report tr:nth-child(odd) {
+  background-color: #fff;
+}
+
+.report tr:nth-child(even) {
+  background-color: #eee;
+}
+
+.report td.amount {
+  text-align: right;
+}
+.report td.amount:before {
+  content: '$';
+}
+
+.report td.status {
+  text-align: center;
+}
+.report td.status span {
+  visibility: hidden;
+}
+.report td.uncleared:before {
+  content: '?';
+}
+.report td.cleared:before {
+  content: '✓';
+}
+.report td.recurring:before {
+  content: '♲';
+  color: green;
+}
+.report td.recurring_suggested:before {
+  content: '♲?';
+  color: grey;
+}
+
+.report td.uncleared {
+  font-style: italic;
+  color: red;
+}
