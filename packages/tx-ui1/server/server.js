@@ -1,5 +1,7 @@
 // @ts-check
 
+import { allValues } from './promiseUtil.js';
+
 const pages = {
   // package-relative
   '/': { path: './ui/index.html', type: 'text/html' },
@@ -8,13 +10,23 @@ const pages = {
   '/txs': { path: './data/split_detail.json', type: 'application/json' },
 };
 
+const die = (msg = '') => {
+  throw Error(msg);
+};
+
 /**
+ * @param {typeof process.env} env
  * @param {object} io
- * @param {typeof import('http')} io.http
- * @param {typeof import('fs')} io.fs TODO: narrow to least authority
+ * @param {typeof import('https')} io.https
+ * @param {typeof import('fs/promises')} io.fsp TODO: narrow to least authority
+ * @param {typeof import('devcert')} io.devcert
  */
-const main = async ({ http, fs }) => {
-  const srv = http.createServer((request, response) => {
+const main = async (env, { https, fsp, devcert }) => {
+  const { readFile } = fsp;
+  const ssl = await devcert.certificateFor(
+    env.DOMAIN || die('$DOMAIN missing'),
+  );
+  const srv = https.createServer(ssl, (request, response) => {
     const { url } = request;
     console.log('@@request for', url);
     const page = pages[url];
@@ -23,16 +35,23 @@ const main = async ({ http, fs }) => {
       response.end();
       return;
     }
-    fs.promises.readFile(page.path, 'utf8').then(body => {
+    readFile(page.path, 'utf8').then(body => {
       response.writeHead(200, { 'content-type': page.type });
       response.write(body);
       response.end();
-    });
+    }); // TODO: catch
   });
-  srv.listen(8822);
+  const port = env.PORT || 443;
+  console.warn('listening on https://%s:%s', env.DOMAIN, port);
+  srv.listen(port);
 };
 
 (async () =>
-  main({ http: await import('http'), fs: await import('fs') }))().catch(err =>
-  console.error(err),
-);
+  main(
+    process.env,
+    await allValues({
+      https: import('https'),
+      fsp: import('fs/promises'),
+      devcert: import('devcert'),
+    }),
+  ))().catch(err => console.error(err));
