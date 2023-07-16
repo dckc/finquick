@@ -44,11 +44,8 @@ function applyRulesToRange(doc, range) {
       if (checkRule(tx, rule)) {
         const { done, value } = each.next();
         if (done) throw Error('missing then');
-        if (value.part !== 'then')
-          throw Error(`expected then; got ${value.parts}`);
-        const edits = fromEntries(
-          entries(value).filter(([p, v]) => p !== 'part' && v !== ''),
-        );
+        if (value.part !== 'then') throw Error(`expected then; got ${value.parts}`);
+        const edits = fromEntries(entries(value).filter(([p, v]) => p !== 'part' && v !== ''));
         console.log('match', { rowIx, edits });
         updateRecord(txSheet, txHd, rowIx, edits);
       }
@@ -56,11 +53,11 @@ function applyRulesToRange(doc, range) {
   }
 }
 
-function testApplyrules(row = 203) {
+function testApplyrules(row = 129) {
   console.warn('AMBIENT: SpreadsheetApp');
-  const doc = SpreadsheetApp.getActive();
+  const doc = SpreadsheetApp.getActive()
   const range = doc.getSheetByName('Transactions (2)').getRange(row, 1);
-  applyRulesToRange(doc, range);
+  applyRulesToRange(doc, range)
 }
 
 function ApplyRules() {

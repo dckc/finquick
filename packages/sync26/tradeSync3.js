@@ -15,7 +15,7 @@ const Osmosis = {
 const OsmoReward = {
   hd: ['time'],
   dateColumn: 'time',
-  dateFormat: 'yyyy/MM/dd',
+  dateFormat: "yyyy/MM/dd",
 };
 
 const Coinbase = {
@@ -133,9 +133,7 @@ function loadTradeAccountingMessages() {
     const row = [m.getId(), m.getDate(), atts.length, m.getSubject()];
 
     console.log('Found Message:', row);
-    atts.forEach(
-      att => att.getContentType() === 'text/csv' && loadCSV_(active, att),
-    );
+    atts.forEach(att => (att.getContentType() === 'text/csv' && loadCSV_(active, att)));
 
     return row;
   });
