@@ -1,7 +1,7 @@
 // @ts-check
 import {
   html,
-  Component,
+  useEffect,
   useState,
 } from 'https://unpkg.com/htm/preact/standalone.module.js';
 import Fuse from 'https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.esm.js';
@@ -51,18 +51,30 @@ export const TxRegister = () => {
   const [pattern, setPattern] = useState('');
   const [matches, setMatches] = useState([]);
 
+  console.warn('AMBIENT: window.localStorage');
+  navigator.storage.estimate().then(est => console.log(est));
+  const { localStorage } = window;
+
+  useEffect(() => {
+    const found = localStorage.getItem('/txs');
+    if (!found) return;
+    const lines = found.split('\n').filter(line => line > '');
+    setItems(lines);
+  });
+
   const load = async () => {
     const resp = await fetch('/txs');
     if (resp.status !== 200) {
       throw resp;
     }
     const txt = await resp.text();
-    console.log('got text@@', txt.slice(0, 20));
+    console.log('got text@@', txt.length, txt.slice(0, 20));
     const lines = txt.split('\n').filter(line => line > '');
     console.log(lines[0]);
     const txs = lines.map(line => JSON.parse(line));
     setItems(txs);
     setFuse(new Fuse(txs, opts));
+    localStorage.setItem('/txs', txt);
   };
 
   const search = () => {
