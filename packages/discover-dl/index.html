@@ -1,0 +1,51 @@
+<body>
+  <h1>Discover D/L</h1>
+  <p>
+    <em
+      >Download CSV from <a href="https://discover.com">Discover</a> and then
+      use this to convert to OFX.</em
+    >
+  </p>
+  <fieldset>
+    <legend>@@Stuff</legend>
+    <input id="acctId" placeholder="@@Discovr86X43X5999X8146" />
+    <input id="theFile" type="file" />
+  </fieldset>
+  <hr />
+  <textarea id="ofx" rows="24" cols="80"></textarea>
+  <hr />
+  <section>
+    <h2>Download OFX</h2>
+    <a id="download">discover.ofx</a>
+  </section>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "jstoxml": "https://esm.run/jstoxml",
+        "csv-parse/sync": "https://esm.run/csv-parse/sync"
+      }
+    }
+  </script>
+  <script type="module">
+    import ui from './ui.js';
+    ui({
+      now: Date.now,
+      getInput: sel => document.querySelector(sel),
+      getAnchor: sel => document.querySelector(sel),
+    });
+  </script>
+
+  <h2>Acks</h2>
+  <ul>
+    <li>
+      <a href="https://www.digitalocean.com/community/tutorials/js-file-reader"
+        >How To Read and Process Files with the JavaScript FileReader API |
+        DigitalOcean</a
+      >
+    </li>
+    <li>
+      <a href="https://csv.js.org/parse/api/sync/">CSV Parse - Sync API</a>
+    </li>
+  </ul>
+</body>
