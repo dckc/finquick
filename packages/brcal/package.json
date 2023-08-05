@@ -27,7 +27,7 @@
     "ical": "^0.8.0",
     "mysql": "^2.18.1",
     "require-text": "^0.0.1",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.5.0"
   },
   "devDependencies": {
     "@agoric/eslint-config": "^0.3.3",
