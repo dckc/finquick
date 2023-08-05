@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "devDependencies": {},
+  "dependencies": {
+    "csv-parse": "^5.4.0",
+    "jstoxml": "^3.2.7"
+  }
+}
