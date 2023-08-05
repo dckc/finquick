@@ -21,6 +21,15 @@ My ideal personal accounting system would
 
 ### Journal: blog items, commits
 
+- 2023-08: f72e789 \* fix(amazonSync)!: use azad since Amazon ended history reports
+- 2023-03: b3bcc51 \* feat(GnuCash DB): balanceSheet, incomeStatement queries
+- 2023-03: 2c4757f \* feat(sync26): edit Sheetsync txs using a sheet of rules
+- 2023-02: 79787ca \* feat(sync26): Load Trade Accounting from CSV attachments
+- 2023-02: 3c800f4 \* feat: push GnuCash tx ids, pull Sheetsync categories
+- 2023-02: f8dc9ab \* feat: Google Sheets API authentication
+- 2023-02: 659f181 \* feat(GnuCash DB): accounts as Sheetsync categories: code, Category, Group, Type
+- 2023-02: f78f1ab \* feat: lookup Amazon orders/items for Sheetsync
+- 2023-02: 150c389 \* style: Agoric JS style (following AirBnB)
 - 2023-02: 106517f \* trade accounting from staketax, osmosis, coinbase via google sheets
 - 2022-11: 4aaa5b4 \* sync lunchmoney, GnuCash using vanilla localStorage UI,
   GET/PATCH back-end
