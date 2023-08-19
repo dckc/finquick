@@ -1,0 +1,8 @@
+{
+  "name": "fincaps",
+  "version": "0.0.1",
+  "type": "module",
+  "devDependencies": {
+    "@endo/cli": "/home/connolly/projects/endo/packages/cli"
+  }
+}
