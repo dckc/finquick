@@ -1,22 +1,52 @@
 /**
-@flow
-*/
-/*eslint-disable no-console */
+ * @file endo plugin for [FreeDesktop Secret Sevice][1]
+ *
+ * This implementation uses `spawn` to call gnome `secret-tool`.
+ * Nearby we have code to use dbus directly, so we could do that.
+ *
+ * [1]: https://specifications.freedesktop.org/secret-service/latest/
+ */
 
-'use strict';
+// @ts-check
+import { Far } from '@endo/far';
+import { spawn as ambientSpawn } from 'child_process';
 
-const Q = require('q');
+import { withResolvers } from './withResolvers.js';
 
-exports.makeSecretTool = makeSecretTool;
-function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
-  // cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
-  const toolPath = 'secret-tool';
+// tested with
+// `apt-cache  show libsecret-tools`
+// Version: 0.20.5-2
+// SHA256: 2fd22e91c2e0e69f7a9e391e2be6c565d310346bbca46a7509a354cdd7d5a917
+// https://launchpad.net/ubuntu/+source/libsecret/0.20.5-2 2022-02-24
+// cribbed from https://github.com/drudge/node-keychain/blob/master/keychain.js
+const toolPath = 'secret-tool';
 
-  function lookup(what /*: {[string]: string} */) {
+/**
+ * @typedef {{
+ *   lookup: (what: Record<string, string>) => Promise<string>,
+ *   makePassKey: (what: Record<string, string>) => PassKey,
+ * }} SecretTool
+ *
+ * @typedef {{
+ *   subKey: (subProps: Record<string, string>) => PassKey;
+ *   properties: () => Record<string, string>;
+ *   get: () => Promise<string>;
+ * }} PassKey
+ */
+
+/**
+ * @param {typeof import('child_process').spawn} spawn
+ * @returns {SecretTool}
+ */
+export function makeSecretTool(spawn) {
+  /**
+   * @param {Record<string, string>} what - TODO: runtime typecheck
+   */
+  function lookup(what) {
     const args = ['lookup'];
-    for (let prop in what) {
+    for (const [prop, val] of Object.entries(what)) {
       args.push(prop);
-      args.push(what[prop]);
+      args.push(val);
     }
 
     console.log('spawn(', toolPath, args, ')');
@@ -27,7 +57,8 @@ function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
       password += d;
     });
 
-    const out = Q.defer();
+    /** @type {import('./withResolvers.js').PromiseKit<string>} */
+    const out = withResolvers();
     tool.on('close', (code /* , signal */) => {
       if (code !== 0) {
         return out.reject(new Error('non-zero exit from ' + toolPath));
@@ -39,32 +70,38 @@ function makeSecretTool(spawn /*: (string, Array<string>) => Process */) {
     return out.promise;
   }
 
-  function makePassKey(
-    tool /*: ({[string]: string}) => Promise<string>*/,
-    properties /*: {[string]: string} */,
-  ) {
-    return Object.freeze({
-      subKey: (subProps /*: {[string]: string} */) =>
-        makePassKey(tool, Object.assign({}, properties, subProps)),
+  /**
+   * @param {Record<string, string>} properties
+   * @returns {PassKey}
+   */
+  function makePassKey(properties) {
+    /**
+     * @param {Record<string, string>} subProps - TODO: runtime typecheck
+     */
+    const subKey = subProps => makePassKey({ ...properties, ...subProps });
+
+    const key = Far('PassKey', {
+      subKey,
       properties: () => properties,
-      get: () => tool.lookup(properties),
+      get: () => lookup(properties),
     });
+    return key;
   }
 
-  return Object.freeze({
-    lookup: lookup,
-    makePassKey: makePassKey,
+  return Far('SecretTool', {
+    lookup,
+    makePassKey,
   });
 }
 
-exports.args2props = args2props;
-function args2props(arg1 /*: string*/, args /*: Array<string>*/) /*:Object*/ {
+/**
+ * @param {string} arg1
+ * @param {string[]} args
+ */
+export function args2props(arg1, args) {
   if (typeof arg1 === 'string') {
-    const properties = {};
-    for (let i = 0; i < args.length; i += 1) {
-      let kv = args[i].split('='); // no destructuring let in node yet?
-      properties[kv[0]] = kv[1];
-    }
+    const entries = args.map(arg => arg.split('='));
+    const properties = Object.fromEntries(entries);
     return properties;
   } else if (typeof arg1 === 'object' && arg1 !== null) {
     return arg1;
@@ -72,3 +109,6 @@ function args2props(arg1 /*: string*/, args /*: Array<string>*/) /*:Object*/ {
     return {};
   }
 }
+
+// TODO: separate module so code above can be used without node API
+export const make = () => makeSecretTool(ambientSpawn);
