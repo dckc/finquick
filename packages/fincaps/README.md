@@ -65,6 +65,62 @@ $ endo eval "E(key).get()" key:kb3
 sekret
 ```
 
+## DB Hub
+
+Make a database hub that can look up sqlite3 databases by full path:
+
+```
+$ endo make -n hub1 --UNSAFE ./src/dbTool.js
+Object [Alleged: DBHub] {}
+```
+
+Choose a sqlite3 database file path; for example, a GnuCash database:
+
+```
+$ endo eval "'/home/me/finance.gnucash'" -n p1
+/home/me/finance.gnucash
+```
+
+Look up the GnuCash database an call it `gcdb`:
+
+```
+$ endo eval "E(hub).lookup(path)" hub:hub1 path:p1 -n gcdb
+Object [Alleged: DBTool] {}
+```
+
+Look up the accounts table -- only the rows where name is Highlander:
+
+```
+$ endo eval "E(db).lookup('accounts', 'name', 'Highlander')" db:gcdb
+Object [Alleged: TableRdWr] {}
+```
+
+Get a read-only facet of the accounts table:
+
+```
+$ endo eval "E(E(db).lookup('accounts')).readOnly()" db:gcdb
+Object [Alleged: TableRd] {}
+```
+
+Pick out this one row of the accounts table; call it `caracct`:
+
+```
+$ endo eval "E(E(db).lookup('accounts', 'name', 'Highlander')).select1()" -n caracct db:gcdb
+Object [Alleged: Row] {}
+```
+
+Get the contents with `endo eval "E(acct).get()" acct:caracct`:
+
+```js
+{
+account_type: 'ASSET',
+code: '1520-2003-ta',
+description: 'Toyota Highlander',
+guid: '2cecb1cf630e43560470044ec11ecb4e',
+name: 'Highlander',
+}
+```
+
 ## Refs
 
 - [feat\(daemon\): Weblets by kriskowal · Pull Request \#1658 · endojs/endo](https://github.com/endojs/endo/pull/1658)
