@@ -5,7 +5,7 @@ import { JWT, auth } from 'google-auth-library';
 
 const zip = (xs, ys) => xs.map((x, i) => [x, ys[i]]);
 
-const { fromEntries } = Object;
+const { entries, fromEntries } = Object;
 
 /** @param {import('google-spreadsheet').GoogleSpreadsheetWorksheet} sheet */
 const makeWorksheet = sheet => {
@@ -13,6 +13,7 @@ const makeWorksheet = sheet => {
   const toObj = row => fromEntries(zip(sheet.headerValues, row._rawData));
 
   /**
+   * TODO@@@@
    * @param {string | number} key
    * @throws on not found
    */
@@ -37,9 +38,17 @@ const makeWorksheet = sheet => {
     return toObj(row);
   };
 
+  let rowCache;
+  const provideRows = async () => {
+    if (rowCache) return rowCache;
+    rowCache = await sheet.getRows().then(rows => rows.map(toObj));
+    console.log('@@@', { rowCache });
+    return rowCache;
+  };
+
   const rd = Far('WorksheetRd', {
     readOnly: () => rd,
-    find,
+
     getRows: async (offset = 0, limit = 100) => {
       await sheet.loadHeaderRow();
 
@@ -58,10 +67,36 @@ const makeWorksheet = sheet => {
     },
   });
 
-  const wr = Far('WorksheetWr', { ...rd });
+  const wr = Far('WorksheetWr', {
+    ...rd,
+    readOnly: () => rd,
+    /**
+     * TODO: read-only select1
+     * @param {Record<string, string | number>} keyFields
+     */
+    select1: async keyFields => {
+      const rows = await provideRows();
+      // match by string form
+      const found = rows.filter(row =>
+        entries(keyFields).every(([col, val]) => row[col] === `${val}`),
+      );
+      if (found.length !== 1)
+        throw `found ${found.length} in ${
+          sheet.title
+        } matching ${JSON.stringify(keyFields)}`;
+      const [it] = found;
+      return Far('Row', {
+        get: () => it,
+        // TODO: transaction objects
+        /** @param {Record<string, unknown>} dataFields */
+        update: dataFields => Object.assign(it, dataFields),
+      });
+    },
+  });
 
   return wr;
 };
+
 /** @typedef {ReturnType<typeof makeWorksheet>} Worksheet */
 
 /** @param {sheetsAmbient.GoogleSpreadsheet} doc */
@@ -73,7 +108,11 @@ const makeSpreadsheet = doc => {
       makeWorksheet(doc.sheetsByTitle[title]).readOnly(),
   });
 
-  const wr = Far('SpreadsheetWr', { ...rd });
+  const wr = Far('SpreadsheetWr', {
+    ...rd,
+    readOnly: () => rd,
+    getSheetByTitle: title => makeWorksheet(doc.sheetsByTitle[title]),
+  });
 
   return wr;
 };
