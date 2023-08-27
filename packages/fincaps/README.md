@@ -121,6 +121,51 @@ name: 'Highlander',
 }
 ```
 
+## Google Sheets
+
+Load the plugin as, say, `gsheets`:
+
+```
+$ endo make --UNSAFE src/sheetsTool.js -n gsheets
+Object [Alleged: SheetsTool] {}
+```
+
+Put the service account details in a secret store item with `id` of the spreadsheet:
+
+```
+$ secret-tool store --label='myGSheet' id 1-66j... title mySheet  <project-id-661....json
+```
+
+Using the Secret Store plugin above, give this item a petname of, say, `sheet-creds`:
+
+```
+$ endo eval "E(secrets).makePassKey({title: 'finSync', id:'1-66j...' })" -n sheet-creds secrets:desktop-secrets
+```
+
+Now load the spreadsheet info:
+
+```
+$ endo eval "E(gsheets).load(item)" -n finsync gsheets item:sheet-creds
+Object [Alleged: SpreadsheetWr] {}
+```
+
+Pick out a worksheet by title:
+
+```
+$ endo eval "E(finsync).getSheetByTitle('Accounts')" finsync -n acctsheet
+Object [Alleged: WorksheetRd] {}
+```
+
+Fetch some data:
+
+```
+connolly@bldbox:~/projects/finquick/packages/fincaps$ endo eval "E(acctsheet).getRows(0, 2)" acctsheet
+[
+  { 'A/L': 'Asset', Account:  'SAVINGS', Group: 'Bank Accounts', code: '1030' },
+  { 'A/L': 'Asset', Account: 'CHECKING', Group: 'Bank Accounts', code: '1020' },
+]
+```
+
 ## Refs
 
 - [feat\(daemon\): Weblets by kriskowal · Pull Request \#1658 · endojs/endo](https://github.com/endojs/endo/pull/1658)
