@@ -1,14 +1,86 @@
 # fincaps - confined finance stuff
 
-The endo daemon and CLI recently grew support for web pages.
-Seems like it could work like Capper.
+## Plugins with POLA: Google Sheets, Desktop Secrets, sqlite3
 
-- weblet(s) for UI(s)
-- unconfined worker for access to gnucash db via sqlite
-- unconfined worker for access to google sheets
-- confined workers to connect them
+Each of these plugins provdes POLA-shaped access:
 
-## Hello world weblet
+- `dbTool.js` - Using the `NameHub.lookup()` protocol,
+  `DBHub.lookup(filepath)` gives a `DBTool`. Or
+  `DBHub.lookup(filepath, table)` gives a `TableRdWr`.
+  `TableRdWr.subTable({ col1: val1, col2: val2})` gives
+  access to rows `where col1=val1 and col2 = val2`.
+  `TableRdWr.lookup(col1, val1, col2, val2)` gives the same.
+  `TableRdWr.readOnly()` gives a `TableRd`.
+- `secret-tool.js` - `SecretTool.makePasskey(attrs1)`
+  makes a `PassKey`. From there, `E(p).subKey(attrs2)`
+  attenuates access to items with `{ ...attrs2, ...attrs1 }`.
+- `sheetsTool.js` - `SheetsTool.load(item)` uses a
+  `PassKey` to access a Google Sheet as a `SpreadsheetWr`
+  with a `.readOnly()` attenuation method.
+  `lookup()` support is TODO, but
+  `E(gsheet).getSheetByTitle(title)` gets
+  a `WorksheetWr` with `.readOnly()`.
+  Attenuation to rows / columns is not yet supported.
+
+TODO: defensive correctness in the case of unexpected args.
+
+## Sync GnuCash sqlite DB with a Google Sheet
+
+In `../lm-sync/src/sheetsAccess.js`, we have a tool
+to sync between a GnuCash sqlite3 database and a
+Google spreadsheet. Credentials to access the spreadsheet
+come from environment variables and a key file.
+The code respects POLA to some extent, but
+it's all in one vat/realm and its realm
+is not hardened.
+
+Using the plugins above, `txSync.js` runs as a confined
+worker (reminiscent of Capper). The current UI is a `Makefile`:
+
+```
+$ make
+state: /home/connolly/.local/state/endo
+
+$ make clean
+endo reset
+
+$ make sync
+++ instantiate confined sync tool
+endo make src/txSync.js -n synctool
+Object [Alleged: SyncTool] {}
+
+++ Instantiate sqlite3 database hub plugin
+endo make -n hub1 --UNSAFE ./src/dbTool.js
+Object [Alleged: DBHub] {}
+++ Choose a sqlite3 database file path
+endo eval "'${GNUCASH_DB}'" -n p1
+++ look up the path in the DBHub
+endo eval "E(hub).lookup(path)" hub:hub1 path:p1 -n gcdb
+Object [Alleged: DBTool] {}
+
+++ make endo plugin for desktop secrets
+endo make -n desktop-secrets --UNSAFE ./src/secret-tool.js
+Object [Alleged: SecretTool] {}
+++ make a PassKey to access finSync Google Sheet
+++ Assumes: secret-tool store --label=finSync id 1-66j... title finSync <project-id-661....json
+endo eval "'${SHEET1_ID}'" -n finsync-id
+1-66jE...
+endo eval "E(secrets).makePassKey({ title: 'finSync', id })" -n fin-sync-creds secrets:desktop-secrets id:finsync-id
+Object [Alleged: PassKey] {}
+
+++ make endo plugin for Google Sheets
+endo make --UNSAFE src/sheetsTool.js -n gsheets
+Object [Alleged: SheetsTool] {}
+++ Load a spreadsheet based on item from desktop secret store.
+endo eval "E(gsheets).load(item)" -n finsync gsheets item:fin-sync-creds
+Object [Alleged: SpreadsheetWr] {}
+
+++ Push GnuCash transation ids to Sheetsync
+endo eval "E(synctool).pushTxIds(sc, gc)" synctool gc:gcdb sc:finsync
+532
+```
+
+## Toward weblet UI
 
 Currently, we have a hello world:
 
@@ -19,74 +91,7 @@ endo open hello ./src/pg1.js --powers HOST
 The `--powers HOST` results in providing an `EndoHost` (ref
 [endo daemon types](https://github.com/endojs/endo/blob/endo/packages/daemon/src/types.d.ts)) to `make` in `pg1.js`.
 
-## Secret Tool
-
-Usage example:
-
-Store a secret as usual under the properties size 3, color blue:
-
-```
-$ secret-tool store --label='fun-fun' size 3 color blue
-Password:
-```
-
-Instantiate this plugin:
-
-```
-$ endo make -n desktop-secrets --UNSAFE ./src/secret-tool.js
-Object [Alleged: SecretTool] {}
-```
-
-Make a passkey for all blue things:
-
-```
-$ endo eval "E(tool).makePassKey({color:'blue'})" -n kblue tool:desktop-secrets
-Object [Alleged: PassKey] {}
-```
-
-What properties does it have again?
-
-```
-$ endo eval "E(key).properties()" key:kblue
-{ color: 'blue' }
-```
-
-Make a subkey for only size 3 blue things:
-
-```
-$ endo eval "E(key).subKey({size: 3})" key:kblue -n kb3
-Object [Alleged: PassKey] {}
-```
-
-Get the size 3, color blue secret:
-
-```
-$ endo eval "E(key).get()" key:kb3
-sekret
-```
-
-## DB Hub
-
-Make a database hub that can look up sqlite3 databases by full path:
-
-```
-$ endo make -n hub1 --UNSAFE ./src/dbTool.js
-Object [Alleged: DBHub] {}
-```
-
-Choose a sqlite3 database file path; for example, a GnuCash database:
-
-```
-$ endo eval "'/home/me/finance.gnucash'" -n p1
-/home/me/finance.gnucash
-```
-
-Look up the GnuCash database an call it `gcdb`:
-
-```
-$ endo eval "E(hub).lookup(path)" hub:hub1 path:p1 -n gcdb
-Object [Alleged: DBTool] {}
-```
+## DB Hub Plugin API example
 
 Look up the accounts table -- only the rows where name is Highlander:
 
@@ -121,33 +126,7 @@ name: 'Highlander',
 }
 ```
 
-## Google Sheets
-
-Load the plugin as, say, `gsheets`:
-
-```
-$ endo make --UNSAFE src/sheetsTool.js -n gsheets
-Object [Alleged: SheetsTool] {}
-```
-
-Put the service account details in a secret store item with `id` of the spreadsheet:
-
-```
-$ secret-tool store --label='myGSheet' id 1-66j... title mySheet  <project-id-661....json
-```
-
-Using the Secret Store plugin above, give this item a petname of, say, `sheet-creds`:
-
-```
-$ endo eval "E(secrets).makePassKey({title: 'finSync', id:'1-66j...' })" -n sheet-creds secrets:desktop-secrets
-```
-
-Now load the spreadsheet info:
-
-```
-$ endo eval "E(gsheets).load(item)" -n finsync gsheets item:sheet-creds
-Object [Alleged: SpreadsheetWr] {}
-```
+## Google Sheets Plugin API example
 
 Pick out a worksheet by title:
 
@@ -170,6 +149,7 @@ connolly@bldbox:~/projects/finquick/packages/fincaps$ endo eval "E(acctsheet).ge
 
 - [feat\(daemon\): Weblets by kriskowal · Pull Request \#1658 · endojs/endo](https://github.com/endojs/endo/pull/1658)
 
-based on [endo](https://github.com/endojs/endo/tree/endo) branch. currently:
+based on [endo](https://github.com/endojs/endo/tree/endo) branch plus 1 patch. currently:
 
 - 2023-08-17 16:31 `3918dccd7` refactor(daemon): Relax some pet name constraints
+- 2023-08-27 15:20 `c2b39056c` chore(daemon): endow worker with console
