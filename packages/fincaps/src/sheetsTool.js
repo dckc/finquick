@@ -131,11 +131,14 @@ export const make = () => {
       assert.typeof(id, 'string');
       assert.typeof(credTxt, 'string');
       const keys = JSON.parse(credTxt);
+      // ref https://github.com/googleapis/google-auth-library-nodejs/blob/v9.0.0/samples/jwt.js#L34
       const client = new JWT({
         email: keys.client_email,
         key: keys.private_key,
+        // ref https://developers.google.com/sheets/api/scopes
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
+      // ref https://theoephraim.github.io/node-google-spreadsheet
       const doc = new GoogleSpreadsheet(id, client);
       await doc.loadInfo();
       return makeSpreadsheet(doc);
