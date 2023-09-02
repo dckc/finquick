@@ -14,6 +14,17 @@ $(PET)/synctool: src/txSync.js
 
 db: $(PET)/gdcb
 
+watchdl: $(PET)/watchdl
+
+$(PET)/watchdl: $(PET)/fsevents
+	@echo ++ make watcher for ~/Downloads
+	endo eval "'$${HOME}/Downloads'" -n dl
+	endo eval "E(fsevents).subWatcher(dl)" -n watchdl dl fsevents
+
+$(PET)/fsevents: src/fileWatcher.js
+	@echo ++ make endo plugin for file watcher
+	endo make --UNSAFE src/fileWatcher.js -n fsevents
+
 $(PET)/gcdb: $(PET)/hub1
 	@echo ++ Choose a sqlite3 database file path
 	endo eval "'$${GNUCASH_DB}'" -n p1
