@@ -29,7 +29,7 @@ const main = async ({ http, fs }) => {
       response.end();
     });
   });
-  srv.listen(8822);
+  srv.listen(8080);
 };
 
 (async () =>
