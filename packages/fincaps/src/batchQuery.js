@@ -1,23 +1,37 @@
-/* eslint-disable import/extensions */
-import type { FromCapData } from '@endo/marshal';
-import { AgoricChainStoragePathKind } from './types';
+// @ts-check
+/** @typedef {'children' | 'data'} AgoricChainStoragePathKind */
+/** @template T @typedef {import('@endo/marshal').FromCapData<T>} FromCapData<T> */
 
-export const pathToKey = (path: [AgoricChainStoragePathKind, string]) =>
-  path.join('.');
+/**
+ * @param {[kind: AgoricChainStoragePathKind, item: string]} path
+ */
+export const pathToKey = path => path.join('.');
 
-export const keyToPath = (key: string) => {
-  const parts = key.split('.');
-  return [parts[0], parts.slice(1).join('.')] as [
-    AgoricChainStoragePathKind,
-    string,
-  ];
+/** @param {string} key */
+export const keyToPath = key => {
+  const [kind, ...rest] = key.split('.');
+  assert(kind === 'children' || kind === 'data');
+  /** @type {[kind: 'children' | 'data', item: string]} */
+  const out = [kind, rest.join('.')];
 };
 
-export const batchVstorageQuery = async (
-  node: string,
-  unmarshal: FromCapData<string>,
-  paths: [AgoricChainStoragePathKind, string][],
-) => {
+/** @param {string | unknown} d */
+const parseIfJSON = d => {
+  if (typeof d !== 'string') return d;
+  try {
+    return JSON.parse(d);
+  } catch {
+    return d;
+  }
+};
+
+/**
+ * @param {string} node
+ * @param {FromCapData<string>} unmarshal
+ * @param {[AgoricChainStoragePathKind, string][]} paths
+ * @param {{fetch: typeof fetch}} io
+ */
+export const batchVstorageQuery = async (node, unmarshal, paths, { fetch }) => {
   const urls = paths.map(
     path => new URL(`${node}/agoric/vstorage/${path[0]}/${path[1]}`).href,
   );
@@ -27,7 +41,7 @@ export const batchVstorageQuery = async (
     .then(responseDatas => Promise.all(responseDatas.map(res => res.json())))
     .then(responses =>
       responses.map((res, index) => {
-        if (paths[index][0] === AgoricChainStoragePathKind.Children) {
+        if (paths[index][0] === 'children') {
           return [
             pathToKey(paths[index]),
             { value: res.children, blockHeight: undefined },
@@ -44,15 +58,6 @@ export const batchVstorageQuery = async (
             },
           ];
         }
-
-        const parseIfJSON = (d: string | unknown) => {
-          if (typeof d !== 'string') return d;
-          try {
-            return JSON.parse(d);
-          } catch {
-            return d;
-          }
-        };
 
         const data = parseIfJSON(res.value);
 
