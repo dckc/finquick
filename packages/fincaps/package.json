@@ -18,6 +18,13 @@
     "typescript": "~5.1.6"
   },
   "dependencies": {
+    "@agoric/cosmic-proto": "^0.3.0",
+    "@cosmjs/amino": "^0.31.3",
+    "@cosmjs/crypto": "^0.31.3",
+    "@cosmjs/encoding": "^0.31.3",
+    "@cosmjs/proto-signing": "^0.31.3",
+    "@cosmjs/stargate": "^0.31.3",
+    "@cosmjs/tendermint-rpc": "^0.31.3",
     "@endo/far": "^0.2.21",
     "@endo/patterns": "^0.2.5",
     "better-sqlite3": "^8.5.2",
