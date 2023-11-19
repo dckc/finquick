@@ -4,6 +4,14 @@ PET=$(STATE)/pet-store
 where:
 	@echo state: $(STATE)
 
+get-brand: $(PET)/query-tool
+	@echo ++ Get IST brand
+	endo eval "E(hub).lookup('agoricNames', 'brand', 'IST')" hub:query-tool
+
+$(PET)/query-tool: $(PET)/client-maker
+	@echo ++ Instantiate QueryTool
+	endo eval "E(mkClient).makeQueryTool('http://localhost:1317')" mkClient:client-maker -n query-tool
+
 send-tokens: $(PET)/validator-client
 	@echo ++ Send tokens
 	endo eval "E(client).sendTokens(\
@@ -14,7 +22,7 @@ send-tokens: $(PET)/validator-client
 
 $(PET)/validator-client: $(PET)/validator-passkey $(PET)/client-maker
 	@echo ++ Instantiate SigningStargetClient
-	endo eval "E(key).get().then(m => E(mkClient).fromURL(m, 'http://localhost:26657'))" mkClient:client-maker key:validator-passkey -n validator-client
+	endo eval "E(key).get().then(m => E(mkClient).makeTxTool(m, 'http://localhost:26657'))" mkClient:client-maker key:validator-passkey -n validator-client
 
 $(PET)/validator-signer: $(PET)/signer-maker $(PET)/validator-passkey
 	endo eval "E(key).get().then(m => E(mkSign).fromMnemonic(m))" mkSign:signer-maker key:validator-passkey -n validator-signer
