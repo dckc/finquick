@@ -1,0 +1,13 @@
+diff --git a/node_modules/axios/lib/utils.js b/node_modules/axios/lib/utils.js
+index a386b77..da4923f 100644
+--- a/node_modules/axios/lib/utils.js
++++ b/node_modules/axios/lib/utils.js
+@@ -542,7 +542,7 @@ const reduceDescriptors = (obj, reducer) => {
+   forEach(descriptors, (descriptor, name) => {
+     let ret;
+     if ((ret = reducer(descriptor, name, obj)) !== false) {
+-      reducedDescriptors[name] = ret || descriptor;
++      Object.defineProperty(reducedDescriptors, name, { value: ret || descriptor });
+     }
+   });
+ 

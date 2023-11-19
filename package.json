@@ -3,14 +3,12 @@
     "journal": "git log --pretty=format:'- %ad: %h \\* %s' --date='format:%Y-%m'"
   },
   "devDependencies": {
-    "@agoric/eslint-config": "^0.3.3",
-    "@agoric/eslint-plugin": "^0.2.3",
-    "@endo/eslint-config": "^0.5.1",
+    "@endo/eslint-plugin": "^0.5.1",
+    "@jessie.js/eslint-plugin": "^0.4.0",
     "@google/clasp": "^2.4.2",
     "@types/better-sqlite3": "^7.6.1",
     "@types/node": "^14.14.7",
     "@typescript-eslint/parser": "^4.21.0",
-    "eslint": "^7.24.0",
     "eslint-config-airbnb-base": "^14.2.1",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-import": "^2.22.1",
@@ -21,8 +19,13 @@
   },
   "eslintConfig": {
     "extends": [
-      "@agoric"
-    ]
+      "plugin:@endo/recommended",
+      "prettier"
+    ],
+    "parserOptions": {
+      "sourceType": "module",
+      "ecmaVersion": 2020
+    }
   },
   "prettier": {
     "trailingComma": "all",
