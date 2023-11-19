@@ -18,6 +18,8 @@ import { SwingsetMsgs, SwingsetRegistry, gasPriceStake } from './agoricZone.js';
 // TODO: move httpClient to its own module
 import { makeHttpClient } from './httpClient.js';
 import { fromMnemonic } from './hdWallet.js';
+import { makeClientMarshaller } from './marshalTables.js';
+import { batchVstorageQuery } from './batchQuery.js';
 
 /** @template T @typedef {import('@endo/eventual-send').ERef<T>} ERef<T> */
 /** @typedef {import('@cosmjs/proto-signing').OfflineDirectSigner} OfflineDirectSigner */
@@ -90,14 +92,55 @@ export const make = () => {
    * @param {string} mnemonic
    * @param {string} url
    */
-  const fromURL = async (mnemonic, url) => {
+  const makeTxTool = async (mnemonic, url) => {
     const signer = await fromMnemonic(mnemonic);
     const rpcClient = makeHttpClient(url, fetch);
     return makeSigningClient(signer, rpcClient);
   };
 
+  const makeQueryTool = apiUrl => {
+    const m = makeClientMarshaller();
+
+    /** @param {['children' | 'data', string][]} paths */
+    const query = async paths =>
+      batchVstorageQuery(apiUrl, m.fromCapData, paths, { fetch });
+
+    const nameHubCache = new Map();
+
+    const lookupKind = async kind => {
+      assert.typeof(kind, 'string');
+      if (nameHubCache.has(kind)) {
+        return nameHubCache.get(kind);
+      }
+      const [[_p, { value: entries }]] = await query([
+        ['data', `published.agoricNames.${kind}`],
+      ]);
+      const record = Object.fromEntries(entries);
+      nameHubCache.set(kind, record);
+      return record;
+    };
+
+    const invalidate = () => {
+      nameHubCache.clear();
+    };
+
+    /**
+     * @param {string} hub
+     * @param {string} kind
+     * @param {string} name
+     */
+    const lookup = async (hub, kind, name) => {
+      assert.equal(hub, 'agoricNames');
+      const record = await lookupKind(kind);
+      return record[name];
+    };
+
+    return Far('QueryTool', { query, lookup, invalidate });
+  };
+
   return Far('SmartWalletFactory', {
-    makeSigningClient,
-    fromURL,
+    // makeSigningClient,
+    makeTxTool,
+    makeQueryTool,
   });
 };
