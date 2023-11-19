@@ -9,11 +9,12 @@ send-tokens: $(PET)/validator-client
 	endo eval "E(client).sendTokens(\
 	  'agoric14pfrxg63jn6ha0cp6wxkm4nlvswtscrh2pymwm', \
 	  'agoric1a3zu5aqw255q0tuxzy9aftvgheekw2wedz3xwq', \
-	  [{ denom: 'ubld', amount: '1' }])" client:validator-client
+	  [{ denom: 'ubld', amount: '12345' }], 'auto').then( \
+	  tx => tx.code === 0 ? tx.transactionHash : assert.fail(tx.rawLog))" client:validator-client
 
-$(PET)/validator-client: $(PET)/validator-signer $(PET)/client-maker
+$(PET)/validator-client: $(PET)/validator-passkey $(PET)/client-maker
 	@echo ++ Instantiate SigningStargetClient
-	endo eval "E(mkClient).fromURL(signer, 'http://localhost:26657')" mkClient:client-maker signer:validator-signer -n validator-client
+	endo eval "E(key).get().then(m => E(mkClient).fromURL(m, 'http://localhost:26657'))" mkClient:client-maker key:validator-passkey -n validator-client
 
 $(PET)/validator-signer: $(PET)/signer-maker $(PET)/validator-passkey
 	endo eval "E(key).get().then(m => E(mkSign).fromMnemonic(m))" mkSign:signer-maker key:validator-passkey -n validator-signer
