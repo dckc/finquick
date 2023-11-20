@@ -347,7 +347,9 @@ export const make = () => {
   return Far('SmartWalletFactory', {
     // makeSigningClient,
     makeTxTool,
-    makeQueryKit,
+    makeQueryTool: apiURL => makeQueryKit(makeLCD(apiURL, { fetch })).query,
     makeWalletKit,
   });
 };
+
+/** @typedef {Awaited<ReturnType<ReturnType<make>['makeWalletKit']>>} WalletKit */
