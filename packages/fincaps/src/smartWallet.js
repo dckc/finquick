@@ -99,25 +99,48 @@ export const make = () => {
   };
 
   const makeQueryTool = apiUrl => {
+    /** @param {string} url */
+    const getJSON = url =>
+      fetch(url).then(r => {
+        if (!r.ok) throw Error(r.statusText);
+        return r.json();
+      });
+
     const m = makeClientMarshaller();
 
     /** @param {['children' | 'data', string][]} paths */
-    const query = async paths =>
+    const batchQuery = async paths =>
       batchVstorageQuery(apiUrl, m.fromCapData, paths, { fetch });
+
+    /** @param {string} path */
+    const queryData = async path => {
+      const [[_p, answer]] = await batchQuery([['data', path]]);
+      if (typeof answer === 'string') return answer;
+      if (answer.error) throw Error(answer.error);
+      return answer.value;
+    };
+
+    /** @param {string} path */
+    const queryChildren = async path => {
+      const [[_p, answer]] = await batchQuery([['children', path]]);
+      if (typeof answer === 'string') return answer;
+      if (answer.error) throw Error(answer.error);
+      return answer.value;
+    };
 
     const nameHubCache = new Map();
 
+    /** @param {string} kind */
     const lookupKind = async kind => {
       assert.typeof(kind, 'string');
       if (nameHubCache.has(kind)) {
         return nameHubCache.get(kind);
       }
-      const [[_p, { value: entries }]] = await query([
-        ['data', `published.agoricNames.${kind}`],
-      ]);
+      const entries = await queryData(`published.agoricNames.${kind}`);
       const record = Object.fromEntries(entries);
-      nameHubCache.set(kind, record);
-      return record;
+      const hub = Far('NameHub', { lookup: name => record[name] });
+      nameHubCache.set(kind, hub);
+      return hub;
     };
 
     const invalidate = () => {
@@ -125,17 +148,26 @@ export const make = () => {
     };
 
     /**
-     * @param {string} hub
+     * @param {string} first
      * @param {string} kind
-     * @param {string} name
+     * @param {string} [name]
      */
-    const lookup = async (hub, kind, name) => {
-      assert.equal(hub, 'agoricNames');
-      const record = await lookupKind(kind);
-      return record[name];
+    const lookup = async (first, kind, name) => {
+      assert.equal(first, 'agoricNames');
+      const hub = await lookupKind(kind);
+      if (!name) return hub;
+      return hub.lookup(name);
     };
 
-    return Far('QueryTool', { query, lookup, invalidate });
+    return Far('QueryTool', {
+      latestBlock: () =>
+        getJSON(`${apiUrl}/cosmos/base/tendermint/v1beta1/blocks/latest`),
+      batchQuery,
+      queryData,
+      queryChildren,
+      lookup,
+      invalidate,
+    });
   };
 
   return Far('SmartWalletFactory', {
