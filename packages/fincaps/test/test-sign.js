@@ -6,12 +6,13 @@ import { fromBech32, toBase64 } from '@cosmjs/encoding';
 import { fromMnemonic } from '../src/hdWallet.js';
 import { makeSigningClient } from '../src/smartWallet.js';
 
-import { SwingsetMsgs, sign, walletFromMnemonic } from '../src/offerSigner.js';
+import { sign, walletFromMnemonic } from '../src/offerSigner.js';
 
 import { captureIO, replayIO } from './replayFetch.js';
 import { makeHttpClient } from '../src/httpClient.js';
 
 import { web1 } from './web-fixture.js';
+import { SwingsetMsgs } from '../src/agoricZone.js';
 
 /** @typedef {import("@cosmjs/stargate").StdFee} StdFee */
 
