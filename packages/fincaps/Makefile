@@ -4,9 +4,36 @@ PET=$(STATE)/pet-store
 where:
 	@echo state: $(STATE)
 
-get-brand: $(PET)/query-tool
+reserve-add: $(PET)/reserve-tool $(PET)/user1-kit $(PET)/u1-ist
+	@echo ++ Add to reserve
+	endo eval "E(reserve).addToReserve(kit.smartWallet, \
+	  { brand, value: 7_000_000n }, 'add2')" \
+	  reserve:reserve-tool kit:user1-kit brand:u1-ist
+
+$(PET)/u1-ist: $(PET)/user1-kit
+	@echo ++ look up IST in user1 marshal context
+	endo eval "E(kit.query).lookup('agoricNames', 'brand', 'IST')" -n u1-ist kit:user1-kit
+
+$(PET)/reserve-tool: src/reserve-add.js
+	@echo ++ instantiate reserve add tool
+	endo make src/reserve-add.js -n reserve-tool
+
+$(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/wallet-factory
+	@echo ++ Instantiate SigningStargetClient for user1
+	endo eval "E(E(secrets).makePassKey({ username: 'user1' })).get().then( \
+		m => E(wf).makeWalletKit(m, 'http://localhost:26657', 'http://localhost:1317'))" \
+		secrets:desktop-secrets wf:wallet-factory -n user1-client \
+		-n user1-kit
+
+$(PET)/wallet-factory: src/smartWallet.js
+	@echo ++ install smart wallet plugin
+	endo make --UNSAFE src/smartWallet.js -n wallet-factory
+
+get-brand: $(PET)/ist-brand
+
+$(PET)/ist-brand: $(PET)/query-tool
 	@echo ++ Get IST brand
-	endo eval "E(hub).lookup('agoricNames', 'brand', 'IST')" hub:query-tool
+	endo eval "E(hub).lookup('agoricNames', 'brand', 'IST')" hub:query-tool -n ist-brand
 
 $(PET)/query-tool: $(PET)/client-maker
 	@echo ++ Instantiate QueryTool
