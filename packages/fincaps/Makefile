@@ -4,31 +4,6 @@ PET=$(STATE)/pet-store
 where:
 	@echo state: $(STATE)
 
-send-tokens: $(PET)/validator-client
-	@echo ++ Send tokens
-	endo eval "E(client).sendTokens(\
-	  'agoric14pfrxg63jn6ha0cp6wxkm4nlvswtscrh2pymwm', \
-	  'agoric1a3zu5aqw255q0tuxzy9aftvgheekw2wedz3xwq', \
-	  [{ denom: 'ubld', amount: '1' }])" client:validator-client
-
-$(PET)/validator-client: $(PET)/validator-signer $(PET)/client-maker
-	@echo ++ Instantiate SigningStargetClient
-	endo eval "E(mkClient).fromURL(signer, 'http://localhost:26657')" mkClient:client-maker signer:validator-signer -n validator-client
-
-$(PET)/validator-signer: $(PET)/signer-maker $(PET)/validator-passkey
-	endo eval "E(key).get().then(m => E(mkSign).fromMnemonic(m))" mkSign:signer-maker key:validator-passkey -n validator-signer
-
-$(PET)/client-maker: src/smartWallet.js
-	@echo ++ make endo plugin for SigningStargetClient
-	endo make --UNSAFE src/smartWallet.js -n client-maker
-
-$(PET)/signer-maker: src/hdWallet.js
-	@echo ++ make endo plugin for hd wallets
-	endo make --UNSAFE src/hdWallet.js -n signer-maker
-
-$(PET)/validator-passkey: $(PET)/desktop-secrets
-	endo eval "E(secrets).makePassKey({ username: 'validator' })" -n validator-passkey secrets:desktop-secrets
-
 sync: $(PET)/synctool $(PET)/gcdb $(PET)/finsync
 	@echo ++ Push GnuCash transation ids to Sheetsync
 	endo eval "E(synctool).pushTxIds(sc, gc)" synctool gc:gcdb sc:finsync
