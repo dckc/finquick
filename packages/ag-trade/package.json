@@ -1,0 +1,42 @@
+{
+  "name": "ag-trace",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "lint-fix": "eslint --fix .",
+    "lint": "run-s --continue-on-error lint:*",
+    "lint:js": "eslint .",
+    "lint:types": "tsc -p jsconfig.json"
+  },
+  "devDependencies": {
+    "@agoric/smart-wallet": "^0.5.4-u12.0",
+    "@endo/cli": "/home/connolly/projects/endo/packages/cli",
+    "@fast-check/ava": "^1.1.5",
+    "@types/google-spreadsheet": "^4.0.0",
+    "ava": "^5.3.1",
+    "eslint": "^8.36.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "~5.1.6"
+  },
+  "ava": {
+    "files": [
+      "**/test-*.js"
+    ]
+  },
+  "dependencies": {
+    "@agoric/cosmic-proto": "^0.3.0",
+    "@cosmjs/amino": "^0.31.3",
+    "@cosmjs/crypto": "^0.31.3",
+    "@cosmjs/encoding": "^0.31.3",
+    "@cosmjs/proto-signing": "^0.31.3",
+    "@cosmjs/stargate": "^0.31.3",
+    "@cosmjs/tendermint-rpc": "^0.31.3",
+    "@endo/far": "^0.2.21",
+    "@endo/patterns": "^0.2.5",
+    "better-sqlite3": "^8.5.2",
+    "google-auth-library": "^9.0.0",
+    "google-spreadsheet": "^4.0.2",
+    "minimatch": "^9.0.3",
+    "watcher": "^2.3.0"
+  }
+}
