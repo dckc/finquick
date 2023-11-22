@@ -4,6 +4,7 @@
 // @ts-check
 
 import { E, Far } from '@endo/far';
+import { makePromiseKit } from '@endo/promise-kit';
 import {
   SigningStargateClient,
   assertIsDeliverTxSuccess,
@@ -305,6 +306,93 @@ const makeQueryKit = lcd => {
   return { vstorage, query };
 };
 /** @typedef {Awaited<ReturnType<typeof makeQueryKit>>['query']} QueryTool */
+
+/**
+ * IDEA: present the normal Zoe API, and fit it over the smart-wallet API
+ * by constructing an offerSpec and polling for offerResult, payout amounts
+ * in vstorage.
+ *
+ * @param {string} address
+ * @param {string|number} id
+ * @param {StdFee | 'auto'} fee
+ * @returns
+ */
+const makeZoeProxy = (address, id, fee) => {
+  let source = 'agoricContract';
+  const instancePath = [];
+  const callPipe = [];
+  const agoricNames = Far('NameHub', {
+    lookup: (kind, name, ...rest) => {
+      assert.equal(kind, 'instance');
+      assert.equal(rest.length, 0);
+      instancePath.push(name);
+      return agoricNamesCache.instance[name];
+    },
+  });
+  const amtsPK = makePromiseKit();
+  const never = () => new Promise(() => {});
+
+  /**
+   * @type {Pick<import('@agoric/zoe').ZoeService, 'getPublicFacet' | 'offer'>}
+   */
+  const zoe = Far('ZoeServiceProxy', {
+    getPublicFacet: instance => {
+      return makeCallPipe(); // TODO
+    },
+    offer: async (invitation, proposal, payments = never()) => {
+      // TODO: check invitation against callPipe etc.
+      // hm... tricky for source: 'purse'
+      const offerSpec = {
+        invitationSpec: {
+          source,
+          instancePath,
+          callPipe,
+        },
+        proposal,
+        // TODO: offerArgs
+      };
+
+      const txP = sendOffer(offerSpec, fee);
+      const resultPK = makePromiseKit();
+      const payoutsPK = makePromiseKit();
+
+      const seat = Far('UserSeat', {
+        getOfferResult: () => resultPK.promise,
+        getPayouts: () => payoutsPK.promise,
+      });
+      const powers = { fromCapData, vstorage, delay };
+      for await (const update of pollOffer(address, id, powers)) {
+        if (update.updated === 'offerStatus') {
+          const { status } = update;
+          if ('error' in status) {
+            resultPK.reject(status.error);
+            amountsPK.reject(status.error);
+            payoutsPK.reject(status.error);
+            return;
+          }
+          if ('result' in status) {
+            resultPK.resolve(status.result);
+          }
+          if ('payouts' in status) {
+            amountsPK.resolve(status.payouts);
+            payoutsPK.resolve(mapValues(status.payouts, () => never()));
+          }
+        }
+      }
+    },
+  });
+
+  const addCollateral = async Collateral => {
+    const instance = E(agoricNames).lookup('instance', 'reserve');
+    const publicFacet = E(zoe).getPublicFacet(instance);
+    const invitation = E(publicFacet).makeAddCollateralInvitation();
+    const seat = E(zoe).offer(invitation, { give: Collateral }, {});
+    const result = E(seat).getOfferResult();
+    const payouts = E(seat).getPayouts();
+  };
+
+  return { zoe, amounts: amtsPK.promise };
+};
 
 export const make = () => {
   /** @param {number} ms */
