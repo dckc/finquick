@@ -27,7 +27,7 @@ export const main = async (powers, ...args) => {
   //   const istBrand = await E(vstorage).lookup('agoricNames', 'brand', 'IST');
   //   console.log('Hello, World!', args, istBrand);
   const gov1 = 'agoric1acfcen6peh9ed9tyrj5wyqtfrf7hthrh5smddy'; // XXX
-  const focus = E(vstorage).ofWallet(gov1);
+  const focus = E(vstorage).walletView(gov1);
   const { liveOffers } = await E(focus).current();
   //   console.log(liveOffers);
   const bids = new Map();
