@@ -9,7 +9,6 @@
     "lint:types": "tsc -p jsconfig.json"
   },
   "devDependencies": {
-    "@agoric/smart-wallet": "^0.5.4-u12.0",
     "@endo/cli": "/home/connolly/projects/endo/packages/cli",
     "@fast-check/ava": "^1.1.5",
     "@types/google-spreadsheet": "^4.0.0",
