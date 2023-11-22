@@ -3,7 +3,7 @@
  */
 // @ts-check
 
-import { Far } from '@endo/far';
+import { E, Far } from '@endo/far';
 import {
   SigningStargateClient,
   assertIsDeliverTxSuccess,
@@ -86,6 +86,33 @@ export const pollBlocks = opts => async lookup => {
       await delay(period);
     }
   }
+};
+
+/**
+ * @param {string} addr
+ * @param {object} powers
+ * @param {QueryTool} powers.query
+ * @param {import('./batchQuery.js').VStorage} powers.vstorage
+ */
+const makeWalletView = (addr, { query, vstorage }) => {
+  return Far('WalletQuery', {
+    current: () => query.queryData(`published.wallet.${addr}.current`),
+    /**
+     * TODO: visit in chunks by block
+     * @param {{visit: (r: UpdateRecord) => Promise<void>}} visitor
+     * @param {number} [minHeight]
+     */
+    history: async (visitor, minHeight) => {
+      const history = vstorage.readHistoryBy(
+        s => query.fromCapData(JSON.parse(s)),
+        `published.wallet.${addr}`,
+        minHeight,
+      );
+      for await (const record of history) {
+        await E(visitor).visit(record);
+      }
+    },
+  });
 };
 
 /**
@@ -271,10 +298,13 @@ const makeQueryKit = lcd => {
     invalidate,
     fromCapData: m.fromCapData,
     toCapData: m.toCapData,
+    // XXX wrong layer? add makeWalletView(query) helper function instead?
+    walletView: addr => makeWalletView(addr, { query, vstorage }),
   });
 
   return { vstorage, query };
 };
+/** @typedef {Awaited<ReturnType<typeof makeQueryKit>>['query']} QueryTool */
 
 export const make = () => {
   /** @param {number} ms */
