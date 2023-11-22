@@ -69,6 +69,7 @@ export const makeLCD = (apiURL, { fetch }) => {
  */
 async function* mapHistory(f, chunks) {
   for await (const chunk of chunks) {
+    if (chunk === undefined) continue;
     for (const value of chunk.reverse()) {
       yield f(value);
     }
@@ -112,7 +113,7 @@ export const makeVStorage = lcd => {
     do {
       // console.debug('READING', { blockHeight });
       /** @type {string[]} */
-      let values;
+      let values = [];
       try {
         ({ blockHeight, values } = await readCell(path, {
           kind: 'data',
