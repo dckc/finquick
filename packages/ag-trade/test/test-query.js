@@ -30,7 +30,10 @@ test.only('wallet updates', async t => {
   for await (const actual of vstore.readHistory(
     `published.wallet.${scenario1.addr}`,
   )) {
-    t.is(actual, ['@@@TODO']);
+    t.is(
+      actual,
+      '{"body":"#{\\"status\\":{\\"id\\":\\"reserveAdd1\\",\\"invitationSpec\\":{\\"callPipe\\":[[\\"makeAddCollateralInvitation\\",[]]],\\"instancePath\\":[\\"reserve\\"],\\"source\\":\\"agoricContract\\"},\\"numWantsSatisfied\\":1,\\"proposal\\":{\\"give\\":{\\"Collateral\\":{\\"brand\\":\\"$0.Alleged: IST brand\\",\\"value\\":\\"+10\\"}}},\\"result\\":\\"added Collateral to the Reserve\\"},\\"updated\\":\\"offerStatus\\"}","slots":["board0257"]}',
+    );
   }
 });
 
