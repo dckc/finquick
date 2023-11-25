@@ -18,16 +18,29 @@ $(PET)/reserve-tool: src/reserve-add.js
 	@echo ++ instantiate reserve add tool
 	endo make src/reserve-add.js -n reserve-tool
 
-$(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/wallet-factory
+kit: $(PET)/user1-kit
+
+$(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/wallet-factory $(PET)/cosmos-fetch
 	@echo ++ Instantiate SigningStargetClient for user1
-	endo eval "E(E(secrets).makePassKey({ username: 'user1' })).get().then( \
-		m => E(wf).makeWalletKit(m, 'http://localhost:26657', 'http://localhost:1317'))" \
-		secrets:desktop-secrets wf:wallet-factory -n user1-client \
+	endo eval "\
+	  (async () => { \
+	    const passKey = E(secrets).makePassKey({ username: 'user1' }); \
+	    const mnemonic = await E(passKey).get(); \
+		const rpc = E(net).makeRPCClient('http://localhost:26657'); \
+		const lcd = E(net).makeLCDClient('http://localhost:1317'); \
+	    return E(wf).makeWalletKit(mnemonic, rpc, lcd); \
+	  })()" \
+		secrets:desktop-secrets wf:wallet-factory net:cosmos-fetch \
 		-n user1-kit
 
 $(PET)/wallet-factory: src/smartWallet.js
-	@echo ++ install smart wallet plugin
+	@echo ++ start smart wallet caplet -- TODO: should not need UNSAFE
 	endo make --UNSAFE src/smartWallet.js -n wallet-factory
+
+$(PET)/cosmos-fetch: src/cosmosFetch.js
+	@echo ++ install cosmos fetch plugin
+	endo make --UNSAFE src/cosmosFetch.js -n cosmos-fetch
+
 
 get-brand: $(PET)/ist-brand
 
@@ -47,9 +60,13 @@ send-tokens: $(PET)/validator-client
 	  [{ denom: 'ubld', amount: '12345' }], 'auto').then( \
 	  tx => tx.code === 0 ? tx.transactionHash : assert.fail(tx.rawLog))" client:validator-client
 
-$(PET)/validator-client: $(PET)/validator-passkey $(PET)/client-maker
+$(PET)/validator-client: $(PET)/validator-passkey $(PET)/client-maker  $(PET)/cosmos-fetch
 	@echo ++ Instantiate SigningStargetClient
-	endo eval "E(key).get().then(m => E(mkClient).makeTxTool(m, 'http://localhost:26657'))" mkClient:client-maker key:validator-passkey -n validator-client
+	endo eval "E(key).get().then( \
+	  m => E(mkClient).makeTxTool( \
+		m, E(net).makeRPCClient('http://localhost:26657')))" \
+		mkClient:client-maker key:validator-passkey net:cosmos-fetch \
+		-n validator-client
 
 $(PET)/validator-signer: $(PET)/signer-maker $(PET)/validator-passkey
 	endo eval "E(key).get().then(m => E(mkSign).fromMnemonic(m))" mkSign:signer-maker key:validator-passkey -n validator-signer

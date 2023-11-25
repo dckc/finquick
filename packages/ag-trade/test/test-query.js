@@ -3,7 +3,8 @@ import '@endo/init';
 import anyTest from 'ava';
 
 import { captureIO, replayIO } from './replayFetch.js';
-import { makeLCD, makeVStorage } from '../src/batchQuery.js';
+import { makeVStorage } from '../src/batchQuery.js';
+import { makeLCD } from '../src/httpClient.js';
 
 /** @type {import('ava').TestFn<Awaited<ReturnType<typeof makeTestContext>>>} */
 const test = /** @type {any} */ (anyTest);

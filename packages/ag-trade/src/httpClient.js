@@ -1,5 +1,8 @@
+/**
+ * @file cosmos network primitives with explicit `fetch` network access.
+ */
 // @ts-check
-// cribbed from @agoric/casting/src/makeHttpClient.js
+import { Far } from '@endo/far';
 
 const { freeze } = Object;
 
@@ -27,12 +30,13 @@ const filterBadStatus = res => {
  * @returns {import('@cosmjs/tendermint-rpc').RpcClient}
  */
 export const makeHttpClient = (url, fetch) => {
+  // cribbed from @agoric/casting/src/makeHttpClient.js
   const headers = {}; // XXX needed?
 
   // based on cosmjs 0.30.1:
   // https://github.com/cosmos/cosmjs/blob/33271bc51cdc865cadb647a1b7ab55d873637f39/packages/tendermint-rpc/src/rpcclients/http.ts#L37
   // https://github.com/cosmos/cosmjs/blob/33271bc51cdc865cadb647a1b7ab55d873637f39/packages/tendermint-rpc/src/rpcclients/httpclient.ts#L25
-  return freeze({
+  return Far('RpcClient', {
     disconnect: () => {
       // nothing to be done
     },
@@ -56,3 +60,40 @@ export const makeHttpClient = (url, fetch) => {
     },
   });
 };
+
+/**
+ * @param {string} apiURL
+ * @param {object} io
+ * @param {typeof fetch} io.fetch
+ */
+export const makeLCD = (apiURL, { fetch }) => {
+  assert.typeof(apiURL, 'string');
+
+  /**
+   * @param {string} href
+   * @param {object} [options]
+   * @param {Record<string, string>} [options.headers]
+   */
+  const getJSON = (href, options = {}) => {
+    const opts = {
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+    const url = `${apiURL}${href}`;
+    return fetch(url, opts).then(r => {
+      if (!r.ok) throw Error(r.statusText);
+      return r.json().then(data => {
+        return data;
+      });
+    });
+  };
+
+  return Far('LCD', {
+    getJSON,
+    latestBlock: () => getJSON(`/cosmos/base/tendermint/v1beta1/blocks/latest`),
+  });
+};
+/** @typedef {ReturnType<makeLCD>} LCD */

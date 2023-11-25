@@ -15,16 +15,17 @@ import { toBase64 } from '@cosmjs/encoding';
 
 // XXX move these to @agoric/cosmic-proto?
 import { SwingsetMsgs, SwingsetRegistry, gasPriceStake } from './agoricZone.js';
-// TODO: move httpClient to its own module
-import { makeHttpClient } from './httpClient.js';
 import { fromMnemonic } from './hdWallet.js';
 import { makeClientMarshaller } from './marshalTables.js';
-import { batchVstorageQuery, makeLCD, makeVStorage } from './batchQuery.js';
+import { batchVstorageQuery, makeVStorage } from './batchQuery.js';
 
 /** @template T @typedef {import('@endo/eventual-send').ERef<T>} ERef<T> */
-/** @typedef {import('@cosmjs/proto-signing').OfflineDirectSigner} OfflineDirectSigner */
 /** @template T @typedef {import('@endo/marshal').FromCapData<T>} FromCapData<T> */
 /** @template T @typedef {import('@endo/marshal').ToCapData<T>} ToCapData<T> */
+/** @typedef {import('@cosmjs/proto-signing').OfflineDirectSigner} OfflineDirectSigner */
+/** @typedef  {import('@cosmjs/tendermint-rpc').RpcClient} RpcClient */
+
+/** @typedef {import('@agoric/smart-wallet/src/smartWallet').UpdateRecord} UpdateRecord */
 
 /**
  * @param {string} address
@@ -49,11 +50,11 @@ const makeWalletMessageBy = (address, bridgeAction, toCapData) => {
   return makeWalletActionMessage(address, spendAction);
 };
 
-/** @typedef {import('./batchQuery.js').LCD} LCD */
+/** @typedef {import('./httpClient.js').LCD} LCD */
 
 /**
  * @param {{
- *   lcd: LCD,
+ *   lcd: ERef<LCD>,
  *   delay: (ms: number) => Promise<void>,
  *   period?: number,
  *   retryMessage?: string,
@@ -66,7 +67,7 @@ export const pollBlocks = opts => async lookup => {
   await null; // separate sync prologue
 
   for (;;) {
-    const status = await lcd.latestBlock();
+    const status = await E(lcd).latestBlock();
     const {
       block: {
         header: { height, time },
@@ -99,7 +100,7 @@ const makeWalletView = (addr, { query, vstorage }) => {
     current: () => query.queryData(`published.wallet.${addr}.current`),
     /**
      * TODO: visit in chunks by block
-     * @param {{visit: (r: UpdateRecord) => Promise<void>}} visitor
+     * @param {ERef<{visit: (r: UpdateRecord) => void}>} visitor
      * @param {number} [minHeight]
      */
     history: async (visitor, minHeight) => {
@@ -187,14 +188,21 @@ const pollOffer = async (
   return pollBlocks(opts)(lookup);
 };
 
+const { fromEntries, keys } = Object;
+
 /**
  * @param {OfflineDirectSigner} nearSigner
- * @param {import('@cosmjs/tendermint-rpc').RpcClient} rpcClient
+ * @param {ERef<import('@cosmjs/tendermint-rpc').RpcClient>} rpcClient
  *
  * TODO: allow overriding default options
  */
 export const makeSigningClient = async (nearSigner, rpcClient) => {
-  const cometClient = await Tendermint34Client.create(rpcClient);
+  /** @type {import('@cosmjs/tendermint-rpc').RpcClient} */
+  const nearRPC = {
+    execute: (...args) => E(rpcClient).execute(...args),
+    disconnect: () => void E(rpcClient).disconnect(),
+  };
+  const cometClient = await Tendermint34Client.create(nearRPC);
 
   // TODO: remote signer.
   // not yet feasible: can't pass Uint8Array
@@ -234,7 +242,7 @@ export const makeSigningClient = async (nearSigner, rpcClient) => {
   });
 };
 
-/** @param {LCD} lcd */
+/** @param {ERef<LCD>} lcd */
 const makeQueryKit = lcd => {
   const m = makeClientMarshaller();
   const vstorage = makeVStorage(lcd);
@@ -312,27 +320,24 @@ export const make = () => {
 
   /**
    * @param {string} mnemonic
-   * @param {string} rpcUrl
+   * @param {ERef<RpcClient>} rpcClient
    */
-  const makeTxTool = async (mnemonic, rpcUrl) => {
+  const makeTxTool = async (mnemonic, rpcClient) => {
     const signer = await fromMnemonic(mnemonic);
-    const rpcClient = makeHttpClient(rpcUrl, fetch);
     return makeSigningClient(signer, rpcClient);
   };
 
   /**
    * @param {string} mnemonic
-   * @param {string} rpcUrl
-   * @param {string} apiUrl
+   * @param {ERef<RpcClient>} rpcClient
+   * @param {ERef<LCD>} lcd
    */
-  const makeWalletKit = async (mnemonic, rpcUrl, apiUrl) => {
-    const rpcClient = makeHttpClient(rpcUrl, fetch);
+  const makeWalletKit = async (mnemonic, rpcClient, lcd) => {
     const signer = await fromMnemonic(mnemonic);
     const tx = await makeSigningClient(signer, rpcClient);
 
     const [{ address }] = await signer.getAccounts();
 
-    const lcd = makeLCD(apiUrl, { fetch });
     const { vstorage, query } = makeQueryKit(lcd);
     const { fromCapData, toCapData } = query;
     const powers = { fromCapData, vstorage, delay };
@@ -364,20 +369,23 @@ export const make = () => {
       return { tx: txInfo, status };
     };
 
+    const walletView = makeWalletView(address, { query, vstorage });
+
     const smartWallet = Far('SmartWallet', {
       sendOffer,
       /** @param {string} id */
       pollOffer: id => pollOffer(address, id, powers),
       executeOffer,
+      readOnly: () => walletView,
     });
 
     return { tx, query, smartWallet };
   };
 
   return Far('SmartWalletFactory', {
-    // makeSigningClient,
     makeTxTool,
-    makeQueryTool: apiURL => makeQueryKit(makeLCD(apiURL, { fetch })).query,
+    /** @param {ERef<LCD>} lcd */
+    makeQueryTool: lcd => makeQueryKit(lcd).query,
     makeWalletKit,
   });
 };

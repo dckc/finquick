@@ -1,6 +1,9 @@
 // @ts-check
+import { E } from '@endo/far';
+
 /** @typedef {'children' | 'data'} AgoricChainStoragePathKind */
 /** @template T @typedef {import('@endo/marshal').FromCapData<T>} FromCapData<T> */
+/** @template T @typedef {import('@endo/eventual-send').ERef<T>} ERef<T> */
 
 /**
  * @param {[kind: AgoricChainStoragePathKind, item: string]} path
@@ -14,53 +17,6 @@ export const keyToPath = key => {
   /** @type {[kind: 'children' | 'data', item: string]} */
   const out = [kind, rest.join('.')];
 };
-
-/** @param {string | unknown} d */
-const parseIfJSON = d => {
-  if (typeof d !== 'string') return d;
-  try {
-    return JSON.parse(d);
-  } catch {
-    return d;
-  }
-};
-
-/**
- * @param {string} apiURL
- * @param {object} io
- * @param {typeof fetch} io.fetch
- */
-export const makeLCD = (apiURL, { fetch }) => {
-  assert.typeof(apiURL, 'string');
-
-  /**
-   * @param {string} href
-   * @param {object} [options]
-   * @param {Record<string, string>} [options.headers]
-   */
-  const getJSON = (href, options = {}) => {
-    const opts = {
-      keepalive: true,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    };
-    const url = `${apiURL}${href}`;
-    return fetch(url, opts).then(r => {
-      if (!r.ok) throw Error(r.statusText);
-      return r.json().then(data => {
-        return data;
-      });
-    });
-  };
-
-  return {
-    getJSON,
-    latestBlock: () => getJSON(`/cosmos/base/tendermint/v1beta1/blocks/latest`),
-  };
-};
-/** @typedef {ReturnType<makeLCD>} LCD */
 
 /**
  * @template T
@@ -77,10 +33,10 @@ async function* mapHistory(f, chunks) {
 }
 
 /**
- * @param {LCD} lcd
+ * @param {ERef<import('./httpClient').LCD>} lcd
  */
 export const makeVStorage = lcd => {
-  const { getJSON } = lcd;
+  const getJSON = (href, options) => E(lcd).getJSON(href, options);
 
   // height=0 is the same as omitting height and implies the highest block
   const href = (path = 'published', { kind = 'data' } = {}) =>
@@ -154,6 +110,16 @@ export const makeVStorage = lcd => {
 };
 
 /** @typedef {ReturnType<typeof makeVStorage>} VStorage */
+
+/** @param {string | unknown} d */
+const parseIfJSON = d => {
+  if (typeof d !== 'string') return d;
+  try {
+    return JSON.parse(d);
+  } catch {
+    return d;
+  }
+};
 
 /**
  * @param {ReturnType<makeVStorage>} vstorage
