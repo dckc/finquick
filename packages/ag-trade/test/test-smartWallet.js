@@ -5,6 +5,8 @@ import anyTest from 'ava';
 import { captureIO, replayIO } from './replayFetch.js';
 import { make as makeWalletFactory } from '../src/smartWallet.js';
 import { E } from '@endo/far';
+import { makeHttpClient, makeLCD } from '../src/httpClient.js';
+import { web1 } from './web-fixture.js';
 
 /** @type {import('ava').TestFn<Awaited<ReturnType<typeof makeTestContext>>>} */
 const test = /** @type {any} */ (anyTest);
@@ -40,14 +42,18 @@ test.before(async t => {
 const { keys } = Object;
 
 test('executeOffer', async t => {
-  const { fetch } = t.context;
+  const { context: io } = t;
+
+  const { fetch: fetchMock, web } = io.recording
+    ? captureIO(io.fetch)
+    : { fetch: replayIO(web1), web: new Map() };
 
   const wf = makeWalletFactory();
 
   const kit = await E(wf).makeWalletKit(
     acct.user1.mnemonic,
-    scenario1.rpcURL,
-    scenario1.apiURL,
+    makeHttpClient(scenario1.rpcURL, fetchMock),
+    makeLCD(scenario1.apiURL, { fetch: fetchMock }),
   );
   t.deepEqual(keys(kit), ['tx', 'query', 'smartWallet']);
 
@@ -85,4 +91,8 @@ test('executeOffer', async t => {
     proposal: offerSpec.proposal,
     result: 'added Collateral to the Reserve',
   });
+
+  if (io.recording) {
+    t.snapshot(web, 'sendTokens web');
+  }
 });
