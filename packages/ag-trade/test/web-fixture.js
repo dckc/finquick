@@ -11,22 +11,50 @@ const { stringify: jq } = JSON;
  */
 export const web1 = new Map([
   [
-    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1674202955,\\"method\\":\\"abci_query\\",\\"params\\":{\\"path\\":\\"/cosmos.auth.v1beta1.Query/Account\\",\\"data\\":\\"0a2d61676f7269633134706672786736336a6e3668613063703677786b6d346e6c76737774736372683270796d776d\\",\\"prove\\":false}}","headers":{"Content-Type":"application/json"}}]',
+    '["http://localhost:1317/agoric/vstorage/data/published.agoricNames.brand",{"keepalive":true,"headers":{"Content-Type":"application/json"}}]',
     {
-      id: 958169458544,
+      value:
+        '{"blockHeight":"932","values":["{\\"body\\":\\"#[[\\\\\\"ATOM\\\\\\",\\\\\\"$0.Alleged: ATOM brand\\\\\\"],[\\\\\\"BLD\\\\\\",\\\\\\"$1.Alleged: BLD brand\\\\\\"],[\\\\\\"DAI_axl\\\\\\",\\\\\\"$2.Alleged: DAI_axl brand\\\\\\"],[\\\\\\"DAI_grv\\\\\\",\\\\\\"$3.Alleged: DAI_grv brand\\\\\\"],[\\\\\\"IST\\\\\\",\\\\\\"$4.Alleged: IST brand\\\\\\"],[\\\\\\"Invitation\\\\\\",\\\\\\"$5.Alleged: Zoe Invitation brand\\\\\\"],[\\\\\\"KREAdCHARACTER\\\\\\",\\\\\\"$6.Alleged: KREAdCHARACTER brand\\\\\\"],[\\\\\\"KREAdITEM\\\\\\",\\\\\\"$7.Alleged: KREAdITEM brand\\\\\\"],[\\\\\\"USDC_axl\\\\\\",\\\\\\"$8.Alleged: USDC_axl brand\\\\\\"],[\\\\\\"USDC_grv\\\\\\",\\\\\\"$9.Alleged: USDC_grv brand\\\\\\"],[\\\\\\"USDT_axl\\\\\\",\\\\\\"$10.Alleged: USDT_axl brand\\\\\\"],[\\\\\\"USDT_grv\\\\\\",\\\\\\"$11.Alleged: USDT_grv brand\\\\\\"],[\\\\\\"timer\\\\\\",\\\\\\"$12.Alleged: timerBrand\\\\\\"],[\\\\\\"stATOM\\\\\\",\\\\\\"$13.Alleged: stATOM brand\\\\\\"]]\\",\\"slots\\":[\\"board05557\\",\\"board0566\\",\\"board05736\\",\\"board03138\\",\\"board0257\\",\\"board0074\\",\\"board03281\\",\\"board00282\\",\\"board03040\\",\\"board04542\\",\\"board01744\\",\\"board03446\\",\\"board0425\\",\\"board00990\\"]}"]}',
+    },
+  ],
+  [
+    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":244401194,\\"method\\":\\"abci_query\\",\\"params\\":{\\"path\\":\\"/cosmos.auth.v1beta1.Query/Account\\",\\"data\\":\\"0a2d61676f7269633161337a753561717732353571307475787a793961667476676865656b77327765647a33787771\\",\\"prove\\":false}}","headers":{"Content-Type":"application/json"}}]',
+    {
+      id: 764416433138,
       jsonrpc: '2.0',
       result: {
         response: {
           code: 0,
           codespace: '',
-          height: '231904',
+          height: '2740',
           index: '0',
           info: '',
           key: null,
           log: '',
           proofOps: null,
           value:
-            'Cp8BCiAvY29zbW9zLmF1dGgudjFiZXRhMS5CYXNlQWNjb3VudBJ7Ci1hZ29yaWMxNHBmcnhnNjNqbjZoYTBjcDZ3eGttNG5sdnN3dHNjcmgycHltd20SRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiEDqQIsF8FXDVUfIinEmeWL6TgbatIB2jJt9fMaWJSgBmIYBiAr',
+            'Cp8BCiAvY29zbW9zLmF1dGgudjFiZXRhMS5CYXNlQWNjb3VudBJ7Ci1hZ29yaWMxYTN6dTVhcXcyNTVxMHR1eHp5OWFmdHZnaGVla3cyd2VkejN4d3ESRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiEC4YomNap2bl1JGl4oNR1DEa+fVBiEPQlECpIVLhAS6AkYDyAK',
+        },
+      },
+    },
+  ],
+  [
+    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":219214959,\\"method\\":\\"abci_query\\",\\"params\\":{\\"path\\":\\"/cosmos.tx.v1beta1.Service/Simulate\\",\\"data\\":\\"12e8030a8f030a8c030a252f61676f7269632e7377696e677365742e4d736757616c6c65745370656e64416374696f6e12e2020a14ec45ca740e552807af86110bd4ad88be736729d912c9027b22626f6479223a22237b5c226d6574686f645c223a5c22657865637574654f666665725c222c5c226f666665725c223a7b5c2269645c223a5c2272657365727665416464315c222c5c22696e7669746174696f6e537065635c223a7b5c2263616c6c506970655c223a5b5b5c226d616b65416464436f6c6c61746572616c496e7669746174696f6e5c222c5b5d5d5d2c5c22696e7374616e6365506174685c223a5b5c22726573657276655c225d2c5c22736f757263655c223a5c2261676f726963436f6e74726163745c227d2c5c2270726f706f73616c5c223a7b5c22676976655c223a7b5c22436f6c6c61746572616c5c223a7b5c226272616e645c223a5c2224302e416c6c656765643a20495354206272616e645c222c5c2276616c75655c223a5c222b31305c227d7d7d7d7d222c22736c6f7473223a5b22626f61726430323537225d7d12520a4e0a460a1f2f636f736d6f732e63727970746f2e736563703235366b312e5075624b657912230a2102e18a2635aa766e5d491a5e28351d4311af9f5418843d09440a92152e1012e80912020a00180a12001a00\\",\\"prove\\":false}}","headers":{"Content-Type":"application/json"}}]',
+    {
+      id: 316175377566,
+      jsonrpc: '2.0',
+      result: {
+        response: {
+          code: 0,
+          codespace: '',
+          height: '2740',
+          index: '0',
+          info: '',
+          key: null,
+          log: '',
+          proofOps: null,
+          value:
+            'CgQQwZ8HEtoBCikKJwolL2Fnb3JpYy5zd2luZ3NldC5Nc2dXYWxsZXRTcGVuZEFjdGlvbhJxW3siZXZlbnRzIjpbeyJ0eXBlIjoibWVzc2FnZSIsImF0dHJpYnV0ZXMiOlt7ImtleSI6ImFjdGlvbiIsInZhbHVlIjoiL2Fnb3JpYy5zd2luZ3NldC5Nc2dXYWxsZXRTcGVuZEFjdGlvbiJ9XX1dfV0aOgoHbWVzc2FnZRIvCgZhY3Rpb24SJS9hZ29yaWMuc3dpbmdzZXQuTXNnV2FsbGV0U3BlbmRBY3Rpb24=',
         },
       },
     },
@@ -34,7 +62,7 @@ export const web1 = new Map([
   [
     '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":722766156,\\"method\\":\\"status\\",\\"params\\":{}}","headers":{"Content-Type":"application/json"}}]',
     {
-      id: 663844313452,
+      id: 167287613223,
       jsonrpc: '2.0',
       result: {
         node_info: {
@@ -63,11 +91,11 @@ export const web1 = new Map([
           earliest_block_height: '682',
           earliest_block_time: '2023-11-14T17:31:55.266916047Z',
           latest_app_hash:
-            '4BE5B8588212FA559781DCA1B072606080CC79273BC8379085E4E6727AB69FA9',
+            'C2949709272A56F53B32C79D41C29724BBABE0D875E22147145670B17603997C',
           latest_block_hash:
-            '18F99510DBA1B66B76134046A07412B36E39CD239F010DAE37B895F48F332413',
-          latest_block_height: '231904',
-          latest_block_time: '2023-11-19T20:09:35.854091721Z',
+            'F012B1315F134C3BD45044B10BD4AF363A67040679CE2AD2D3049CA9F439432F',
+          latest_block_height: '2740',
+          latest_block_time: '2023-11-25T17:51:33.127154506Z',
         },
         validator_info: {
           address: '2194775939FF925292A47E63B936053EF1A395B9',
@@ -81,91 +109,49 @@ export const web1 = new Map([
     },
   ],
   [
-    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1716998887,\\"method\\":\\"broadcast_tx_sync\\",\\"params\\":{\\"tx\\":\\"CowBCokBChwvY29zbW9zLmJhbmsudjFiZXRhMS5Nc2dTZW5kEmkKLWFnb3JpYzE0cGZyeGc2M2puNmhhMGNwNnd4a200bmx2c3d0c2NyaDJweW13bRItYWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdxGgkKBHVibGQSATESYwpQCkYKHy9jb3Ntb3MuY3J5cHRvLnNlY3AyNTZrMS5QdWJLZXkSIwohA6kCLBfBVw1VHyIpxJnli+k4G2rSAdoybfXzGliUoAZiEgQKAggBGCsSDwoJCgR1aXN0EgEwEOCnEhpA9RWhA89uKrMq14QIZhZv+FcrvsxV9N7Hu4Su7Bodl3Vj7hH0v6vrrc+nG2/9JzukJtFqRUrKmWnOwIajrSlMGQ==\\"}}","headers":{"Content-Type":"application/json"}}]',
+    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":744256138,\\"method\\":\\"broadcast_tx_sync\\",\\"params\\":{\\"tx\\":\\"Co8DCowDCiUvYWdvcmljLnN3aW5nc2V0Lk1zZ1dhbGxldFNwZW5kQWN0aW9uEuICChTsRcp0DlUoB6+GEQvUrYi+c2cp2RLJAnsiYm9keSI6IiN7XCJtZXRob2RcIjpcImV4ZWN1dGVPZmZlclwiLFwib2ZmZXJcIjp7XCJpZFwiOlwicmVzZXJ2ZUFkZDFcIixcImludml0YXRpb25TcGVjXCI6e1wiY2FsbFBpcGVcIjpbW1wibWFrZUFkZENvbGxhdGVyYWxJbnZpdGF0aW9uXCIsW11dXSxcImluc3RhbmNlUGF0aFwiOltcInJlc2VydmVcIl0sXCJzb3VyY2VcIjpcImFnb3JpY0NvbnRyYWN0XCJ9LFwicHJvcG9zYWxcIjp7XCJnaXZlXCI6e1wiQ29sbGF0ZXJhbFwiOntcImJyYW5kXCI6XCIkMC5BbGxlZ2VkOiBJU1QgYnJhbmRcIixcInZhbHVlXCI6XCIrMTBcIn19fX19Iiwic2xvdHMiOlsiYm9hcmQwMjU3Il19EmYKUApGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQLhiiY1qnZuXUkaXig1HUMRr59UGIQ9CUQKkhUuEBLoCRIECgIIARgKEhIKDAoEdWJsZBIEMTY2MxDBkgoaQF/uWl1Ks3yvyaREDZ3264YR2/bPHfvebG1UJCHVObZmM17qcDPiUIX+QU5JUfGtHhsZlIbP+IN16mpvTeP0Y5M=\\"}}","headers":{"Content-Type":"application/json"}}]',
     {
-      id: 797666298518,
+      id: 294298561798,
       jsonrpc: '2.0',
       result: {
         code: 0,
         codespace: '',
         data: '',
-        hash: '4E3CC7E178696FC1013DA53E714DBD2C983D60AB9B937E8ADC1A93870E926A83',
+        hash: '7AEE11A38DD94F66F73237CFE30D3987166C2CE2CA221A3FBD824571238AF214',
         log: '[]',
       },
     },
   ],
   [
-    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1235013653,\\"method\\":\\"tx_search\\",\\"params\\":{\\"query\\":\\"tx.hash=\'4E3CC7E178696FC1013DA53E714DBD2C983D60AB9B937E8ADC1A93870E926A83\'\\",\\"page\\":\\"1\\"}}","headers":{"Content-Type":"application/json"}}]',
+    '["http://localhost:26657",{"method":"POST","body":"{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1232884544,\\"method\\":\\"tx_search\\",\\"params\\":{\\"query\\":\\"tx.hash=\'7AEE11A38DD94F66F73237CFE30D3987166C2CE2CA221A3FBD824571238AF214\'\\",\\"page\\":\\"1\\"}}","headers":{"Content-Type":"application/json"}}]',
     {
-      id: 781573352955,
+      id: 764317591665,
       jsonrpc: '2.0',
       result: {
         total_count: '1',
         txs: [
           {
-            hash: '4E3CC7E178696FC1013DA53E714DBD2C983D60AB9B937E8ADC1A93870E926A83',
-            height: '231905',
+            hash: '7AEE11A38DD94F66F73237CFE30D3987166C2CE2CA221A3FBD824571238AF214',
+            height: '2741',
             index: 0,
-            tx: 'CowBCokBChwvY29zbW9zLmJhbmsudjFiZXRhMS5Nc2dTZW5kEmkKLWFnb3JpYzE0cGZyeGc2M2puNmhhMGNwNnd4a200bmx2c3d0c2NyaDJweW13bRItYWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdxGgkKBHVibGQSATESYwpQCkYKHy9jb3Ntb3MuY3J5cHRvLnNlY3AyNTZrMS5QdWJLZXkSIwohA6kCLBfBVw1VHyIpxJnli+k4G2rSAdoybfXzGliUoAZiEgQKAggBGCsSDwoJCgR1aXN0EgEwEOCnEhpA9RWhA89uKrMq14QIZhZv+FcrvsxV9N7Hu4Su7Bodl3Vj7hH0v6vrrc+nG2/9JzukJtFqRUrKmWnOwIajrSlMGQ==',
+            tx: 'Co8DCowDCiUvYWdvcmljLnN3aW5nc2V0Lk1zZ1dhbGxldFNwZW5kQWN0aW9uEuICChTsRcp0DlUoB6+GEQvUrYi+c2cp2RLJAnsiYm9keSI6IiN7XCJtZXRob2RcIjpcImV4ZWN1dGVPZmZlclwiLFwib2ZmZXJcIjp7XCJpZFwiOlwicmVzZXJ2ZUFkZDFcIixcImludml0YXRpb25TcGVjXCI6e1wiY2FsbFBpcGVcIjpbW1wibWFrZUFkZENvbGxhdGVyYWxJbnZpdGF0aW9uXCIsW11dXSxcImluc3RhbmNlUGF0aFwiOltcInJlc2VydmVcIl0sXCJzb3VyY2VcIjpcImFnb3JpY0NvbnRyYWN0XCJ9LFwicHJvcG9zYWxcIjp7XCJnaXZlXCI6e1wiQ29sbGF0ZXJhbFwiOntcImJyYW5kXCI6XCIkMC5BbGxlZ2VkOiBJU1QgYnJhbmRcIixcInZhbHVlXCI6XCIrMTBcIn19fX19Iiwic2xvdHMiOlsiYm9hcmQwMjU3Il19EmYKUApGCh8vY29zbW9zLmNyeXB0by5zZWNwMjU2azEuUHViS2V5EiMKIQLhiiY1qnZuXUkaXig1HUMRr59UGIQ9CUQKkhUuEBLoCRIECgIIARgKEhIKDAoEdWJsZBIEMTY2MxDBkgoaQF/uWl1Ks3yvyaREDZ3264YR2/bPHfvebG1UJCHVObZmM17qcDPiUIX+QU5JUfGtHhsZlIbP+IN16mpvTeP0Y5M=',
             tx_result: {
               code: 0,
               codespace: '',
-              data: 'Ch4KHC9jb3Ntb3MuYmFuay52MWJldGExLk1zZ1NlbmQ=',
+              data: 'CicKJS9hZ29yaWMuc3dpbmdzZXQuTXNnV2FsbGV0U3BlbmRBY3Rpb24=',
               events: [
-                {
-                  attributes: [
-                    {
-                      index: true,
-                      key: 'ZmVl',
-                      value: 'MHVpc3Q=',
-                    },
-                  ],
-                  type: 'tx',
-                },
-                {
-                  attributes: [
-                    {
-                      index: true,
-                      key: 'YWNjX3NlcQ==',
-                      value:
-                        'YWdvcmljMTRwZnJ4ZzYzam42aGEwY3A2d3hrbTRubHZzd3RzY3JoMnB5bXdtLzQz',
-                    },
-                  ],
-                  type: 'tx',
-                },
-                {
-                  attributes: [
-                    {
-                      index: true,
-                      key: 'c2lnbmF0dXJl',
-                      value:
-                        'OVJXaEE4OXVLck1xMTRRSVpoWnYrRmNydnN4VjlON0h1NFN1N0JvZGwzVmo3aEgwdjZ2cnJjK25HMi85Snp1a0p0RnFSVXJLbVduT3dJYWpyU2xNR1E9PQ==',
-                    },
-                  ],
-                  type: 'tx',
-                },
-                {
-                  attributes: [
-                    {
-                      index: true,
-                      key: 'YWN0aW9u',
-                      value: 'L2Nvc21vcy5iYW5rLnYxYmV0YTEuTXNnU2VuZA==',
-                    },
-                  ],
-                  type: 'message',
-                },
                 {
                   attributes: [
                     {
                       index: true,
                       key: 'c3BlbmRlcg==',
                       value:
-                        'YWdvcmljMTRwZnJ4ZzYzam42aGEwY3A2d3hrbTRubHZzd3RzY3JoMnB5bXdt',
+                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdx',
                     },
                     {
                       index: true,
                       key: 'YW1vdW50',
-                      value: 'MXVibGQ=',
+                      value: 'MTY2M3VibGQ=',
                     },
                   ],
                   type: 'coin_spent',
@@ -176,12 +162,12 @@ export const web1 = new Map([
                       index: true,
                       key: 'cmVjZWl2ZXI=',
                       value:
-                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdx',
+                        'YWdvcmljMWFlMGxtdHpsZ3JjbmxhOXhqa3BhYXJxNWQ1ZGZlejYzaDNudWNs',
                     },
                     {
                       index: true,
                       key: 'YW1vdW50',
-                      value: 'MXVibGQ=',
+                      value: 'MTY2M3VibGQ=',
                     },
                   ],
                   type: 'coin_received',
@@ -192,18 +178,18 @@ export const web1 = new Map([
                       index: true,
                       key: 'cmVjaXBpZW50',
                       value:
-                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdx',
+                        'YWdvcmljMWFlMGxtdHpsZ3JjbmxhOXhqa3BhYXJxNWQ1ZGZlejYzaDNudWNs',
                     },
                     {
                       index: true,
                       key: 'c2VuZGVy',
                       value:
-                        'YWdvcmljMTRwZnJ4ZzYzam42aGEwY3A2d3hrbTRubHZzd3RzY3JoMnB5bXdt',
+                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdx',
                     },
                     {
                       index: true,
                       key: 'YW1vdW50',
-                      value: 'MXVibGQ=',
+                      value: 'MTY2M3VibGQ=',
                     },
                   ],
                   type: 'transfer',
@@ -214,7 +200,7 @@ export const web1 = new Map([
                       index: true,
                       key: 'c2VuZGVy',
                       value:
-                        'YWdvcmljMTRwZnJ4ZzYzam42aGEwY3A2d3hrbTRubHZzd3RzY3JoMnB5bXdt',
+                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdx',
                     },
                   ],
                   type: 'message',
@@ -223,21 +209,126 @@ export const web1 = new Map([
                   attributes: [
                     {
                       index: true,
-                      key: 'bW9kdWxl',
-                      value: 'YmFuaw==',
+                      key: 'ZmVl',
+                      value: 'MTY2M3VibGQ=',
+                    },
+                  ],
+                  type: 'tx',
+                },
+                {
+                  attributes: [
+                    {
+                      index: true,
+                      key: 'YWNjX3NlcQ==',
+                      value:
+                        'YWdvcmljMWEzenU1YXF3MjU1cTB0dXh6eTlhZnR2Z2hlZWt3MndlZHozeHdxLzEw',
+                    },
+                  ],
+                  type: 'tx',
+                },
+                {
+                  attributes: [
+                    {
+                      index: true,
+                      key: 'c2lnbmF0dXJl',
+                      value:
+                        'WCs1YVhVcXpmSy9KcEVRTm5mYnJoaEhiOXM4ZCs5NXNiVlFrSWRVNXRtWXpYdXB3TStKUWhmNUJUa2xSOGEwZUd4bVVocy80ZzNYcWFtOU40L1Jqa3c9PQ==',
+                    },
+                  ],
+                  type: 'tx',
+                },
+                {
+                  attributes: [
+                    {
+                      index: true,
+                      key: 'YWN0aW9u',
+                      value:
+                        'L2Fnb3JpYy5zd2luZ3NldC5Nc2dXYWxsZXRTcGVuZEFjdGlvbg==',
                     },
                   ],
                   type: 'message',
                 },
               ],
-              gas_used: '60978',
-              gas_wanted: '300000',
+              gas_used: '129558',
+              gas_wanted: '166209',
               info: '',
-              log: '[{"events":[{"type":"coin_received","attributes":[{"key":"receiver","value":"agoric1a3zu5aqw255q0tuxzy9aftvgheekw2wedz3xwq"},{"key":"amount","value":"1ubld"}]},{"type":"coin_spent","attributes":[{"key":"spender","value":"agoric14pfrxg63jn6ha0cp6wxkm4nlvswtscrh2pymwm"},{"key":"amount","value":"1ubld"}]},{"type":"message","attributes":[{"key":"action","value":"/cosmos.bank.v1beta1.MsgSend"},{"key":"sender","value":"agoric14pfrxg63jn6ha0cp6wxkm4nlvswtscrh2pymwm"},{"key":"module","value":"bank"}]},{"type":"transfer","attributes":[{"key":"recipient","value":"agoric1a3zu5aqw255q0tuxzy9aftvgheekw2wedz3xwq"},{"key":"sender","value":"agoric14pfrxg63jn6ha0cp6wxkm4nlvswtscrh2pymwm"},{"key":"amount","value":"1ubld"}]}]}]',
+              log: '[{"events":[{"type":"message","attributes":[{"key":"action","value":"/agoric.swingset.MsgWalletSpendAction"}]}]}]',
             },
           },
         ],
       },
+    },
+  ],
+  [
+    '["http://localhost:1317/cosmos/base/tendermint/v1beta1/blocks/latest",{"keepalive":true,"headers":{"Content-Type":"application/json"}}]',
+    {
+      block: {
+        data: {
+          txs: [],
+        },
+        evidence: {
+          evidence: [],
+        },
+        header: {
+          app_hash: 'ODaYlSNPWvtWZpimCQM/zW1StqEsfQ7FSzJ/Oekl/BU=',
+          chain_id: 'agoriclocal',
+          consensus_hash: 'BICRvH3cKD93v7+R1zxE2ljD34qcvIZ0Bdi389qtoi8=',
+          data_hash: '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+          evidence_hash: '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+          height: '2743',
+          last_block_id: {
+            hash: 'Dhj1YWZKyIC8PHMX6tCQ6zLQB3MYsE5zFadiKKife/U=',
+            part_set_header: {
+              hash: 'K1cBu6KkD0HG9kNcYZGLMbyKr6uDheaCYRoxZVMo1RE=',
+              total: 1,
+            },
+          },
+          last_commit_hash: 'chb/5kzP0L3c+wCNMZeiep9GsMH/KKnEmj+YuLJ+mF4=',
+          last_results_hash: '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+          next_validators_hash: 'HkUtdy6sZwKq/+g0L9qGV69vFylKZwNCrBsnXblZMU4=',
+          proposer_address: 'IZR3WTn/klKSpH5juTYFPvGjlbk=',
+          time: '2023-11-25T17:51:36.169991985Z',
+          validators_hash: 'HkUtdy6sZwKq/+g0L9qGV69vFylKZwNCrBsnXblZMU4=',
+          version: {
+            app: '0',
+            block: '11',
+          },
+        },
+        last_commit: {
+          block_id: {
+            hash: 'Dhj1YWZKyIC8PHMX6tCQ6zLQB3MYsE5zFadiKKife/U=',
+            part_set_header: {
+              hash: 'K1cBu6KkD0HG9kNcYZGLMbyKr6uDheaCYRoxZVMo1RE=',
+              total: 1,
+            },
+          },
+          height: '2742',
+          round: 0,
+          signatures: [
+            {
+              block_id_flag: 'BLOCK_ID_FLAG_COMMIT',
+              signature:
+                'Vjuh+RXznsZoGpFKdlEDjCdlVVdcuHpcxoIu5QwKS1KBjgJeLI7nQlUM1i1vT046nrbRXgwnN1zWug/mBXzrAw==',
+              timestamp: '2023-11-25T17:51:36.169991985Z',
+              validator_address: 'IZR3WTn/klKSpH5juTYFPvGjlbk=',
+            },
+          ],
+        },
+      },
+      block_id: {
+        hash: 'rBMrk3hkeKX/qeqOMxwzVF7AnwUV8hKfGgoh/Ff2Wkc=',
+        part_set_header: {
+          hash: 'd4mokzrinDjxbBfXYUNgmR/nt9P0qeFEHubwU6PHXT8=',
+          total: 1,
+        },
+      },
+    },
+  ],
+  [
+    '["http://localhost:1317/agoric/vstorage/data/published.wallet.agoric1a3zu5aqw255q0tuxzy9aftvgheekw2wedz3xwq",{"keepalive":true,"headers":{"Content-Type":"application/json"}}]',
+    {
+      value:
+        '{"blockHeight":"2741","values":["{\\"body\\":\\"#{\\\\\\"status\\\\\\":{\\\\\\"id\\\\\\":\\\\\\"reserveAdd1\\\\\\",\\\\\\"invitationSpec\\\\\\":{\\\\\\"callPipe\\\\\\":[[\\\\\\"makeAddCollateralInvitation\\\\\\",[]]],\\\\\\"instancePath\\\\\\":[\\\\\\"reserve\\\\\\"],\\\\\\"source\\\\\\":\\\\\\"agoricContract\\\\\\"},\\\\\\"proposal\\\\\\":{\\\\\\"give\\\\\\":{\\\\\\"Collateral\\\\\\":{\\\\\\"brand\\\\\\":\\\\\\"$0.Alleged: IST brand\\\\\\",\\\\\\"value\\\\\\":\\\\\\"+10\\\\\\"}}},\\\\\\"result\\\\\\":\\\\\\"added Collateral to the Reserve\\\\\\"},\\\\\\"updated\\\\\\":\\\\\\"offerStatus\\\\\\"}\\",\\"slots\\":[\\"board0257\\"]}","{\\"body\\":\\"#{\\\\\\"status\\\\\\":{\\\\\\"id\\\\\\":\\\\\\"reserveAdd1\\\\\\",\\\\\\"invitationSpec\\\\\\":{\\\\\\"callPipe\\\\\\":[[\\\\\\"makeAddCollateralInvitation\\\\\\",[]]],\\\\\\"instancePath\\\\\\":[\\\\\\"reserve\\\\\\"],\\\\\\"source\\\\\\":\\\\\\"agoricContract\\\\\\"},\\\\\\"numWantsSatisfied\\\\\\":1,\\\\\\"proposal\\\\\\":{\\\\\\"give\\\\\\":{\\\\\\"Collateral\\\\\\":{\\\\\\"brand\\\\\\":\\\\\\"$0.Alleged: IST brand\\\\\\",\\\\\\"value\\\\\\":\\\\\\"+10\\\\\\"}}},\\\\\\"result\\\\\\":\\\\\\"added Collateral to the Reserve\\\\\\"},\\\\\\"updated\\\\\\":\\\\\\"offerStatus\\\\\\"}\\",\\"slots\\":[\\"board0257\\"]}","{\\"body\\":\\"#{\\\\\\"status\\\\\\":{\\\\\\"id\\\\\\":\\\\\\"reserveAdd1\\\\\\",\\\\\\"invitationSpec\\\\\\":{\\\\\\"callPipe\\\\\\":[[\\\\\\"makeAddCollateralInvitation\\\\\\",[]]],\\\\\\"instancePath\\\\\\":[\\\\\\"reserve\\\\\\"],\\\\\\"source\\\\\\":\\\\\\"agoricContract\\\\\\"},\\\\\\"numWantsSatisfied\\\\\\":1,\\\\\\"payouts\\\\\\":{\\\\\\"Collateral\\\\\\":{\\\\\\"brand\\\\\\":\\\\\\"$0.Alleged: IST brand\\\\\\",\\\\\\"value\\\\\\":\\\\\\"+0\\\\\\"}},\\\\\\"proposal\\\\\\":{\\\\\\"give\\\\\\":{\\\\\\"Collateral\\\\\\":{\\\\\\"brand\\\\\\":\\\\\\"$0\\\\\\",\\\\\\"value\\\\\\":\\\\\\"+10\\\\\\"}}},\\\\\\"result\\\\\\":\\\\\\"added Collateral to the Reserve\\\\\\"},\\\\\\"updated\\\\\\":\\\\\\"offerStatus\\\\\\"}\\",\\"slots\\":[\\"board0257\\"]}"]}',
     },
   ],
 ]);
