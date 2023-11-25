@@ -52,6 +52,9 @@ export const captureIO = fetch => {
     const key = normalizeID(JSON.stringify(args));
     const resp = await fetch(...args);
     return {
+      ok: resp.ok,
+      status: resp.status,
+      statusText: resp.statusText,
       json: async () => {
         const data = await resp.json();
         web.set(key, data);
@@ -81,6 +84,9 @@ export const replayIO = web => {
       throw Error(`no data for ${key}`);
     }
     return {
+      ok: true,
+      status: 200,
+      statusText: 'ok',
       json: async () => data,
     };
   };
