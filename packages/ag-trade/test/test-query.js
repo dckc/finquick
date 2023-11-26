@@ -18,6 +18,7 @@ const scenario1 = {
 };
 
 const makeTestContext = async () => {
+  // XXX should probably raise the recording to the RPC/LCD level.
   const { fetch, web } = RECORDING
     ? captureIO(globalThis.fetch)
     : { fetch: replayIO(web2), web: new Map() };
