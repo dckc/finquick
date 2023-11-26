@@ -13,21 +13,10 @@ import { E, Far } from '@endo/far';
  * @returns
  */
 export const main = async (powers, ...args) => {
-  const x = await powers;
-  //   console.log({ powers: x });
+  /** @type { ERef<import('./smartWallet').WalletView> } */
+  const focus = await E(powers).request('HOST', 'wallet view', 'wallet');
 
-  /** @type { ERef<import('./smartWallet').QueryTool> } */
-  const vstorage = await E(powers).request(
-    'HOST',
-    'vstorage query tool',
-    'vstorage',
-  );
-
-  //   console.log({ vstorage });
-  //   const istBrand = await E(vstorage).lookup('agoricNames', 'brand', 'IST');
-  //   console.log('Hello, World!', args, istBrand);
   const gov1 = 'agoric1acfcen6peh9ed9tyrj5wyqtfrf7hthrh5smddy'; // XXX
-  const focus = E(vstorage).walletView(gov1);
   const { liveOffers } = await E(focus).current();
   //   console.log(liveOffers);
   const bids = new Map();
@@ -45,13 +34,12 @@ export const main = async (powers, ...args) => {
       bids.set(id, { offerSpec: spec });
     }
   }
+
   const visitor = Far('Visitor', {
     visit: update => {
-      console.log('@@@@@', update);
       if (update.updated === 'offerStatus') {
         const { status } = update;
         if (bids.has(status.id)) {
-          console.log('@@@', status);
           bids.set(status.id, { ...bids.get(status.id), status });
         }
       }

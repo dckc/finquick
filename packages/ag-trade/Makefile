@@ -4,6 +4,12 @@ PET=$(STATE)/pet-store
 where:
 	@echo state: $(STATE)
 
+bid-list: $(PET)/gov1-view
+
+$(PET)/gov1-view: $(PET)/query-tool
+	endo eval "E(hub).walletView('agoric1acfcen6peh9ed9tyrj5wyqtfrf7hthrh5smddy')" \
+	  hub:query-tool -n gov1-view
+
 reserve-add: $(PET)/reserve-tool $(PET)/user1-kit $(PET)/u1-ist
 	@echo ++ Add to reserve
 	endo eval "E(reserve).addToReserve(kit.smartWallet, \
