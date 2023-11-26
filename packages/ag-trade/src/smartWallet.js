@@ -115,6 +115,7 @@ const makeWalletView = (addr, { query, vstorage }) => {
     },
   });
 };
+/** @typedef {ReturnType<typeof makeWalletView>} WalletView } */
 
 /**
  * @param {string|number} id
