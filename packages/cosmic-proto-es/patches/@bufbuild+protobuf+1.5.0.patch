@@ -1,0 +1,13 @@
+diff --git a/node_modules/@bufbuild/protobuf/package.json b/node_modules/@bufbuild/protobuf/package.json
+index 81b39d9..177f75e 100644
+--- a/node_modules/@bufbuild/protobuf/package.json
++++ b/node_modules/@bufbuild/protobuf/package.json
+@@ -27,7 +27,7 @@
+     ".": {
+       "module": "./dist/esm/index.js",
+       "require": "./dist/cjs/index.js",
+-      "import": "./dist/proxy/index.js"
++      "import": "./dist/esm/index.js"
+     }
+   },
+   "devDependencies": {
