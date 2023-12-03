@@ -35,7 +35,8 @@ import { batchVstorageQuery, makeVStorage } from './batchQuery.js';
 export const makeWalletActionMessage = (address, spendAction) => ({
   typeUrl: SwingsetMsgs.MsgWalletSpendAction.typeUrl,
   value: {
-    owner: toBase64(toAccAddress(address)),
+    // probufjs: owner: toBase64(toAccAddress(address)),
+    owner: toAccAddress(address),
     spendAction,
   },
 });
@@ -316,6 +317,7 @@ const makeQueryKit = lcd => {
 /** @typedef {Awaited<ReturnType<typeof makeQueryKit>>['query']} QueryTool */
 
 export const make = () => {
+  console.log('smartWallet worker');
   /** @param {number} ms */
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 

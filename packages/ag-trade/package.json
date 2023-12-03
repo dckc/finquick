@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "patch-package",
     "lint-fix": "eslint --fix .",
     "lint": "run-s --continue-on-error lint:*",
     "lint:js": "eslint .",
@@ -16,6 +17,8 @@
     "ava": "^5.3.1",
     "eslint": "^8.36.0",
     "npm-run-all": "^4.1.5",
+    "patch-package": "^8.0.0",
+    "postinstall-postinstall": "^2.1.0",
     "typescript": "~5.1.6"
   },
   "ava": {
@@ -24,7 +27,6 @@
     ]
   },
   "dependencies": {
-    "@agoric/cosmic-proto": "^0.3.0",
     "@cosmjs/amino": "^0.31.3",
     "@cosmjs/crypto": "^0.31.3",
     "@cosmjs/encoding": "^0.31.3",
@@ -32,8 +34,10 @@
     "@cosmjs/stargate": "^0.31.3",
     "@cosmjs/tendermint-rpc": "^0.31.3",
     "@endo/far": "^0.2.21",
+    "@endo/marshal": "^0.8.9",
     "@endo/patterns": "^0.2.5",
     "better-sqlite3": "^8.5.2",
+    "cosmic-proto-es": "../cosmic-proto-es/",
     "google-auth-library": "^9.0.0",
     "google-spreadsheet": "^4.0.2",
     "minimatch": "^9.0.3",
