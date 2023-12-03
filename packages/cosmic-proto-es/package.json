@@ -1,0 +1,41 @@
+{
+  "name": "cosmic-proto-es",
+  "version": "0.1.0",
+  "description": "Agoric cosmic-swingset protobuf stubs in ES modules",
+  "main": "index.js",
+  "author": "Dan Connolly",
+  "license": "Apache 2",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./swingset/msgs.js": {
+      "types": "./src/gen/agoric/swingset/msgs_pg.d.ts",
+      "default": "./src/gen/agoric/swingset/msgs_pb.js"
+    },
+    "./swingset/query.js": {
+      "types": "./src/gen/agoric/swingset/query_pg.d.ts",
+      "default": "./src/gen/agoric/swingset/query_pb.js"
+    },
+    "./vstorage/query.js": {
+      "types": "./src/gen/agoric/vstorage/query_pg.d.ts",
+      "default": "./src/gen/agoric/vstorage/query_pb.js"
+    },
+    "./swingset/swingset.js": {
+      "types": "./src/gen/agoric/swingset/swingset_pg.d.ts",
+      "default": "./src/gen/agoric/swingset/swingset_pb.js"
+    }
+  },
+  "scripts": {
+    "build": "echo Use yarn rebuild to update dist output",
+    "rebuild": "rm -rf src/gen && yarn generate",
+    "generate": "buf generate proto"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.28.1",
+    "@bufbuild/protoc-gen-es": "^1.5.0"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^1.5.0"
+  }
+}
