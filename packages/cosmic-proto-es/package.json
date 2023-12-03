@@ -27,6 +27,7 @@
     }
   },
   "scripts": {
+    "postinstall": "patch-package",
     "test": "node test/sanity-test.js",
     "build": "echo Use yarn rebuild to update dist output",
     "rebuild": "rm -rf src/gen && yarn generate",
@@ -34,7 +35,8 @@
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.28.1",
-    "@bufbuild/protoc-gen-es": "^1.5.0"
+    "@bufbuild/protoc-gen-es": "^1.5.0",
+    "patch-package": "^8.0.0"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^1.5.0"
