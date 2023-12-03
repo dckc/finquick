@@ -316,6 +316,7 @@ const makeQueryKit = lcd => {
 /** @typedef {Awaited<ReturnType<typeof makeQueryKit>>['query']} QueryTool */
 
 export const make = () => {
+  console.log('smartWallet worker');
   /** @param {number} ms */
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 

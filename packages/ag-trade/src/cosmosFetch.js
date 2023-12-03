@@ -7,6 +7,7 @@ import { Far } from '@endo/far';
 import { makeHttpClient, makeLCD } from './httpClient.js';
 
 export const make = _powers => {
+  console.log('cosmosFetch worker');
   /** @param { string } rpcURL */
   const makeRPCClient = rpcURL => makeHttpClient(rpcURL, globalThis.fetch);
   /** @param { string } apiURL */
