@@ -35,6 +35,7 @@
     "@endo/marshal": "^0.8.9",
     "@endo/patterns": "^0.2.5",
     "better-sqlite3": "^8.5.2",
+    "cosmic-proto-es": "../cosmic-proto-es/",
     "google-auth-library": "^9.0.0",
     "google-spreadsheet": "^4.0.2",
     "minimatch": "^9.0.3",
