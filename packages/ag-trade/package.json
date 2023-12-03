@@ -27,7 +27,6 @@
     ]
   },
   "dependencies": {
-    "@agoric/cosmic-proto": "^0.3.0",
     "@cosmjs/amino": "^0.31.3",
     "@cosmjs/crypto": "^0.31.3",
     "@cosmjs/encoding": "^0.31.3",
