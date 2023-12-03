@@ -35,7 +35,8 @@ import { batchVstorageQuery, makeVStorage } from './batchQuery.js';
 export const makeWalletActionMessage = (address, spendAction) => ({
   typeUrl: SwingsetMsgs.MsgWalletSpendAction.typeUrl,
   value: {
-    owner: toBase64(toAccAddress(address)),
+    // probufjs: owner: toBase64(toAccAddress(address)),
+    owner: toAccAddress(address),
     spendAction,
   },
 });
