@@ -54,9 +54,9 @@ $(PET)/ist-brand: $(PET)/query-tool
 	@echo ++ Get IST brand
 	endo eval "E(hub).lookup('agoricNames', 'brand', 'IST')" hub:query-tool -n ist-brand
 
-$(PET)/query-tool: $(PET)/client-maker
+$(PET)/query-tool: $(PET)/client-maker $(PET)/cosmos-fetch
 	@echo ++ Instantiate QueryTool
-	endo eval "E(mkClient).makeQueryTool('http://localhost:1317')" mkClient:client-maker -n query-tool
+	endo eval "E(mkClient).makeQueryTool(E(net).makeLCDClient('http://localhost:1317'))" mkClient:client-maker net:cosmos-fetch -n query-tool
 
 send-tokens: $(PET)/validator-client
 	@echo ++ Send tokens
