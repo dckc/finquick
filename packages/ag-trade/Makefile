@@ -5,6 +5,8 @@ where:
 	@echo state: $(STATE)
 
 bid-list: $(PET)/gov1-view
+	endo eval "E(gov1).current()" \
+	  gov1:gov1-view
 
 $(PET)/gov1-view: $(PET)/query-tool
 	endo eval "E(hub).walletView('agoric1acfcen6peh9ed9tyrj5wyqtfrf7hthrh5smddy')" \
