@@ -6,6 +6,8 @@
 import { Far } from '@endo/far';
 import { makeHttpClient, makeLCD } from './httpClient.js';
 
+assert.typeof(globalThis.fetch, 'function');
+
 export const make = _powers => {
   /** @param { string } rpcURL */
   const makeRPCClient = rpcURL => makeHttpClient(rpcURL, globalThis.fetch);
