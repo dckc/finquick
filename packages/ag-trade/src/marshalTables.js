@@ -39,8 +39,8 @@ const synthesizeRemotable = (_slot, iface) =>
   Far((iface ?? '').replace(/^Alleged: /, ''), {});
 
 export const makeClientMarshaller = () => {
-  const { convertValToSlot, convertSlotToVal } = makeTranslationTable(slot => {
-    throw new Error(`unknown id: ${slot}`);
+  const { convertValToSlot, convertSlotToVal } = makeTranslationTable(val => {
+    throw new Error(`unknown value: ${val}`);
   }, synthesizeRemotable);
 
   return makeMarshal(convertValToSlot, convertSlotToVal, {
