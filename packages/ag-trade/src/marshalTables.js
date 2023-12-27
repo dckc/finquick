@@ -35,8 +35,8 @@ const makeTranslationTable = (makeSlot, makeVal) => {
 };
 
 /** @type {(slot: unknown, iface: string | undefined) => any} */
-const synthesizeRemotable = (_slot, iface) =>
-  Far((iface ?? '').replace(/^Alleged: /, ''), {});
+const synthesizeRemotable = (slot, iface) =>
+  Far(`${(iface ?? '').replace(/^Alleged: /, '')}#${slot}`, {});
 
 export const makeClientMarshaller = () => {
   const { convertValToSlot, convertSlotToVal } = makeTranslationTable(val => {
