@@ -28,7 +28,7 @@ $(PET)/reserve-tool: src/reserve-add.js
 
 kit: $(PET)/user1-kit
 
-$(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/wallet-factory $(PET)/cosmos-fetch
+$(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/client-maker $(PET)/cosmos-fetch
 	@echo ++ Instantiate SigningStargetClient for user1
 	endo eval "\
 	  (async () => { \
@@ -38,12 +38,8 @@ $(PET)/user1-kit: $(PET)/desktop-secrets $(PET)/wallet-factory $(PET)/cosmos-fet
 		const lcd = E(net).makeLCDClient('http://localhost:1317'); \
 	    return E(wf).makeWalletKit(mnemonic, rpc, lcd); \
 	  })()" \
-		secrets:desktop-secrets wf:wallet-factory net:cosmos-fetch \
+		secrets:desktop-secrets wf:client-maker net:cosmos-fetch \
 		-n user1-kit
-
-$(PET)/wallet-factory: src/smartWallet.js
-	@echo ++ start smart wallet caplet -- TODO: should not need UNSAFE
-	endo make --UNSAFE src/smartWallet.js -n wallet-factory
 
 $(PET)/cosmos-fetch: src/cosmosFetch.js
 	@echo ++ install cosmos fetch plugin
@@ -80,7 +76,7 @@ $(PET)/validator-signer: $(PET)/signer-maker $(PET)/validator-passkey
 	endo eval "E(key).get().then(m => E(mkSign).fromMnemonic(m))" mkSign:signer-maker key:validator-passkey -n validator-signer
 
 $(PET)/client-maker: src/smartWallet.js
-	@echo ++ make endo plugin for SigningStargetClient
+	@echo ++ start smart wallet caplet -- TODO: should not need UNSAFE
 	endo make --UNSAFE src/smartWallet.js -n client-maker
 
 $(PET)/signer-maker: src/hdWallet.js
