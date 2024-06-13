@@ -1,10 +1,10 @@
 /**
  * @file Share a folder if owner is not available to keep it confidential.
- * 
+ *
  * [Installable Triggers | Apps Script |  Google for Developers](https://developers.google.com/apps-script/guides/triggers/installable)
- * 
+ *
  * see also [Dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch)
- * 
+ *
  * TODO: rework as CALENDAR trigger?
  */
 
@@ -15,7 +15,11 @@ function shareFolder(io = {}) {
     emailAddress,
   } = io;
 
-  console.log('adding viewer to folder', { emailAddress, folder: folder.getName(), folderId });
+  console.log('adding viewer to folder', {
+    emailAddress,
+    folder: folder.getName(),
+    folderId,
+  });
   folder.addViewer(emailAddress);
 }
 
@@ -47,7 +51,7 @@ function shareJustInCase(io = {}) {
     sheetName = 'Triggers',
     doc = SpreadsheetApp.getActive(),
     sheet = doc.getSheetByName(sheetName),
-    clock = (() => new Date()),
+    clock = () => new Date(),
     getFolderById = id => DriveApp.getFolderById(id),
   } = io;
 
@@ -57,25 +61,37 @@ function shareJustInCase(io = {}) {
   const getCell = colName => {
     const colNum = hd.indexOf(colName) + 1;
     return row => sheet.getRange(row, colNum, 1, 1);
-  }
+  };
   let firstDeadline;
-  for (let row = sheet.getLastRow(); row > 1 ; row -= 1) {
+  for (let row = sheet.getLastRow(); row > 1; row -= 1) {
     const detail = getRowRecord(sheet, row, hd);
 
     const { folderId } = getFolderId(getCell('folder')(row));
     if (!folderId) continue;
     const folder = getFolderById(folderId);
 
-    getCell('viewers')(row).setValue(folder.getViewers().map(u => u.getEmail()).join(', '));
+    getCell('viewers')(row).setValue(
+      folder
+        .getViewers()
+        .map(u => u.getEmail())
+        .join(', '),
+    );
 
-    const note = detail.status ? (clock() >= detail.deadline ? 'Ready' : 'Pending') : 'Disabled';
+    const note = detail.status
+      ? clock() >= detail.deadline
+        ? 'Ready'
+        : 'Pending'
+      : 'Disabled';
     console.log({ note, ...detail });
     // TODO: consider a row proxy so we can do rowRecord.note = 'Off';
     getCell('note')(row).setValue(note);
-    if (note !== 'Pending')  continue;
+    if (note !== 'Pending') continue;
 
     const { deadline } = detail;
-    if (firstDeadline === undefined || deadline.getTime() < firstDeadline.getTime()) {
+    if (
+      firstDeadline === undefined ||
+      deadline.getTime() < firstDeadline.getTime()
+    ) {
       firstDeadline = deadline;
       // TODO: capture row; highlight it?
     }
@@ -84,9 +100,10 @@ function shareJustInCase(io = {}) {
 
   const { newTrigger = (...args) => ScriptApp.newTrigger(...args) } = io;
   const trigger = newTrigger('onSharingTrigger')
-    .timeBased().at(firstDeadline)
+    .timeBased()
+    .at(firstDeadline)
     .create();
-  const triggerId = trigger.getUniqueId()
+  const triggerId = trigger.getUniqueId();
   console.log('created trigger', { triggerId, at: firstDeadline });
 }
 
@@ -95,7 +112,7 @@ function onSharingTrigger(io = {}) {
     sheetName = 'Triggers',
     doc = SpreadsheetApp.getActive(),
     sheet = doc.getSheetByName(sheetName),
-    clock = (() => new Date()),
+    clock = () => new Date(),
     current = clock(),
     getFolderById = id => DriveApp.getFolderById(id),
   } = io;
@@ -106,24 +123,35 @@ function onSharingTrigger(io = {}) {
   const getCell = colName => {
     const colNum = hd.indexOf(colName) + 1;
     return row => sheet.getRange(row, colNum, 1, 1);
-  }
-  for (let row = sheet.getLastRow(); row > 1 ; row -= 1) {
+  };
+  for (let row = sheet.getLastRow(); row > 1; row -= 1) {
     const detail = getRowRecord(sheet, row, hd);
 
     const { folderId } = getFolderId(getCell('folder')(row));
     if (!folderId) continue;
     const folder = getFolderById(folderId);
 
-    const note = detail.status ? (current >= detail.deadline ? 'Ready' : 'Pending') : 'Disabled';
+    const note = detail.status
+      ? current >= detail.deadline
+        ? 'Ready'
+        : 'Pending'
+      : 'Disabled';
     console.log({ note, ...detail });
     getCell('note')(row).setValue(note);
-    if (note !== 'Ready')  continue;
+    if (note !== 'Ready') continue;
 
-    const viewersToAdd = detail.viewersToAdd.split(',').map(addr => addr.trim());
+    const viewersToAdd = detail.viewersToAdd
+      .split(',')
+      .map(addr => addr.trim());
     for (const emailAddress of viewersToAdd) {
       shareFolder({ folder, emailAddress });
     }
-    const viewersPost = [...new Set([... folder.getViewers().map(u => u.getEmail()), ...viewersToAdd])]
+    const viewersPost = [
+      ...new Set([
+        ...folder.getViewers().map(u => u.getEmail()),
+        ...viewersToAdd,
+      ]),
+    ];
     getCell('viewers')(row).setValue(viewersPost.join(', '));
     getCell('note')(row).setValue(`Shared`);
     getCell('triggeredAt')(row).setValue(current);
