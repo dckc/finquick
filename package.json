@@ -4,9 +4,10 @@
   },
   "devDependencies": {
     "@endo/eslint-plugin": "^0.5.1",
-    "@jessie.js/eslint-plugin": "^0.4.0",
     "@google/clasp": "^2.4.2",
+    "@jessie.js/eslint-plugin": "^0.4.0",
     "@types/better-sqlite3": "^7.6.1",
+    "@types/google-apps-script": "^1.0.83",
     "@types/node": "^14.14.7",
     "@typescript-eslint/parser": "^4.21.0",
     "eslint-config-airbnb-base": "^14.2.1",

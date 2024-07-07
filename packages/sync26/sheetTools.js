@@ -11,13 +11,13 @@ function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
 
 const zip = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
 
-function getRowRecord(sheet, row, headings) {
+/* export */ function getRowRecord(sheet, row, headings) {
   const [values] = sheet.getRange(row, 1, 1, headings.length).getValues();
   const entries = zip(headings, values);
   return Object.fromEntries(entries);
 }
 
-function getHeading(sheet) {
+/* export */ function getHeading(sheet) {
   const hd = [];
   for (
     let col = 1, name;

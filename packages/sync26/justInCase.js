@@ -1,18 +1,55 @@
 /**
  * @file Share a folder if owner is not available to keep it confidential.
+ * aka make a [Dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch).
  *
- * [Installable Triggers | Apps Script |  Google for Developers](https://developers.google.com/apps-script/guides/triggers/installable)
+ * Usage:
+ *  - make a menu item for shareJustInCase.
+ *  - make a Triggers sheet with the following columns:
  *
- * see also [Dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch)
+ * @typedef {{
+ *   status: boolean;
+ *   deadline: Date;
+ *   folder: GoogleAppsScript.Drive.Folder; // rich text linked to a GDrive folder
+ *   viewersToAdd: string; // comma-separated email addresses
+ *   viewers?: string;
+ *   note?: 'Disabled' | 'Ready' | 'Pending' | 'Triggered';
+ *   triggeredAt?: Date;
+ * }} FolderTriggerDetail
  *
- * TODO: rework as CALENDAR trigger?
+ * requires {@link sheetTools.js}
  */
+// @ts-check
 
-function shareFolder(io = {}) {
+// import { getHeading, getRowRecord } from './sheetTools.js';
+
+/**
+ * @template T
+ * @param {T | null | undefined} x
+ * @returns T
+ */
+const NonNullish = x => {
+  if (!x) throw Error('null / undefined not expected');
+  return x;
+};
+
+/**
+ * Add an emailAddress to the viewers of a folder.
+ *
+ * @param {{ emailAddress: string } & (HasFolder | HasFolderId)} io
+ *
+ * @typedef {object} HasFolder
+ * @property {GoogleAppsScript.Drive.Folder} folder
+ * @property {string} [folderId] ignored
+ *
+ * @typedef {object} HasFolderId
+ * @property {string} folderId only used if folder is not present
+ * @property {GoogleAppsScript.Drive.Folder} [folder]
+ */
+function shareFolder(io) {
   const {
     folderId,
-    folder = DriveApp.getFolderById(folderId),
-    emailAddress,
+    folder = DriveApp.getFolderById(NonNullish(folderId)),
+    emailAddress, // TODO: default to fail
   } = io;
 
   console.log('adding viewer to folder', {
@@ -35,22 +72,37 @@ function shareFolderTest(io = {}) {
   const detail = getRowRecord(sheet, row, hd);
   const folderCol = hd.indexOf('folder') + 1;
   const { folderId } = getFolderId(sheet.getRange(row, folderCol));
+  if (!folderId) throw Error('missing folder');
   const emailAddress = detail.viewersToAdd; // assume just 1 for initial test
   shareFolder({ folderId, emailAddress });
 }
 
+/** @param {GoogleAppsScript.Spreadsheet.Range} range */
 function getFolderId(range) {
   const url = range?.getRichTextValue()?.getLinkUrl();
-  if (!url) return undefined;
+  if (!url) return {};
   const folderId = url.split('/').at(-1);
   return { url, folderId };
 }
 
+/**
+ * Evaluate folder deadlines and, if any are pending, create a
+ * [trigger](https://developers.google.com/apps-script/guides/triggers/installable)
+ * to run `onSharingTrigger`.
+ *
+ * @param {object} io
+ * @param {string} [io.sheetName]
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [io.doc]
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} [io.sheet]
+ * @param {() => Date} [io.clock]
+ * @param {typeof DriveApp.getFolderById} [io.getFolderById]
+ * @param {typeof ScriptApp.newTrigger} [io.newTrigger]
+ */
 function shareJustInCase(io = {}) {
   const {
     sheetName = 'Triggers',
     doc = SpreadsheetApp.getActive(),
-    sheet = doc.getSheetByName(sheetName),
+    sheet = NonNullish(doc.getSheetByName(sheetName)),
     clock = () => new Date(),
     getFolderById = id => DriveApp.getFolderById(id),
   } = io;
@@ -58,13 +110,18 @@ function shareJustInCase(io = {}) {
   deleteAllTriggers(); // XXX pass ScriptApp.getProjectTriggers
 
   const hd = getHeading(sheet);
+  /** @param {string} colName */
   const getCell = colName => {
     const colNum = hd.indexOf(colName) + 1;
+    /** @param {number} row */
     return row => sheet.getRange(row, colNum, 1, 1);
   };
+  /** @type {Date | undefined} */
   let firstDeadline;
   for (let row = sheet.getLastRow(); row > 1; row -= 1) {
-    const detail = getRowRecord(sheet, row, hd);
+    const detail = /** @type {FolderTriggerDetail} */ (
+      getRowRecord(sheet, row, hd)
+    );
 
     const { folderId } = getFolderId(getCell('folder')(row));
     if (!folderId) continue;
@@ -82,7 +139,7 @@ function shareJustInCase(io = {}) {
         ? 'Ready'
         : 'Pending'
       : 'Disabled';
-    console.log({ note, ...detail });
+    console.log({ ...detail, note });
     // TODO: consider a row proxy so we can do rowRecord.note = 'Off';
     getCell('note')(row).setValue(note);
     if (note !== 'Pending') continue;
