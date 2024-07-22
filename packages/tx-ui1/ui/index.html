@@ -1,0 +1,23 @@
+<head>
+  <title>Transaction Search</title>
+  <link href="report.css" rel="stylesheet" />
+</head>
+<body>
+  <script type="module">
+    import {
+      html,
+      render,
+    } from 'https://unpkg.com/htm/preact/standalone.module.js';
+    import { main, TxRegister } from './txUi.js';
+
+    render(html`<${TxRegister} />`, document.body);
+
+    // console.log('@@script');
+    // main({ document, fetch, localStorage, html, Fuse });
+  </script>
+
+  <noscript
+    >Enable JavaScript to make use of this app; the app is not feasible without
+    it.</noscript
+  >
+</body>
