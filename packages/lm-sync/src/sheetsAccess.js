@@ -231,6 +231,10 @@ export const pushTxIds = async (sc, gc, { offset, limit = 3000 } = {}) => {
   for (const tx of txs) {
     if (tx.tx_guid >= '') continue;
     const { ['Account #']: acctNum, ['Account']: acctName } = tx;
+    if (!acctNum) {
+      console.warn('!! no acctNum !!', tx);
+      continue;
+    }
     const acct = await sc
       .lookup('Accounts', {
         'Account #': acctNum,
