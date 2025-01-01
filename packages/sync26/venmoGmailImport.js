@@ -46,11 +46,14 @@ function maybeNumber(amount) {
 }
 
 function getNote(body) {
-  const [_before, rest] = body.split('<!-- note -->');
-  if (!rest) {
-    return '';
-  }
-  const [noteMarkup, _after] = rest.split('</td>');
+  const [_before0, rest0] = body.split('You paid ');
+  if (!rest0) return '';
+  const [_before1, rest1] = rest0.split('</div>');
+  if (!rest1) return '';
+  const [_before, rest] = rest0.split('text-align:left">');
+  if (!rest) return '';
+
+  const [noteMarkup, _after] = rest.split('</p>');
   const tagPat = /<\/?[a-z]+>/g;
   const charRefPat = /&#(\d+);/g;
   const charRef = (_m, digits) => String.fromCharCode(Number(digits));
@@ -88,14 +91,16 @@ function messageDetail_(m) {
   ];
 }
 
-function LoadVenmoReceipts() {
-  console.warn('AMBIENT: SpreadsheetApp');
-  const doc = SpreadsheetApp.getActive();
-  const sheet = doc.getSheetByName(Venmo.sheet);
+function LoadVenmoReceipts(_nonce, io = {}) {
+  const {
+    doc = (console.warn('AMBIENT: SpreadsheetApp'), SpreadsheetApp.getActive()),
+    sheet = doc.getSheetByName(Venmo.sheet),
+    query = doc.getRangeByName(Venmo.queryRange).getValue(),
+    threads = (console.warn('AMBIENT: GmailApp', query),
+    GmailApp.search(query)),
+  } = io;
 
-  const query = doc.getRangeByName(Venmo.queryRange).getValue();
-  console.warn('AMBIENT: GmailApp');
-  const threads = GmailApp.search(query);
+  if (!threads.length) throw Error(`Venmo query (${query}) found no threads`);
   const rows = [];
   threads.forEach(thread =>
     thread.getMessages().forEach((m, ix) => {
@@ -104,6 +109,7 @@ function LoadVenmoReceipts() {
       rows.push(values);
     }),
   );
+  if (!rows.length) throw Error('no Venmo receipts found');
   setRange(sheet, Venmo.hd, rows);
 }
 
