@@ -255,7 +255,7 @@ order by yr, o, path
 -- 2020-01-01 13:00:00 -0800,BUY,Coinbase,BTC,1,500,USD,5.50
 
 -- bitCoinTaxTradeExport:
-with period as (select '2023-01-01' lo, '2023-12-31' as hi)
+with period as (select '2022-01-01' lo, '2024-12-31' as hi)
 , tx as (select * from transactions tx join period where tx.post_date between lo and hi)
 , asset as (
 	select a.account_type, code, name, mnemonic, a.guid
@@ -272,14 +272,15 @@ join splits s on s.tx_guid = tx.guid
 join asset a on s.account_guid = a.guid
 where s.action in ('Buy', 'Sell')
 )
-select date(post_date) || ' ' || num 'Date'
+select replace(date(post_date) || ' ' || num, 'Z', '') 'Date'
      , case when action in ('Buy') then 'BUY'
-       else 'SELL' end Action
+       else 'SELL' end Type
      , name Account
-     , mnemonic Symbol
-     , abs(quantity) Volume
-     , value / quantity Price
-     , 'USD' Currency
+     , mnemonic 'Sent Asset'
+     , round(abs(quantity), 4) 'Sent Amount'
+     , round(value / quantity, 4) Price
+     , -value 'Received Amount'
+     , 'USD' 'Received Asset'
      , description
 from trade
 order by post_date, num
@@ -290,7 +291,7 @@ order by post_date, num
 -- https://digitalasset.intuit.com/DOCUMENT/A6oMzp4uC/Custom_CSV_Template.csv
 
 -- tuboTaxImport:
-with period as (select '2023-01-01' lo, '2023-12-31' as hi)
+with period as (select '2022-01-01' lo, '2024-12-31' as hi)
 , tx as (select * from transactions tx join period where tx.post_date between lo and hi)
 , asset as (
 	select a.account_type, code, name, mnemonic, a.guid
