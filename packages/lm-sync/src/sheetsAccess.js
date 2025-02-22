@@ -1,5 +1,3 @@
-// @ts-check
-
 /**
  * @file Match Sheetsync with GnuCash
  * main features:
@@ -7,6 +5,7 @@
  * @see {pullCategories}
  * @see {main}
  */
+// @ts-check
 
 import { GoogleSpreadsheetRow } from 'google-spreadsheet';
 import { makeORM } from './gcORM.js';
@@ -22,7 +21,6 @@ import { makeORM } from './gcORM.js';
  */
 export const lookup = async (sheet, key) => {
   // load primary key column
-  // @ts-expect-error types are wrong?
   await sheet.loadCells({
     startColumnIndex: 0,
     endColumnIndex: 1,
@@ -43,15 +41,20 @@ export const lookup = async (sheet, key) => {
 };
 
 /**
+ * @import {GoogleSpreadsheetWorksheet, GoogleSpreadsheet, GoogleSpreadsheetRow as GRow, WorksheetGridRange} from 'google-spreadsheet'
+ */
+
+/**
  * @param {GoogleSpreadsheetWorksheet} sheet
  * @param {string | number} key
  * @param {Record<string, string | number>} record
  *
- * @typedef {import('google-spreadsheet').GoogleSpreadsheetWorksheet} GoogleSpreadsheetWorksheet
- * @typedef {import('google-spreadsheet').GoogleSpreadsheet} GoogleSpreadsheet
- * @typedef {import('google-spreadsheet').WorksheetGridRange} WorksheetGridRange
+ * @typedef {GoogleSpreadsheetWorksheet} GoogleSpreadsheetWorksheet
+ * @typedef {GoogleSpreadsheet} GoogleSpreadsheet
+ * @typedef {WorksheetGridRange} WorksheetGridRange
  */
 export const upsert = async (sheet, key, record) => {
+  /** @type {GRow | undefined} */
   let row;
   try {
     row = await lookup(sheet, key);
@@ -60,8 +63,6 @@ export const upsert = async (sheet, key, record) => {
   }
   if (row) {
     Object.assign(row, record);
-    // @ts-expect-error types are wrong?
-    // docs clearly show a raw option
     // https://theoephraim.github.io/node-google-spreadsheet/#/classes/google-spreadsheet-row?id=fn-save
     await row.save({ raw: true });
   } else {
@@ -194,6 +195,40 @@ export const makeSheetsORM = doc => {
 };
 
 /**
+ * @typedef {object} GcTx
+ * @property {string} guid
+ * @property {Date} post_date
+ * @property {string} description
+ *
+ * @typedef {object} GcSplit
+ * @property {string} guid
+ * @property {string} tx_guid
+ * @property {string} account_guid
+ * @property {string} memo
+ *
+ * @typedef {object} GcAccount
+ * @property {string} name
+ * @property {string} code
+ *
+ * @typedef {{
+ *   accounts: GcAccount;
+ *   transactions: GcTx;
+ *   splits: GcSplit;
+ *   split_detail: SplitDetail;
+ * }} MyDB
+ *
+ * @typedef {ReturnType<typeof makeORM<MyDB>>} MyORM
+ *
+ * @typedef {Pick<GcSplit, 'guid' | 'tx_guid' | 'memo'>
+ *   & Pick<GcTx, 'post_date' | 'description'>
+ *   & Pick<GcAccount, 'code'>
+ *   & {
+ *   amount: number;
+ *   online_id: string;
+ * }} SplitDetail
+ */
+
+/**
  * Match Syncsheets transactions with GnuCash.
  *
  * For each row that does not yet have a tx_guid,
@@ -214,7 +249,7 @@ export const makeSheetsORM = doc => {
  * ) x where x.rowNum = dest.rowNum
  *
  * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
- * @param {ReturnType<makeORM>} gc GnuCash "ORM"
+ * @param {MyORM} gc GnuCash "ORM"
  * @param {object} pageOptions
  * @param {number} [pageOptions.offset]
  * @param {number} [pageOptions.limit]
@@ -294,7 +329,7 @@ const max = xs => xs.reduce((acc, next) => (acc && next > acc ? next : acc));
  * where splits.guid = xwalk.split_guid;
  *
  * @param {ReturnType<makeSheetsORM>} sc Sheetsync "ORM"
- * @param {ReturnType<makeORM>} gc GnuCash "ORM"
+ * @param {MyORM} gc GnuCash "ORM"
  */
 const pullCategories = async (sc, gc, { offset = 0, limit = 3000 } = {}) => {
   const acctByCode = indexBy('code')(gc.query('accounts', {}));
