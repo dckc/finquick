@@ -1,6 +1,6 @@
 // @ts-check
 
-/** @typedef {import('better-sqlite3').Database} SqliteDB */
+/** @import {Database as SqliteDB} from 'better-sqlite3'  */
 
 const { freeze, keys } = Object;
 
@@ -11,9 +11,18 @@ const { freeze, keys } = Object;
 const clause = (fields, sep = ', ') =>
   fields.map(n => `${n} = :${n}`).join(sep);
 
-/** @param {SqliteDB} db */
+/**
+ * @template {Record<string, Record<string, any>>} DB
+ * @param {SqliteDB} db
+ */
 export const makeORM = db => {
   const self = freeze({
+    /**
+     * @template {string & keyof DB} TN
+     * @param {TN} table
+     * @param {Record<string, unknown>} keyFields
+     * @returns {DB[TN][]}
+     */
     query: (table, keyFields = {}) => {
       const stmt = db.prepare(`
       select * from ${table}
@@ -23,22 +32,28 @@ export const makeORM = db => {
           : '1=1'
       }
     `);
+      // @ts-expect-error ASSUME DB[table] type
       return stmt.all(keyFields);
     },
     /**
-     * @param {string} table
-     * @param {Record<string, unknown>} keyFields
+     * @template {string & keyof DB} TN
+     * @param {TN} table
+     * @param {Partial<DB[table]>} keyFields
      */
     lookup: (table, keyFields) =>
       freeze({
+        /**
+         * @returns {DB[TN]}
+         */
         get: () => {
           const stmt = db.prepare(`
             select * from ${table}
             where ${clause([...keys(keyFields)], ' and ')}
           `);
+          // @ts-expect-error ASSUME DB[table] type
           return stmt.get(keyFields);
         },
-        /** @param {Record<string, unknown>} dataFields */
+        /** @param {Partial<DB[TN]>} dataFields */
         update: dataFields => {
           const stmt = db.prepare(`
             update ${table}
@@ -49,8 +64,9 @@ export const makeORM = db => {
         },
       }),
     /**
-     * @param {string} table
-     * @param {Record<string, unknown>} fields
+     * @template {string & keyof DB} TN
+     * @param {TN} table
+     * @param {Partial<DB[TN]>} fields
      */
     insert: (table, fields) => {
       const names = [...keys(fields)];
@@ -60,9 +76,10 @@ export const makeORM = db => {
       stmt.run(fields);
     },
     /**
-     * @param {string} table
-     * @param {Record<string, unknown>} keyFields
-     * @param {Record<string, unknown>} dataFields
+     * @template {string & keyof DB} TN
+     * @param {TN} table
+     * @param {Partial<DB[TN]>} keyFields
+     * @param {Partial<DB[TN]>} dataFields
      */
     upsert: (table, keyFields, dataFields) => {
       const it = self.lookup(table, keyFields);
