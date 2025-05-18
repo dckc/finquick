@@ -23,6 +23,7 @@ function updateSheetFromCalendar(_nonce, io = {}) {
     )[0],
     // Get today's date (for the start of the query)
     today = new Date(),
+    ui = SpreadsheetApp.getUi(),
   } = io;
 
   const calendarId = calendar.getId();
@@ -79,7 +80,7 @@ function updateSheetFromCalendar(_nonce, io = {}) {
       sheet.getRange(firstRow, 1, 1, 6).setFontWeight('bold');
     }
   } else {
-    SpreadsheetApp.getUi().alert(
+    ui.alert(
       'Info',
       'No events found in the specified calendar for the given date range.',
       SpreadsheetApp.Ui.ButtonSet.OK,
