@@ -98,10 +98,4 @@ function updateSheetFromCalendar() {
       SpreadsheetApp.Ui.ButtonSet.OK,
     );
   }
-
-  SpreadsheetApp.getUi().alert(
-    'Success',
-    'Calendar updated successfully!',
-    SpreadsheetApp.Ui.ButtonSet.OK,
-  );
 }
