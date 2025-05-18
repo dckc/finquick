@@ -3,6 +3,8 @@ const die = msg => {
 };
 const NonNullish = (x, msg) => x || die(msg);
 
+function getCalendarEventUrl(calendarId, eventId) {
+  return `https://calendar.google.com/calendar/event?cid=${calendarId}&eid=${eventId}`;
 }
 
 /**
@@ -56,7 +58,7 @@ function updateSheetFromCalendar() {
     event.getEndTime(),
     event.getLocation(),
     event.getDescription(),
-    event.getHtmlLink(), // Link to the event in Google Calendar
+    getCalendarEventUrl(calendarId, event.getId()),
   ]);
 
   // Clear existing data if specified
