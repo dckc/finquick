@@ -10,39 +10,26 @@ function getCalendarEventUrl(calendarId, eventId) {
 /**
  * Updates the spreadsheet with events from the specified Google Calendar.
  */
-function updateSheetFromCalendar() {
-  // --- Configuration ---
-  const calendarId = 'your_calendar_id@group.calendar.google.com'; // Replace with your calendar ID
-  const sheetName = 'Calendar Events'; // Replace with the name of your sheet
+function updateSheetFromCalendar(_nonce, io = {}) {
+  const {
+    // Get the spreadsheet and sheet
+    ss = SpreadsheetApp.getActiveSpreadsheet(),
+    sheet = ss.getActiveSheet() || ss.getSheets()[0],
+    sheetName = sheet.getName(),
+    // Get the calendar
+    calendar = NonNullish(
+      CalendarApp.getCalendarsByName(sheetName),
+      `cannot find calendar ${sheetName}`,
+    )[0],
+    // Get today's date (for the start of the query)
+    today = new Date(),
+  } = io;
+
+  const calendarId = calendar.getId();
+
   const firstRow = 1; // The first row to write data to (header row assumed above)
   const clearExistingData = true; // Set to true to clear existing data before updating
 
-  // Get the spreadsheet and sheet
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    SpreadsheetApp.getUi().alert(
-      'Error',
-      `Sheet "${sheetName}" not found.`,
-      SpreadsheetApp.Ui.ButtonSet.OK,
-    );
-    return;
-  }
-
-  // Get the calendar
-  const calendar = CalendarApp.getCalendarById(calendarId);
-  if (!calendar) {
-    SpreadsheetApp.getUi().alert(
-      'Error',
-      `Calendar with ID "${calendarId}" not found.`,
-      SpreadsheetApp.Ui.ButtonSet.OK,
-    );
-    return;
-  }
-
-  // Get today's date (for the start of the query)
-  const today = new Date();
   today.setHours(0, 0, 0, 0); // Start of the day
 
   // Get events from the calendar (you can adjust the date range as needed)
