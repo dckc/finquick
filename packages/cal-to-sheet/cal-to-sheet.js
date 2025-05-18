@@ -62,7 +62,7 @@ function updateSheetFromCalendar() {
   ]);
 
   // Clear existing data if specified
-  if (clearExistingData && eventData.length > 0) {
+  if (clearExistingData && sheet.getLastRow() > 0) {
     sheet
       .getRange(firstRow, 1, sheet.getLastRow(), sheet.getLastColumn())
       .clearContent();
