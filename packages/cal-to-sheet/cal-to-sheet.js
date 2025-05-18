@@ -1,3 +1,8 @@
+const die = msg => {
+  throw Error(msg);
+};
+const NonNullish = (x, msg) => x || die(msg);
+
 }
 
 /**
