@@ -15,13 +15,16 @@ SQLITE_MOD := $(BUILD_DIR)/sqlite3.so
 
 all: install
 
-install: $(QJS) $(QWS_MOD) $(SQLITE_MOD)
+install: $(QJS) $(QWS_MOD) $(SQLITE_MOD) $(QWS_SRC)/src/deps/regexparam.js
 
 $(QJS_SRC)/.git/config:
 	git clone https://github.com/bellard/quickjs.git $(QJS_SRC)
 
 $(QWS_SRC)/.git/config:
 	git clone https://github.com/QuickJS-web-project/quickwebserver.git $(QWS_SRC)
+$(QWS_SRC)/src/deps/regexparam.js:
+	mkdir -p $(QWS_SRC)/src/deps
+	curl -s https://unpkg.com/regexparam@2.0.0/dist/index.mjs -o $(QWS_SRC)/src/deps/regexparam.js
 
 $(SQLITE_SRC)/.git/config:
 	git clone https://github.com/ratboy666/qjs-sqlite3.git $(SQLITE_SRC)
@@ -31,14 +34,15 @@ $(QJS): $(QJS_SRC)/.git/config
 	cd $(QJS_SRC) && make -j && cp qjs ../$(BUILD_DIR)/qjs
 
 $(QWS_MOD): $(QWS_SRC)/.git/config $(QJS_SRC)/.git/config $(QWS_SRC)/c/httpserver.h
-	mkdir -p $(BUILD_DIR)
-	gcc -Wall -O2 -fPIC -DJS_SHARED_LIBRARY -DEPOLL -I$(QJS_SRC) \
-		-shared -o $(BUILD_DIR)/qws.so \
-		$(QWS_SRC)/c/quickwebserver.c
+	cd $(QWS_SRC) && gcc -Wall -O2 -fPIC -DJS_SHARED_LIBRARY -DEPOLL -I../$(QJS_SRC) \
+		-shared -o quickwebserver.so \
+		./c/quickwebserver.c
+	ln -sf ../$(QWS_SRC)/quickwebserver.so $(BUILD_DIR)/qws.so
 
 $(QWS_SRC)/c/httpserver.h:
 	curl -s https://raw.githubusercontent.com/jeremycw/httpserver.h/master/httpserver.h --output $@ > /dev/null
-	echo XXXXX needs a patch: comment out common.h on line 650
+	echo XXX applying patch: comment out common.h on line 650
+	sed -i '650s|^|//|' $@
 
 $(SQLITE_MOD): $(SQLITE_SRC)/.git/config
 	mkdir -p $(BUILD_DIR)
@@ -54,6 +58,10 @@ run: install
 query: install
 	@echo "Running query against $(DB)"
 	$(QJS) -m query.js $(DB)
+
+test: install test/test-sqlite.mjs test/test-qws.mjs
+	$(QJS) -m test/test-sqlite.mjs
+	$(QJS) -m test/test-qws.mjs
 
 clean:
 	rm -rf $(BUILD_DIR)
