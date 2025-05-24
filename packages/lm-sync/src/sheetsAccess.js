@@ -262,6 +262,7 @@ export const pushTxIds = async (sc, gc, { offset, limit = 3000 } = {}) => {
   //   };
   console.log('Sheetsync txs:', txs.length);
   let modified = 0;
+  let highlighted = 0;
 
   for (const tx of txs) {
     if (tx.tx_guid >= '') continue;
@@ -291,11 +292,22 @@ export const pushTxIds = async (sc, gc, { offset, limit = 3000 } = {}) => {
       };
       sc.update('Transactions', tx.rowIndex - 1, edits);
       modified += 1;
+    } else {
+      sc.highlight('Transactions', tx.rowIndex - 1, { Date: true });
+      highlighted += 1;
+      console.warn(
+        'no txid found for',
+        tx.Date,
+        tx.Amount,
+        tx['Account #'],
+        tx['Account'],
+      );
     }
   }
   console.log('modified:', modified, { limit, offset });
-  if (modified > 0) {
+  if (modified > 0 || highlighted > 0) {
     await sc.commit('Transactions');
+    console.log('highlighted', highlighted, 'transactions needing txids');
   }
 };
 
@@ -304,7 +316,7 @@ const die = message => {
   throw Error(message);
 };
 /** @type {<K, V>(k: K) => (m: Map<K, V>) => V} */
-const mustGet = k => m => m.get(k) || die(`no ${k}`);
+const mustGet = k => m => m.get(k) || die(`${k}: not found`);
 /** @type {<T, R extends Record<string, T>>(p: string) => (rs: R[]) => Map<unknown, R> } */
 const indexBy = prop => records => new Map(records.map(r => [r[prop], r]));
 /** @type {<T>(prop: string) => (a: T, b: T) => -1 | 0 | 1 } */
