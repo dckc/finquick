@@ -10,6 +10,7 @@ function onOpen() {
     .addItem('Tx Lookup', 'TxLookup')
     .addItem('Tx: Apply Rules', 'ApplyRules')
     .addItem('Load Trade Accounting', 'loadTradeAccountingMessages')
+    .addItem('Share Just In Case', 'shareJustInCase')
     .addSubMenu(
       ui
         .createMenu('Lunch Money')
