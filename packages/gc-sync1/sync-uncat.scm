@@ -48,6 +48,13 @@
       (splits . ,(map gnc:strify splits-uncat)))
 ))
 
+(define (sync1 root)
+  (let* ((uncat (gnc-account-lookup-by-name root "Imbalance-USD"))
+         (cat (gnc-account-lookup-by-name root "Discretionary"))
+         (haystack (xaccAccountGetSplitList uncat))
+         (needle (first haystack)))
+    (xaccSplitSetAccount needle cat)))
+
 (define (run-sync-uncat-tx window)
   (display "hi from run-sync-uncat-tx\n")
   (gnc:gui-msg "XXX unused?" "about to get uncat splits\n")
@@ -62,9 +69,10 @@
     (display (format #f "accts: ~s\n" (map (lambda (a) (xaccAccountGetName a)) accts)))
     (display (format #f "uncat: ~a\n" (show-acct acct-uncat)))
     (display (format #f "uncat splits: ~a\n" (uncat-splits root)))
-    )
-  (gnc:gui-msg "XXX unused?" "didn't crash: get uncat splits\n")
-  )
+    (gnc:gui-msg "XXX unused?" "didn't crash: get uncat splits\n")
+    (sync1 root)
+    (gnc:gui-msg "XXX unused?" "didn't crash: sync1\n")
+  ))
 
 ;; these don't seem to work.
 (gnc:debug "debug\n")
