@@ -11,6 +11,8 @@
 (use-modules (gnucash utilities))   ; for gnc:msg etc.
 (use-modules (gnucash gnome-utils)) ; for gnc:gui-msg etc.
 (use-modules (gnucash report report-utilities))   ; for gnc:strify
+(use-modules (srfi srfi-71)) ; for let*
+(use-modules (web client)) ; for http-request
 
 ;; ;; Define a logging function that tries GnuCash's internal message system first
 ;; (define (log-message msg)
@@ -39,6 +41,17 @@
    (GUID . ,(gncSplitGetGUID split))   
  ))
 
+(define cups-home "http://localhost:631") ; HTTP server that happens to be handy
+
+;; XXX ambient net access. TODO: inject
+(define* (fetch-stuff #:key (url cups-home))
+  (let* ((response body (http-request url)))
+    ;; TODO: error handling
+    ;; (if (not (eql (response-code response) 200))
+    ;;  (error (response-reason-phrase response)))
+    body
+  )
+)
 
 ;; TODO: lookup by code?
 (define* (uncat-splits root #:key (name "Imbalance-USD"))
@@ -70,6 +83,8 @@
     (display (format #f "uncat: ~a\n" (show-acct acct-uncat)))
     (display (format #f "uncat splits: ~a\n" (uncat-splits root)))
     (gnc:gui-msg "XXX unused?" "didn't crash: get uncat splits\n")
+    (let ((body (fetch-stuff)))
+      (gnc:gui-msg "XXX" (format #f "HTTP GET: length: ~a" (string-length body))))
     (sync1 root)
     (gnc:gui-msg "XXX unused?" "didn't crash: sync1\n")
   ))
