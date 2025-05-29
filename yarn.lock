@@ -347,10 +347,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/google-apps-script@npm:^1.0.83":
-  version: 1.0.83
-  resolution: "@types/google-apps-script@npm:1.0.83"
-  checksum: 10c0/57ee29f3dd252859435dfbb254b6f1098c4abc71ae9f296075b4e8e487de19e98785328671a07397394c88f2fa348d60bdbbf560182dfea5e384fdbd7756c8f9
+"@types/google-apps-script@npm:^1.0.97":
+  version: 1.0.97
+  resolution: "@types/google-apps-script@npm:1.0.97"
+  checksum: 10c0/c4f6e36c89ee70bda2662c0c84616f95b9a1882dfb81f264a04a8a226770e13a3be342179f743d5dea2128257654982e226cc5fec18affee394dc34a7832f6dd
   languageName: node
   linkType: hard
 
@@ -4798,7 +4798,7 @@ __metadata:
     "@google/clasp": "npm:^2.4.2"
     "@jessie.js/eslint-plugin": "npm:^0.4.0"
     "@types/better-sqlite3": "npm:^7.6.1"
-    "@types/google-apps-script": "npm:^1.0.83"
+    "@types/google-apps-script": "npm:^1.0.97"
     "@types/node": "npm:^14.14.7"
     "@typescript-eslint/parser": "npm:^4.21.0"
     eslint-config-airbnb-base: "npm:^14.2.1"
