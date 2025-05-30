@@ -2,8 +2,8 @@
 ;; Synchronize uncategorized splits from external data
 
 (define-module (sync-uncat-lib))
-(use-modules ((srfi srfi-71) #:select (let*)))
 (use-modules ((srfi srfi-1) #:select (remove every)))
+(use-modules ((srfi srfi-71) #:select (let*)))
 (use-modules ((gnucash core-utils) #:select (N_)))
 (use-modules ((gnucash utilities) #:select
   (gnc:msg gnc:debug gnc:warn gnc:gui-msg)))
