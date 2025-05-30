@@ -30,22 +30,26 @@
        (every pair? obj)
        (let ((guid        (assoc "guid" obj))
              (date        (assoc "date" obj))
+             (account     (assoc "account" obj))
              (description (assoc "description" obj))
              (amount      (assoc "amount" obj)))
          (and guid (string? (cdr guid))
               date (string? (cdr date))
+              account (string? (cdr account))
               description (string? (cdr description))
               amount (number? (cdr amount))))))
 
 (define (split-record split)
   (let* ((parent (xaccSplitGetParent split))
-        (acct (xaccSplitGetAccount split))
+        (other (xaccSplitGetOtherSplit split))
+        (account-code (xaccAccountGetCode (xaccSplitGetAccount other)))
         (amount (xaccSplitGetAmount split))
         (time64 (xaccTransGetDate parent))
         (datetime-str (gnc-print-time64 time64 "%Y-%m-%d %H:%M:%S"))
         )
     ;; JSON builder object
     `(("date" . ,datetime-str)
+      ("account" . ,account-code)
       ("description" . ,(xaccTransGetDescription parent))
       ;; exact->inexact is a little scary
       ;; how about #(,(numerator amount) "/" ,(denominator amount))?
