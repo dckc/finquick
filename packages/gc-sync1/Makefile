@@ -26,5 +26,10 @@ pyshell-enable:
 repl:
 	LD_LIBRARY_PATH=$(SO_LIBS) $(GUILE) -L $(SITE_GUILE)
 
-test: sync-uncat.scm
+test: sync-uncat-lib.scm
 	LD_LIBRARY_PATH=$(SO_LIBS) $(GUILE) -L $(SITE_GUILE) $<
+
+# Debugging
+# gnucash --debug --log gnc.scm=debug
+# per https://wiki.gnucash.org/wiki/Custom_Reports#Debugging_your_report
+

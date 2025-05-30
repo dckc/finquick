@@ -1,43 +1,25 @@
 ;; sync-uncat.scm
 ;; Synchronize uncategorized splits from external data
 
-;; Debugging
-;; gnucash --debug --log gnc.scm=debug
-;; per https://wiki.gnucash.org/wiki/Custom_Reports#Debugging_your_report
-
 (define-module (sync-uncat-lib))
-
-(use-modules (srfi srfi-71)) ; for let*
-(use-modules (srfi srfi-1)) ; for remove
-(use-modules (gnucash engine))      ; For ACCT-TYPE-INCOME
-(use-modules (gnucash app-utils))   ; For gnc:message, if it works for logging.
-(use-modules (gnucash core-utils))  ; For N_
-(use-modules (gnucash utilities))   ; for gnc:msg etc.
-(use-modules (gnucash gnome-utils)) ; for gnc:gui-msg etc.
-(use-modules (gnucash report report-utilities))   ; for gnc:strify
-(use-modules (web client)) ; for http-request
-(use-modules (gnucash json))
+(use-modules ((srfi srfi-71) #:select (let*)))
+(use-modules ((srfi srfi-1) #:select (remove every)))
+(use-modules ((gnucash core-utils) #:select (N_)))
+(use-modules ((gnucash utilities) #:select
+  (gnc:msg gnc:debug gnc:warn gnc:gui-msg)))
+(use-modules ((gnucash report report-utilities) #:select (gnc:strify)))
+(use-modules ((web client) #:select (http-request)))
+(use-modules ((gnucash json builder) #:select (scm->json-string)))
+;; #:select doesn't work for xaccTransGetDate etc.
+;; maybe due to FFI magic in (gnucash engine)?
+(use-modules (gnucash engine)) ;; #select (
+;; xaccSplitSetAccount xaccSplitGet* xaccTransGet* xaccAccountGet*
+;; gnc-account-lookup-by-name gnc-account-get-children-sorted gnc-print-time64)
+;; (load-and-reexport (sw_app_utils) ...)
+(use-modules (gnucash app-utils)) ;; #:select (gnc-get-current-book gnc-get-current-root-account)
 
 (export run-push-tx-ids)
 (export run-pull-categories)
-
-;; ;; Define a logging function that tries GnuCash's internal message system first
-;; (define (log-message msg)
-;;         (display (string-append "SCRIPT LOG: " msg "\n"))
-;;         (force-output))
-
-;; ;; This is the function that defines the action for your menu item
-;; (define (run-get-book-info window) ; The lambda in make-menu-item receives the window object
-;;   (let ((book (gnc-get-current-book)))
-;;     (if book
-;;         (let ((filename (gnc-book-get-filename book))) ; <<< TRY THIS: gnc-book-get-filename
-;;           (if filename
-;;               (log-message (string-append "Current GnuCash file: " filename))
-;;               (log-message "Current GnuCash file name could not be retrieved (maybe not saved?).")))
-;;         (log-message "No GnuCash file is currently open."))))
-
-(format #t "ACCT-TYPE-INCOME: ~a~%" ACCT-TYPE-INCOME)
-
 
 (define (valid-transaction? obj)
   (and (list? obj)
