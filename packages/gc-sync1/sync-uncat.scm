@@ -1,106 +1,33 @@
 ;; sync-uncat.scm
 ;; Synchronize uncategorized splits from external data
 
-;; Debugging
-;; gnucash --debug --log gnc.scm=debug
-;; per https://wiki.gnucash.org/wiki/Custom_Reports#Debugging_your_report
+(load  (gnc-build-userdata-path "sync-uncat-lib.scm"))
+(use-modules (sync-uncat-lib))
 
-(use-modules (gnucash engine))      ; For ACCT-TYPE-INCOME
-(use-modules (gnucash app-utils))   ; For gnc:message, if it works for logging.
-(use-modules (gnucash core-utils))  ; For N_
-(use-modules (gnucash utilities))   ; for gnc:msg etc.
-(use-modules (gnucash gnome-utils)) ; for gnc:gui-msg etc.
-(use-modules (gnucash report report-utilities))   ; for gnc:strify
-(use-modules (srfi srfi-71)) ; for let*
-(use-modules (web client)) ; for http-request
+(define (handle-exn key . args)
+  ;; Handle or log the error
+  (format (current-error-port) "Error in extension: ~a ~a~%" key args)
+  ;; Optionally show GUI feedback
+  (gnc:gui-msg "?" (format #f "Extension Failed: ~a" args)))
 
-;; ;; Define a logging function that tries GnuCash's internal message system first
-;; (define (log-message msg)
-;;         (display (string-append "SCRIPT LOG: " msg "\n"))
-;;         (force-output))
-
-;; ;; This is the function that defines the action for your menu item
-;; (define (run-get-book-info window) ; The lambda in make-menu-item receives the window object
-;;   (let ((book (gnc-get-current-book)))
-;;     (if book
-;;         (let ((filename (gnc-book-get-filename book))) ; <<< TRY THIS: gnc-book-get-filename
-;;           (if filename
-;;               (log-message (string-append "Current GnuCash file: " filename))
-;;               (log-message "Current GnuCash file name could not be retrieved (maybe not saved?).")))
-;;         (log-message "No GnuCash file is currently open."))))
-
-(format #t "ACCT-TYPE-INCOME: ~a\n" ACCT-TYPE-INCOME)
-
-(define (show-acct acct)
- `((name . ,(xaccAccountGetName acct))
-   (GUID . ,(gncAccountGetGUID acct))   
- ))
-
-(define (show-split split)
- `((date . ,(xaccTransGetDate (xaccSplitGetParent split)))
-   (GUID . ,(gncSplitGetGUID split))   
- ))
-
-(define cups-home "http://localhost:631") ; HTTP server that happens to be handy
-
-;; XXX ambient net access. TODO: inject
-(define* (fetch-stuff #:key (url cups-home))
-  (let* ((response body (http-request url)))
-    ;; TODO: error handling
-    ;; (if (not (eql (response-code response) 200))
-    ;;  (error (response-reason-phrase response)))
-    body
-  )
-)
-
-;; TODO: lookup by code?
-(define* (uncat-splits root #:key (name "Imbalance-USD"))
-  (let* ((acct-uncat (gnc-account-lookup-by-name root name))
-         (splits-uncat (xaccAccountGetSplitList acct-uncat)))
-    `((account . ,(gnc:strify acct-uncat))
-      (splits . ,(map gnc:strify splits-uncat)))
-))
-
-(define (sync1 root)
-  (let* ((uncat (gnc-account-lookup-by-name root "Imbalance-USD"))
-         (cat (gnc-account-lookup-by-name root "Discretionary"))
-         (haystack (xaccAccountGetSplitList uncat))
-         (needle (first haystack)))
-    (xaccSplitSetAccount needle cat)))
-
-(define (run-sync-uncat-tx window)
-  (display "hi from run-sync-uncat-tx\n")
-  (gnc:gui-msg "XXX unused?" "about to get uncat splits\n")
-  (let* (
-      (book (gnc-get-current-book))
-      (root (gnc-get-current-root-account))
-      (accts (gnc-account-get-children-sorted root))
-      (acct-uncat (gnc-account-lookup-by-name root "Imbalance-USD") )
-      )
-    (display (format #f "book: ~a\n" book))
-    (display (format #f "root: ~a\n" root))
-    (display (format #f "accts: ~s\n" (map (lambda (a) (xaccAccountGetName a)) accts)))
-    (display (format #f "uncat: ~a\n" (show-acct acct-uncat)))
-    (display (format #f "uncat splits: ~a\n" (uncat-splits root)))
-    (gnc:gui-msg "XXX unused?" "didn't crash: get uncat splits\n")
-    (let ((body (fetch-stuff)))
-      (gnc:gui-msg "XXX" (format #f "HTTP GET: length: ~a" (string-length body))))
-    (sync1 root)
-    (gnc:gui-msg "XXX unused?" "didn't crash: sync1\n")
-  ))
-
-;; these don't seem to work.
-(gnc:debug "debug\n")
-(gnc:msg "message\n")
-(gnc:warn "warn\n")
-
-;; ;; Register the menu item
+;; Register the menu items
 (gnc-add-scm-extension
  (gnc:make-menu-item
-  (N_ "Sync Uncat Tx")          ; Name that appears in the menu
+  (N_ "Push Uncat Txs")          ; Name that appears in the menu
   "0d9fe0a6-de1b-4de5-a27c-1919cd9fe484"
-  (N_ "Synchronize uncategorized splits from external data") ; Tooltip/Description
+  (N_ "Push uncategorized splits to SheetSync") ; Tooltip/Description
   (list (N_ "Tools"))             ; Path: "Tools" menu
-  (lambda (window)                      ; The action function when clicked
-    (run-sync-uncat-tx window)) ; Call your defined action function
+  (lambda (window)
+    (catch #t (lambda () (run-push-tx-ids window)) handle-exn))
   ))
+
+(gnc-add-scm-extension
+ (gnc:make-menu-item
+  (N_ "Pull Categories")
+  "c397d0f6-7876-4efd-a2b2-8eabd51ab63a"
+  (N_ "Pull categories from SheetSync")
+  (list (N_ "Tools"))
+    (lambda (window)
+    (catch #t (lambda () (run-pull-categories window)) handle-exn))
+  ))
+
