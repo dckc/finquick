@@ -3,12 +3,14 @@
 
 (define-module (sync-uncat-lib))
 (use-modules ((srfi srfi-1) #:select (remove every)))
+(use-modules ((srfi srfi-11) #:select (let-values)))
 (use-modules ((srfi srfi-71) #:select (let*)))
 (use-modules ((gnucash core-utils) #:select (N_)))
 (use-modules ((gnucash utilities) #:select
   (gnc:msg gnc:debug gnc:warn gnc:gui-msg)))
 (use-modules ((gnucash report report-utilities) #:select (gnc:strify)))
 (use-modules ((web client) #:select (http-request)))
+(use-modules ((web response) #:select (response-code response-headers)))
 (use-modules ((gnucash json builder) #:select (scm->json-string)))
 ;; #:select doesn't work for xaccTransGetDate etc.
 ;; maybe due to FFI magic in (gnucash engine)?
@@ -65,18 +67,41 @@
     (format #t "accts: ~s\n" (map (lambda (a) (xaccAccountGetName a)) accts))
     (format #t "uncat: ~a\n" (gnc:strify acct-uncat))))
 
+(define (logged label x)
+  (format #t label x)
+  x)
+
+(define* (http-post* url #:key (method 'POST) (body #f) (headers '()))
+  (let-values (((resp resp-body)
+                (http-request url #:method method #:headers headers #:body body)))
+    (if (memq (response-code (logged "resp ~a~%" resp)) '(301 302 303))
+      (let ((url2 (cdr (assoc 'location (response-headers resp)))))
+        ;; switch to GET on redirect
+        (http-request (logged "redirect to ~a~%" url2)
+          #:method 'GET #:headers headers #:body body))
+      (values resp body))))
+
 (define (run-push-tx-ids window)
   ;; (display "hi from run-push-tx-ids\n")
   (explore-gnucash-api)
   (let* ((root (gnc-get-current-root-account))
-         (records (map split-record (uncat-splits root)))
+         (records (logged "uncat records sexp: ~%~a~%" (map split-record (uncat-splits root))))
          (invalid-records (remove valid-transaction? records))
-         (data (list->vector records)))
+         (data `(("transactions" . ,(list->vector records)))))
     (unless (null? invalid-records)
         (error "bad records:" invalid-records))
-    (format #t "uncat records sexp: ~%~a~%" records)
-    (format #t "uncat records JSON: ~%~a~%" (scm->json-string data #:pretty #t))
-    (gnc:gui-msg "?" (format #f "found ~a uncategorized transactions; TODO: POST" (length records)))))
+    (gnc:gui-msg "?" (format #f "found ~a uncategorized transactions to POST" (length records)))
+    (let-values (((response response-body)
+                  (http-post* (logged "XXX ambient env URL: ~a~%" (getenv "FINSYNC"))
+                   #:method 'POST
+                   #:headers `((content-type . (application/json)))
+                   #:body (logged "uncat records JSON: ~%~a~%"
+                           (scm->json-string data #:pretty #t)))))
+            (unless (eqv? (response-code response) 200)
+              (format #t "error body: ~a~%" response-body)
+              (error "unexpected response" response)))
+    (gnc:gui-msg "?" "POSTed")
+    ))
 
 
 (define cups-home "http://localhost:631") ; HTTP server that happens to be handy
