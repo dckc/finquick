@@ -11,7 +11,7 @@
 const config = {
   sheetUncat: {
     name: 'GnuCash_Uncat',
-    hd: ['date', 'description', 'amount', 'tx_guid', 'uploaded'],
+    hd: ['date', 'account', 'description', 'amount', 'tx_guid', 'uploaded'],
   },
   /** Name of your SheetSync Transactions sheet */
   sheetTx: 'Transactions (2)',
@@ -27,6 +27,7 @@ const EXPECTED_POST_BODY_FORMAT = {
     {
       guid: 'deadbeef...',
       date: '2020-01-02',
+      account: '1234', // account code
       description: 'payee etc.',
       amount: 123.45,
     },
@@ -104,6 +105,7 @@ const saveUploaded = (
 
   const rows = uncategorizedTransactions.map(tx => [
     tx.date,
+    tx.account,
     tx.description,
     tx.amount,
     tx.guid,
