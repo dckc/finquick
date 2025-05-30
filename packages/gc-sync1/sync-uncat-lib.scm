@@ -21,6 +21,8 @@
 (export run-push-tx-ids)
 (export run-pull-categories)
 
+;; Uncategorized transaction data structure for use with scm->json
+;; See also EXPECTED_POST_BODY_FORMAT in syncSvc.js
 (define (valid-transaction? obj)
   (and (list? obj)
        (every pair? obj)
@@ -49,10 +51,38 @@
       ("guid" . ,(gncTransGetGUID parent))   
       )))
 
+(define* (uncat-splits root #:key (name "Imbalance-USD"))
+  (xaccAccountGetSplitList (gnc-account-lookup-by-name root name)))
+
+(define (explore-gnucash-api)
+  (let* ((book (gnc-get-current-book))
+         (root (gnc-get-current-root-account))
+         (accts (gnc-account-get-children-sorted root))
+         (acct-uncat (gnc-account-lookup-by-name root "Imbalance-USD")))
+    ;; (format #t ...) would likely obviate (display ...)
+    (format #t "book: ~a\n" book)
+    (format #t "root: ~a\n" root)
+    (format #t "accts: ~s\n" (map (lambda (a) (xaccAccountGetName a)) accts))
+    (format #t "uncat: ~a\n" (gnc:strify acct-uncat))))
+
+(define (run-push-tx-ids window)
+  ;; (display "hi from run-push-tx-ids\n")
+  (explore-gnucash-api)
+  (let* ((root (gnc-get-current-root-account))
+         (records (map split-record (uncat-splits root)))
+         (invalid-records (remove valid-transaction? records))
+         (data (list->vector records)))
+    (unless (null? invalid-records)
+        (error "bad records:" invalid-records))
+    (format #t "uncat records sexp: ~%~a~%" records)
+    (format #t "uncat records JSON: ~%~a~%" (scm->json-string data #:pretty #t))
+    (gnc:gui-msg "?" (format #f "found ~a uncategorized transactions; TODO: POST" (length records)))))
+
+
 (define cups-home "http://localhost:631") ; HTTP server that happens to be handy
 
-;; XXX ambient net access. TODO: inject
 (define* (fetch-stuff #:key (url cups-home))
+  (gnc:warn "XXX ambient net access. TODO: inject\n")
   (let* ((response body (http-request url)))
     ;; TODO: error handling
     ;; (if (not (eql (response-code response) 200))
@@ -61,10 +91,7 @@
     )
   )
 
-;; TODO: lookup by code?
-(define* (uncat-splits root #:key (name "Imbalance-USD"))
-  (xaccAccountGetSplitList (gnc-account-lookup-by-name root name)))
-
+;; experimentally verify that we can sert the "Category" of 1 split.
 (define (sync1 root)
   (let* ((uncat (gnc-account-lookup-by-name root "Imbalance-USD"))
          (cat (gnc-account-lookup-by-name root "Discretionary"))
@@ -73,48 +100,16 @@
       (let ((needle (car haystack)))
         (xaccSplitSetAccount needle cat)))))
 
-(define (run-push-tx-ids window)
-  (display "hi from run-push-tx-ids\n")
-;;   (gnc:gui-msg "XXX unused?" "about to get uncat splits\n")
-  (let* (
-         (book (gnc-get-current-book))
-         (root (gnc-get-current-root-account))
-         (accts (gnc-account-get-children-sorted root))
-         (acct-uncat (gnc-account-lookup-by-name root "Imbalance-USD") )
-         )
-    (display (format #f "book: ~a\n" book))
-    (display (format #f "root: ~a\n" root))
-    (display (format #f "accts: ~s\n" (map (lambda (a) (xaccAccountGetName a)) accts)))
-    (display (format #f "uncat: ~a\n" (gnc:strify acct-uncat)))
-    (display (format #f "uncat splits: ~a\n"
-      (map gnc:strify (uncat-splits root))))
-    (let* ((records (map split-record (uncat-splits root)))
-           (invalid-records (remove valid-transaction? records))
-           (data (list->vector records)))
-       (unless (null? invalid-records)
-         (error "bad records:" invalid-records))
-       (display (format #f "uncat records sexp: ~%~a~%" records))
-       (display (format #f "uncat records JSON: ~%~a~%" (scm->json-string data #:pretty #t))))
-    (gnc:gui-msg "XXX unused?" "didn't crash: get uncat splits\n")
-    (format #f "HTTP post in JSON")
-    ))
-
-
 (define (run-pull-categories window)
   (display "hi from run-pull-categories\n")
   (let* (
          (root (gnc-get-current-root-account))
          (acct-uncat (gnc-account-lookup-by-name root "Imbalance-USD") )
          )
-    (display (format #f "root: ~a\n" root))
-    (display (format #f "uncat: ~a\n" (gnc:strify acct-uncat)))
+    (format #t "root: ~a\n" root)
+    (format #t "uncat: ~a\n" (gnc:strify acct-uncat))
     (let ((body (fetch-stuff)))
       (gnc:gui-msg "XXX" (format #f "HTTP GET: length: ~a" (string-length body))))
     (sync1 root)
     (gnc:gui-msg "XXX unused?" "didn't crash: sync1\n")
     ))
-
-;; these don't seem to work.
-(gnc:debug "debug\n")
-(gnc:msg "message\n")
-(gnc:warn "warn\n")
