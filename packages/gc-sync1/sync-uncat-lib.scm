@@ -1,5 +1,9 @@
 ;; sync-uncat.scm
 ;; Synchronize uncategorized splits from external data
+;;
+;; Copyright (C) 2025 by Dan Connolly
+;; SPDX-License-Identifier: Apache-2.0
+;; Share and Enjoy.
 
 (define-module (sync-uncat-lib))
 (use-modules ((srfi srfi-1) #:select (remove every)))
@@ -7,7 +11,7 @@
 (use-modules ((srfi srfi-71) #:select (let*)))
 (use-modules ((gnucash core-utils) #:select (N_)))
 (use-modules ((gnucash utilities) #:select
-  (gnc:msg gnc:debug gnc:warn gnc:gui-msg)))
+              (gnc:msg gnc:debug gnc:warn gnc:gui-msg)))
 (use-modules ((gnucash report report-utilities) #:select (gnc:strify)))
 (use-modules ((web client) #:select (http-request)))
 (use-modules ((web response) #:select (response-code response-headers)))
@@ -41,12 +45,12 @@
 
 (define (split-record split)
   (let* ((parent (xaccSplitGetParent split))
-        (other (xaccSplitGetOtherSplit split))
-        (account-code (xaccAccountGetCode (xaccSplitGetAccount other)))
-        (amount (xaccSplitGetAmount split))
-        (time64 (xaccTransGetDate parent))
-        (datetime-str (gnc-print-time64 time64 "%Y-%m-%d %H:%M:%S"))
-        )
+         (other (xaccSplitGetOtherSplit split))
+         (account-code (xaccAccountGetCode (xaccSplitGetAccount other)))
+         (amount (xaccSplitGetAmount split))
+         (time64 (xaccTransGetDate parent))
+         (datetime-str (gnc-print-time64 time64 "%Y-%m-%d %H:%M:%S"))
+         )
     ;; JSON builder object
     `(("date" . ,datetime-str)
       ("account" . ,account-code)
@@ -79,11 +83,11 @@
   (let-values (((resp resp-body)
                 (http-request url #:method method #:headers headers #:body body)))
     (if (memq (response-code (logged "resp ~a~%" resp)) '(301 302 303))
-      (let ((url2 (cdr (assoc 'location (response-headers resp)))))
-        ;; switch to GET on redirect
-        (http-request (logged "redirect to ~a~%" url2)
-          #:method 'GET #:headers headers #:body body))
-      (values resp body))))
+        (let ((url2 (cdr (assoc 'location (response-headers resp)))))
+          ;; switch to GET on redirect
+          (http-request (logged "redirect to ~a~%" url2)
+                        #:method 'GET #:headers headers #:body body))
+        (values resp body))))
 
 (define (run-push-tx-ids window)
   ;; (display "hi from run-push-tx-ids\n")
@@ -93,20 +97,19 @@
          (invalid-records (remove valid-transaction? records))
          (data `(("transactions" . ,(list->vector records)))))
     (unless (null? invalid-records)
-        (error "bad records:" invalid-records))
+      (error "bad records:" invalid-records))
     (gnc:gui-msg "?" (format #f "found ~a uncategorized transactions to POST" (length records)))
     (let-values (((response response-body)
                   (http-post* (logged "XXX ambient env URL: ~a~%" (getenv "FINSYNC"))
-                   #:method 'POST
-                   #:headers `((content-type . (application/json)))
-                   #:body (logged "uncat records JSON: ~%~a~%"
-                           (scm->json-string data #:pretty #t)))))
-            (unless (eqv? (response-code response) 200)
-              (format #t "error body: ~a~%" response-body)
-              (error "unexpected response" response)))
+                              #:method 'POST
+                              #:headers `((content-type . (application/json)))
+                              #:body (logged "uncat records JSON: ~%~a~%"
+                                             (scm->json-string data #:pretty #t)))))
+      (unless (eqv? (response-code response) 200)
+        (format #t "error body: ~a~%" response-body)
+        (error "unexpected response" response)))
     (gnc:gui-msg "?" "POSTed")
     ))
-
 
 (define cups-home "http://localhost:631") ; HTTP server that happens to be handy
 
