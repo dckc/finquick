@@ -26,7 +26,10 @@ pyshell-enable:
 repl:
 	LD_LIBRARY_PATH=$(SO_LIBS) $(GUILE) -L $(SITE_GUILE)
 
-test: sync-uncat-lib.scm
+SITE_GUILE=/usr/share/guile/site/3.0/
+GUILE=guile
+SO_LIBS=/usr/lib/x86_64-linux-gnu/gnucash:/usr/lib/x86_64-linux-gnu/gnucash/gnucash:/usr/lib/x86_64-linux-gnu
+check: sync-uncat-lib.scm
 	LD_LIBRARY_PATH=$(SO_LIBS) $(GUILE) -L $(SITE_GUILE) $<
 
 # Debugging
