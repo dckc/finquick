@@ -8,7 +8,7 @@ This package provides a Google Apps Script web app that returns the modification
 
 ## Setup
 
-1. Install clasp globally if you haven't already:
+1. Install clasp globally (required for deployment, though you could add it as a devDependency if preferred):
    ```bash
    npm install -g @google/clasp
    ```
@@ -18,7 +18,8 @@ This package provides a Google Apps Script web app that returns the modification
    yarn login
    ```
 
-3. Create a new Google Apps Script project and note the script ID.
+3. Create a new Google Apps Script project and note the script ID. 
+   [See the Google Apps Script documentation](https://developers.google.com/apps-script/guides/projects) for detailed instructions on creating projects.
 
 4. Update `.clasp.json` with your script ID:
    ```json
@@ -37,6 +38,7 @@ This package provides a Google Apps Script web app that returns the modification
    ```bash
    yarn deploy
    ```
+   [See the clasp deployment documentation](https://developers.google.com/apps-script/guides/clasp#deployments) for more details on deployment options and web app configuration.
 
 ## Usage
 
@@ -66,8 +68,8 @@ Use the provided `example-usage.mk` file as a reference for integrating with Mak
 
 ## Scripts
 
-- `yarn push` - Push code to Google Apps Script
-- `yarn deploy` - Push and deploy as web app (requires DEPLOYMENT_ID env var)
+- `yarn push` - Push code to Google Apps Script (uploads your local files to the remote project)
+- `yarn deploy` - Push and deploy as web app (requires DEPLOYMENT_ID env var) (creates a new web app version that can be accessed via URL)
 - `yarn curl` - Test the deployed web app (requires DEPLOYMENT_ID and SHEET_ID env vars)
 - `yarn login` - Login to Google Apps Script
 - `yarn lint` - Run ESLint to check code style (Airbnb style)

@@ -2,20 +2,22 @@
   "name": "makesheet",
   "version": "0.1.0",
   "description": "Google Sheets timestamp service for Make-based workflows",
-  "main": "sheetInfo.js",
-  "author": "Dan Connolly",
+  "author": "Dan Connolly (with GitHub Copilot)",
   "license": "MIT",
   "scripts": {
     "push": "clasp push",
     "deploy": "clasp push; clasp deploy --deploymentId $DEPLOYMENT_ID",
     "curl": "curl -L https://script.google.com/macros/s/$DEPLOYMENT_ID/exec?sheetId=$SHEET_ID",
     "login": "clasp login",
-    "lint": "eslint *.js",
-    "lint-fix": "eslint --fix *.js"
+    "lint": "eslint --config .eslintrc.json --no-eslintrc *.js",
+    "lint-fix": "eslint --config .eslintrc.json --no-eslintrc --fix *.js"
   },
   "devDependencies": {
     "@google/clasp": "^2.3.0",
     "@types/google-apps-script": "^1.0.17",
-    "typescript": "^4.0.5"
+    "typescript": "^4.0.5",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.22.1"
   }
 }
