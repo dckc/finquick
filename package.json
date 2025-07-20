@@ -7,7 +7,8 @@
     "packages/br-cal",
     "packages/br-script",
     "packages/discover-dl",
-    "packages/lm-sync"
+    "packages/lm-sync",
+    "packages/makesheet"
   ],
   "devDependencies": {
     "@endo/eslint-plugin": "^0.5.1",
