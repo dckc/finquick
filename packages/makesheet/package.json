@@ -9,7 +9,9 @@
     "push": "clasp push",
     "deploy": "clasp push; clasp deploy --deploymentId $DEPLOYMENT_ID",
     "curl": "curl -L https://script.google.com/macros/s/$DEPLOYMENT_ID/exec?sheetId=$SHEET_ID",
-    "login": "clasp login"
+    "login": "clasp login",
+    "lint": "eslint *.js",
+    "lint-fix": "eslint --fix *.js"
   },
   "devDependencies": {
     "@google/clasp": "^2.3.0",

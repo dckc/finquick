@@ -70,3 +70,20 @@ Use the provided `example-usage.mk` file as a reference for integrating with Mak
 - `yarn deploy` - Push and deploy as web app (requires DEPLOYMENT_ID env var)
 - `yarn curl` - Test the deployed web app (requires DEPLOYMENT_ID and SHEET_ID env vars)
 - `yarn login` - Login to Google Apps Script
+- `yarn lint` - Run ESLint to check code style (Airbnb style)
+- `yarn lint-fix` - Run ESLint and automatically fix issues
+
+## Testing
+
+The code includes test functions that can be used with the Google Apps Script debugger:
+
+- `_testDoGet()` - Tests the main `doGet` function with various input scenarios
+- `_testCreateJsonResponse()` - Tests the JSON response creation function
+
+To run tests in the Google Apps Script editor:
+1. Open your script in the Google Apps Script editor
+2. Select one of the test functions from the function dropdown
+3. Click the run button to execute the test
+4. View the output in the console
+
+This approach follows the pattern suggested for testing Google Apps Script functions without requiring external test frameworks.
