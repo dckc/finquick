@@ -27,7 +27,7 @@ function getRowRecord(sheet, row, headings) {
 function getHeading(sheet, col1 = 1) {
   const hd = [];
   for (
-    let col = 1, name;
+    let col = col1, name;
     (name = sheet.getRange(1, col).getValue()) > '';
     col += 1
   ) {
@@ -36,9 +36,11 @@ function getHeading(sheet, col1 = 1) {
   return hd;
 }
 
-function getSheetRecords(sheet) {
-  const hd = getHeading(sheet);
-  const data = sheet.getRange(2, 1, sheet.getLastRow(), hd.length).getValues();
+function getSheetRecords(sheet, col1 = 1) {
+  const hd = getHeading(sheet, col1);
+  const data = sheet
+    .getRange(2, col1, sheet.getLastRow(), hd.length)
+    .getValues();
   const records = [];
   for (const values of data) {
     const entries = zip(hd, values);
