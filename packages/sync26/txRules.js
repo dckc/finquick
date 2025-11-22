@@ -67,3 +67,13 @@ function ApplyRules() {
   if (!sel) return;
   applyRulesToRange(doc, sel);
 }
+
+function TestGetSelection(_nonce, io = { sheetName: 'Accounts' }) {
+  const {
+    doc = SpreadsheetApp.getActive(),
+    sheetName = Rules.sheetName,
+    sheet = doc.getSheetByName(sheetName),
+  } = io;
+  const { records } = getSheetRecords(sheet, 2);
+  console.log(records.slice(0, 3));
+}
