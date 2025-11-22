@@ -11,20 +11,20 @@ function GetAllSheetNames() {
  * @param {number} [hdRow]
  * @param {number} [detailRow]
  */
-export function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
+/* export */ function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
   sheet.getRange(hdRow, 1, 1, hd.length).setValues([hd]);
   sheet.getRange(detailRow, 1, rows.length, hd.length).setValues(rows);
 }
 
 const zip = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
 
-/* export */ function getRowRecord(sheet, row, headings) {
+function getRowRecord(sheet, row, headings) {
   const [values] = sheet.getRange(row, 1, 1, headings.length).getValues();
   const entries = zip(headings, values);
   return Object.fromEntries(entries);
 }
 
-/* export */ function getHeading(sheet) {
+function getHeading(sheet, col1 = 1) {
   const hd = [];
   for (
     let col = 1, name;
