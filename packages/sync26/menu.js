@@ -9,6 +9,7 @@ function onOpen() {
   ui.createMenu('Family Finances')
     .addItem('Tx Lookup', 'TxLookup')
     .addItem('Tx: Apply Rules', 'ApplyRules')
+    .addItem('Gnc: Sync w/Plaid', 'SyncGnuCashPlaidTxns')
     .addItem('Load Trade Accounting', 'loadTradeAccountingMessages')
     .addItem('Share Just In Case', 'shareJustInCase')
     .addSubMenu(
