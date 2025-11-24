@@ -4,23 +4,30 @@ function GetAllSheetNames() {
   return sheets.map(sheet => sheet.getName());
 }
 
-function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
+/**
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} sheet
+ * @param {string[]} hd
+ * @param {string[][]} rows
+ * @param {number} [hdRow]
+ * @param {number} [detailRow]
+ */
+/* export */ function setRange(sheet, hd, rows, hdRow = 1, detailRow = hdRow + 1) {
   sheet.getRange(hdRow, 1, 1, hd.length).setValues([hd]);
   sheet.getRange(detailRow, 1, rows.length, hd.length).setValues(rows);
 }
 
 const zip = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
 
-/* export */ function getRowRecord(sheet, row, headings) {
+function getRowRecord(sheet, row, headings) {
   const [values] = sheet.getRange(row, 1, 1, headings.length).getValues();
   const entries = zip(headings, values);
   return Object.fromEntries(entries);
 }
 
-/* export */ function getHeading(sheet) {
+function getHeading(sheet, col1 = 1) {
   const hd = [];
   for (
-    let col = 1, name;
+    let col = col1, name;
     (name = sheet.getRange(1, col).getValue()) > '';
     col += 1
   ) {
@@ -29,9 +36,11 @@ const zip = (xs, ys) => xs.map((x, ix) => [x, ys[ix]]);
   return hd;
 }
 
-function getSheetRecords(sheet) {
-  const hd = getHeading(sheet);
-  const data = sheet.getRange(2, 1, sheet.getLastRow(), hd.length).getValues();
+function getSheetRecords(sheet, col1 = 1) {
+  const hd = getHeading(sheet, col1);
+  const data = sheet
+    .getRange(2, col1, sheet.getLastRow(), hd.length)
+    .getValues();
   const records = [];
   for (const values of data) {
     const entries = zip(hd, values);

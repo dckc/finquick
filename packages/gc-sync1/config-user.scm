@@ -1,0 +1,1 @@
+/home/connolly/.config/gnucash/config-user.scm
