@@ -8,6 +8,14 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
   - Relevant ERTP note: mint/purse patterns and amount math are treated as stable, foundational properties for escrow reasoning.
 - Vbank bridge flow: `packages/cosmic-swingset/README-bridge.md` in agoric-sdk (ERTP transfer via vbank).
 
+## Planning
+
+- Brainstorm and write down the initial motivation (ERTP + GnuCash insight).
+- Scaffold the canonical “Alice sends Bob $10” ERTP test so it fails.
+- Make the test pass (starting with the simplest implementation, even if it is not DB-backed yet).
+- Capture each new design constraint as a failing test, then make it pass.
+- Design adversarial tests that probe for theft, destruction, or misdirection of funds.
+
 ## Scope
 
 - Keep changes limited to this package unless the user asks for cross-package updates.
