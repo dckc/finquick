@@ -56,12 +56,22 @@ const makeIssuerKitForCommodity = ({
   nowMs: () => number;
 }): IssuerKitForCommodity => {
   const { freeze } = Object;
+  const Nat = (specimen: bigint) => {
+    if (typeof specimen !== 'bigint') {
+      throw new Error('amount must be bigint');
+    }
+    if (specimen < 0n) {
+      throw new Error('amount must be non-negative');
+    }
+    return specimen;
+  };
   // TODO: consider validation of DB capability and schema.
   const displayInfo = freeze({ assetKind: 'nat' as const });
   const amountShape = freeze({});
   const paymentRecords = new WeakMap<object, { amount: bigint; live: boolean }>();
-  const makeAmount = (value: bigint) => freeze({ brand, value });
+  const makeAmount = (value: bigint) => freeze({ brand, value: Nat(value) });
   const makePayment = (amount: bigint) => {
+    Nat(amount);
     const payment = freeze({});
     paymentRecords.set(payment, { amount, live: true });
     return payment;
@@ -89,6 +99,7 @@ const makeIssuerKitForCommodity = ({
     makePayment,
     paymentRecords,
     applyTransfer,
+    Nat,
   });
   const brand = freezeProps({
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,

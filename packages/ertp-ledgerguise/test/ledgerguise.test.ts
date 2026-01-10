@@ -77,6 +77,32 @@ test('alice sends 10 to bob', t => {
   t.is(bobPurse.getCurrentAmount().value, 10n);
 });
 
+test('rejects negative withdraw amounts', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = () => 0;
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = issuedKit.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+  const alicePurse = issuedKit.issuer.makeEmptyPurse();
+
+  t.throws(() => alicePurse.withdraw(bucks(-10n)), { message: /non-negative/ });
+  t.is(alicePurse.getCurrentAmount().value, 0n);
+});
+
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');

@@ -9,6 +9,7 @@ type PurseFactoryOptions = {
   makePayment: (amount: bigint) => object;
   paymentRecords: WeakMap<object, { amount: bigint; live: boolean }>;
   applyTransfer: (accountGuid: Guid, amount: bigint) => void;
+  Nat: (specimen: bigint) => bigint;
 };
 
 export const makePurseFactory = ({
@@ -18,6 +19,7 @@ export const makePurseFactory = ({
   makePayment,
   paymentRecords,
   applyTransfer,
+  Nat,
 }: PurseFactoryOptions) => {
   const purseGuids = new WeakMap<AccountPurse, Guid>();
 
@@ -26,11 +28,13 @@ export const makePurseFactory = ({
     const deposit = (payment: object) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
+      Nat(record.amount);
       record.live = false;
       applyTransfer(accountGuid, record.amount);
       return makeAmount(getAccountBalance(db, accountGuid));
     };
     const withdraw = (amount: AmountLike) => {
+      Nat(amount.value);
       const balance = getAccountBalance(db, accountGuid);
       if (amount.value > balance) throw new Error('insufficient funds');
       applyTransfer(accountGuid, -amount.value);
