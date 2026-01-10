@@ -14,6 +14,7 @@ import { freezeProps } from './jessie-tools';
 import { makeDeterministicGuid } from './guids';
 import type {
   AccountPurse,
+  AmountLike,
   CreateIssuerConfig,
   Guid,
   IssuerKitForCommodity,
@@ -70,10 +71,13 @@ const makeIssuerKitForCommodity = ({
   const amountShape = freeze({});
   const paymentRecords = new WeakMap<object, { amount: bigint; live: boolean }>();
   const makeAmount = (value: bigint) => freeze({ brand, value: Nat(value) });
-  const makePayment = (amount: bigint) => {
-    Nat(amount);
+  const makePayment = (amount: AmountLike) => {
+    if (amount.brand !== brand) {
+      throw new Error('amount brand mismatch');
+    }
+    Nat(amount.value);
     const payment = freeze({});
-    paymentRecords.set(payment, { amount, live: true });
+    paymentRecords.set(payment, { amount: amount.value, live: true });
     return payment;
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
@@ -100,6 +104,7 @@ const makeIssuerKitForCommodity = ({
     paymentRecords,
     applyTransfer,
     Nat,
+    getBrand: () => brand,
   });
   const brand = freezeProps({
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
@@ -127,7 +132,7 @@ const makeIssuerKitForCommodity = ({
   });
   const mint = freezeProps({
     getIssuer: () => issuer,
-    mintPayment: (amount: { value: bigint }) => makePayment(amount.value),
+    mintPayment: (amount: AmountLike) => makePayment(amount),
   });
   const mintRecoveryPurse = ensurePurse(
     makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`),

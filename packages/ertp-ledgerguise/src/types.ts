@@ -36,7 +36,7 @@ export type OpenIssuerConfig = {
   nowMs: () => number;
 };
 
-export type AmountLike = { value: bigint };
+export type AmountLike = { brand: unknown; value: bigint };
 
 export type AccountPurse = {
   deposit: (payment: object) => unknown;

@@ -105,12 +105,25 @@ export const createAccountRow = ({
   ).run(accountGuid, name, accountType, commodityGuid, 1, 0);
 };
 
-export const requireAccountRow = (db: Database, accountGuid: Guid): void => {
+export const requireAccountCommodity = ({
+  db,
+  accountGuid,
+  commodityGuid,
+}: {
+  db: Database;
+  accountGuid: Guid;
+  commodityGuid: Guid;
+}): void => {
   const row = db
-    .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
+    .prepare<[string], { commodity_guid: string }>(
+      'SELECT commodity_guid FROM accounts WHERE guid = ?',
+    )
     .get(accountGuid);
   if (!row) {
     throw new Error('account not found');
+  }
+  if (row.commodity_guid !== commodityGuid) {
+    throw new Error('account commodity mismatch');
   }
 };
 

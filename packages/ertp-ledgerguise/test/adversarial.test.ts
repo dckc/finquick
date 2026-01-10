@@ -6,7 +6,7 @@
 import test from 'ava';
 import Database from 'better-sqlite3';
 import type { Brand, NatAmount } from '@agoric/ertp';
-import { asGuid, createIssuerKit, initGnuCashSchema } from '../src/index';
+import { asGuid, createIssuerKit, initGnuCashSchema, openIssuerKit } from '../src/index';
 
 const seedAccountBalance = (
   db: import('better-sqlite3').Database,
@@ -114,6 +114,69 @@ test('createIssuerKit rejects commodity GUID collisions', t => {
   const nowMs = () => 0;
 
   t.throws(() => createIssuerKit(freeze({ db, commodity, makeGuid, nowMs })), {
+    message: /commodity/i,
+  });
+});
+
+test('withdraw rejects wrong-brand amounts', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const nowMs = () => 0;
+  const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
+  const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
+
+  const bucksKit = createIssuerKit(freeze({ db, commodity: bucks, makeGuid, nowMs }));
+  const creditsKit = createIssuerKit(freeze({ db, commodity: credits, makeGuid, nowMs }));
+
+  const bucksBrand = bucksKit.brand as Brand<'nat'>;
+  const bucksAmount = (value: bigint): NatAmount => freeze({ brand: bucksBrand, value });
+  const creditsBrand = creditsKit.brand as Brand<'nat'>;
+  const creditsAmount = (value: bigint): NatAmount => freeze({ brand: creditsBrand, value });
+
+  const purse = bucksKit.issuer.makeEmptyPurse();
+  const payment = bucksKit.mint.mintPayment(bucksAmount(10n));
+  purse.deposit(payment);
+
+  t.throws(() => purse.withdraw(creditsAmount(1n)), { message: /brand/i });
+});
+
+test('openAccountPurse rejects wrong-commodity accounts', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const nowMs = () => 0;
+  const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
+  const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
+
+  const bucksKit = createIssuerKit(freeze({ db, commodity: bucks, makeGuid, nowMs }));
+  const creditsKit = createIssuerKit(freeze({ db, commodity: credits, makeGuid, nowMs }));
+  const accountGuid = (() => {
+    const purse = bucksKit.issuer.makeEmptyPurse();
+    return bucksKit.purses.getGuid(purse);
+  })();
+
+  const creditsAccess = openIssuerKit(
+    freeze({ db, commodityGuid: creditsKit.commodityGuid, makeGuid, nowMs }),
+  );
+
+  t.throws(() => creditsAccess.accounts.openAccountPurse(accountGuid), {
     message: /commodity/i,
   });
 });

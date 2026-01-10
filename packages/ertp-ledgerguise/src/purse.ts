@@ -3,7 +3,7 @@ import {
   createAccountRow,
   ensureAccountRow,
   getAccountBalance,
-  requireAccountRow,
+  requireAccountCommodity,
 } from './db-helpers';
 import type { AccountPurse, AmountLike, Guid } from './types';
 
@@ -11,10 +11,11 @@ type PurseFactoryOptions = {
   db: import('better-sqlite3').Database;
   commodityGuid: Guid;
   makeAmount: (value: bigint) => AmountLike;
-  makePayment: (amount: bigint) => object;
+  makePayment: (amount: AmountLike) => object;
   paymentRecords: WeakMap<object, { amount: bigint; live: boolean }>;
   applyTransfer: (accountGuid: Guid, amount: bigint) => void;
   Nat: (specimen: bigint) => bigint;
+  getBrand: () => unknown;
 };
 
 export const makePurseFactory = ({
@@ -25,10 +26,12 @@ export const makePurseFactory = ({
   paymentRecords,
   applyTransfer,
   Nat,
+  getBrand,
 }: PurseFactoryOptions) => {
   const purseGuids = new WeakMap<AccountPurse, Guid>();
 
   const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
+    const brand = getBrand();
     const deposit = (payment: object) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
@@ -38,11 +41,14 @@ export const makePurseFactory = ({
       return makeAmount(getAccountBalance(db, accountGuid));
     };
     const withdraw = (amount: AmountLike) => {
+      if (amount.brand !== brand) {
+        throw new Error('amount brand mismatch');
+      }
       Nat(amount.value);
       const balance = getAccountBalance(db, accountGuid);
       if (amount.value > balance) throw new Error('insufficient funds');
       applyTransfer(accountGuid, -amount.value);
-      return makePayment(amount.value);
+      return makePayment(amount);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
     const purse = freezeProps({ deposit, withdraw, getCurrentAmount });
@@ -61,7 +67,7 @@ export const makePurseFactory = ({
   };
 
   const openPurse = (accountGuid: Guid, name: string): AccountPurse => {
-    requireAccountRow(db, accountGuid);
+    requireAccountCommodity({ db, accountGuid, commodityGuid });
     return buildPurse(accountGuid, name);
   };
 
