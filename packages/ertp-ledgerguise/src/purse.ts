@@ -1,5 +1,10 @@
 import { freezeProps } from './jessie-tools';
-import { ensureAccountRow, getAccountBalance } from './db-helpers';
+import {
+  createAccountRow,
+  ensureAccountRow,
+  getAccountBalance,
+  requireAccountRow,
+} from './db-helpers';
 import type { AccountPurse, AmountLike, Guid } from './types';
 
 type PurseFactoryOptions = {
@@ -23,8 +28,7 @@ export const makePurseFactory = ({
 }: PurseFactoryOptions) => {
   const purseGuids = new WeakMap<AccountPurse, Guid>();
 
-  const makePurse = (accountGuid: Guid, name: string): AccountPurse => {
-    ensureAccountRow({ db, accountGuid, name, commodityGuid });
+  const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
     const deposit = (payment: object) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
@@ -46,5 +50,20 @@ export const makePurseFactory = ({
     return purse;
   };
 
-  return { makePurse, purseGuids };
+  const ensurePurse = (accountGuid: Guid, name: string): AccountPurse => {
+    ensureAccountRow({ db, accountGuid, name, commodityGuid });
+    return buildPurse(accountGuid, name);
+  };
+
+  const makeNewPurse = (accountGuid: Guid, name: string): AccountPurse => {
+    createAccountRow({ db, accountGuid, name, commodityGuid });
+    return buildPurse(accountGuid, name);
+  };
+
+  const openPurse = (accountGuid: Guid, name: string): AccountPurse => {
+    requireAccountRow(db, accountGuid);
+    return buildPurse(accountGuid, name);
+  };
+
+  return { ensurePurse, makeNewPurse, openPurse, purseGuids };
 };

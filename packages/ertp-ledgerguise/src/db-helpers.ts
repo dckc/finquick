@@ -45,6 +45,43 @@ export const ensureAccountRow = ({
   ).run(accountGuid, name, accountType, commodityGuid, 1, 0);
 };
 
+export const createAccountRow = ({
+  db,
+  accountGuid,
+  name,
+  commodityGuid,
+  accountType = 'ASSET',
+}: {
+  db: Database;
+  accountGuid: Guid;
+  name: string;
+  commodityGuid: Guid;
+  accountType?: string;
+}): void => {
+  const row = db
+    .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
+    .get(accountGuid);
+  if (row) {
+    throw new Error('account already exists');
+  }
+  db.prepare(
+    [
+      'INSERT INTO accounts(',
+      'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
+      ') VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, 0)',
+    ].join(' '),
+  ).run(accountGuid, name, accountType, commodityGuid, 1, 0);
+};
+
+export const requireAccountRow = (db: Database, accountGuid: Guid): void => {
+  const row = db
+    .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
+    .get(accountGuid);
+  if (!row) {
+    throw new Error('account not found');
+  }
+};
+
 export const getCommodityAllegedName = (db: Database, commodityGuid: Guid): string => {
   const row = db
     .prepare<[string], { fullname: string | null; mnemonic: string }>(

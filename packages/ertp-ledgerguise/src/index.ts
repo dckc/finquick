@@ -92,7 +92,7 @@ const makeIssuerKitForCommodity = ({
     makeGuid,
     nowMs,
   });
-  const { makePurse, purseGuids } = makePurseFactory({
+  const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory({
     db,
     commodityGuid,
     makeAmount,
@@ -114,7 +114,7 @@ const makeIssuerKitForCommodity = ({
     getDisplayInfo: () => displayInfo,
     makeEmptyPurse: () => {
       const accountGuid = makeGuid();
-      return makePurse(accountGuid, accountGuid);
+      return makeNewPurse(accountGuid, accountGuid);
     },
     isLive: async (payment: object) => paymentRecords.get(payment)?.live ?? false,
     getAmountOf: async (payment: object) => makeAmount(paymentRecords.get(payment)?.amount ?? 0n),
@@ -129,7 +129,7 @@ const makeIssuerKitForCommodity = ({
     getIssuer: () => issuer,
     mintPayment: (amount: { value: bigint }) => makePayment(amount.value),
   });
-  const mintRecoveryPurse = makePurse(
+  const mintRecoveryPurse = ensurePurse(
     makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`),
     '__mintRecovery',
   );
@@ -141,8 +141,8 @@ const makeIssuerKitForCommodity = ({
     displayInfo,
   }) as unknown as IssuerKit;
   const accounts = freezeProps({
-    makeAccountPurse: (accountGuid: Guid) => makePurse(accountGuid, accountGuid),
-    openAccountPurse: (accountGuid: Guid) => makePurse(accountGuid, accountGuid),
+    makeAccountPurse: (accountGuid: Guid) => makeNewPurse(accountGuid, accountGuid),
+    openAccountPurse: (accountGuid: Guid) => openPurse(accountGuid, accountGuid),
   });
   return freezeProps({ kit, accounts, purseGuids });
 };

@@ -103,6 +103,58 @@ test('rejects negative withdraw amounts', t => {
   t.is(alicePurse.getCurrentAmount().value, 0n);
 });
 
+test('makeEmptyPurse rejects account GUID collisions', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  const commodityGuid = asGuid('a'.repeat(32));
+  const victimAccountGuid = asGuid('b'.repeat(32));
+  const guidSeq = [commodityGuid, victimAccountGuid];
+  const makeGuid = () => {
+    const guid = guidSeq.shift();
+    if (!guid) throw new Error('no more guids');
+    return guid;
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = () => 0;
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+
+  const seedAccountBalance = (accountGuid: string, amount: bigint) => {
+    db.prepare(
+      [
+        'INSERT INTO accounts(',
+        'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
+        ') VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, 0)',
+      ].join(' '),
+    ).run(accountGuid, 'Victim', 'ASSET', issuedKit.commodityGuid, 1, 0);
+    const txGuid = asGuid('c'.repeat(32));
+    db.prepare(
+      [
+        'INSERT INTO transactions(',
+        'guid, currency_guid, num, post_date, enter_date, description',
+        ') VALUES (?, ?, ?, ?, ?, ?)',
+      ].join(' '),
+    ).run(txGuid, issuedKit.commodityGuid, '', '1970-01-01 00:00:00', '1970-01-01 00:00:00', 'seed');
+    db.prepare(
+      [
+        'INSERT INTO splits(',
+        'guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,',
+        'value_num, value_denom, quantity_num, quantity_denom, lot_guid',
+        ') VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)',
+      ].join(' '),
+    ).run(asGuid('d'.repeat(32)), txGuid, accountGuid, '', '', 'n', amount.toString(), 1, amount.toString(), 1);
+  };
+
+  seedAccountBalance(victimAccountGuid, 25n);
+
+  t.throws(() => issuedKit.issuer.makeEmptyPurse(), { message: /account/i });
+});
+
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');
