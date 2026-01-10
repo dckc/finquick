@@ -3,6 +3,7 @@ import {
   createAccountRow,
   ensureAccountRow,
   getAccountBalance,
+  makeTransferRecorder,
   requireAccountCommodity,
 } from './db-helpers';
 import type { AccountPurse, AmountLike, Guid } from './types';
@@ -11,20 +12,28 @@ type PurseFactoryOptions = {
   db: import('better-sqlite3').Database;
   commodityGuid: Guid;
   makeAmount: (value: bigint) => AmountLike;
-  makePayment: (amount: AmountLike) => object;
-  paymentRecords: WeakMap<object, { amount: bigint; live: boolean }>;
-  applyTransfer: (accountGuid: Guid, amount: bigint) => void;
+  makePayment: (
+    amount: AmountLike,
+    sourceAccountGuid: Guid,
+    txGuid: Guid,
+    holdingSplitGuid: Guid,
+  ) => object;
+  paymentRecords: WeakMap<
+    object,
+    { amount: bigint; live: boolean; sourceAccountGuid: Guid; txGuid: Guid; holdingSplitGuid: Guid }
+  >;
+  /** @see makeTransferRecorder */
+  transferRecorder: ReturnType<typeof makeTransferRecorder>;
   Nat: (specimen: bigint) => bigint;
   getBrand: () => unknown;
 };
-
 export const makePurseFactory = ({
   db,
   commodityGuid,
   makeAmount,
   makePayment,
   paymentRecords,
-  applyTransfer,
+  transferRecorder,
   Nat,
   getBrand,
 }: PurseFactoryOptions) => {
@@ -37,7 +46,11 @@ export const makePurseFactory = ({
       if (!record?.live) throw new Error('payment not live');
       Nat(record.amount);
       record.live = false;
-      applyTransfer(accountGuid, record.amount);
+      transferRecorder.finalizeHold({
+        txGuid: record.txGuid,
+        holdingSplitGuid: record.holdingSplitGuid,
+        toAccountGuid: accountGuid,
+      });
       return makeAmount(getAccountBalance(db, accountGuid));
     };
     const withdraw = (amount: AmountLike) => {
@@ -47,8 +60,11 @@ export const makePurseFactory = ({
       Nat(amount.value);
       const balance = getAccountBalance(db, accountGuid);
       if (amount.value > balance) throw new Error('insufficient funds');
-      applyTransfer(accountGuid, -amount.value);
-      return makePayment(amount);
+      const { txGuid, holdingSplitGuid } = transferRecorder.createHold({
+        fromAccountGuid: accountGuid,
+        amount: amount.value,
+      });
+      return makePayment(amount, accountGuid, txGuid, holdingSplitGuid);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
     const purse = freezeProps({ deposit, withdraw, getCurrentAmount });

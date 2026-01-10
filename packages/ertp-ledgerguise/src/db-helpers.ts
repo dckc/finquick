@@ -145,20 +145,32 @@ export const getAccountBalance = (db: Database, accountGuid: Guid): bigint => {
   return row ? BigInt(row.qty) : 0n;
 };
 
+/**
+ * Create a recorder that writes a balanced transaction for an account transfer.
+ *
+ * The returned recorder creates a hold transaction (source -> holding) and can
+ * later finalize it by retargeting the holding split to the destination and
+ * marking the splits cleared.
+ */
 export const makeTransferRecorder = ({
   db,
   commodityGuid,
-  balanceAccountGuid,
+  holdingAccountGuid,
   makeGuid,
   nowMs,
 }: {
   db: Database;
   commodityGuid: Guid;
-  balanceAccountGuid: Guid;
+  holdingAccountGuid: Guid;
   makeGuid: () => Guid;
   nowMs: () => number;
 }) => {
-  const recordSplit = (txGuid: Guid, accountGuid: Guid, amount: bigint) => {
+  const recordSplit = (
+    txGuid: Guid,
+    accountGuid: Guid,
+    amount: bigint,
+    reconcileState = 'n',
+  ) => {
     const splitGuid = makeGuid();
     db.prepare(
       [
@@ -167,7 +179,19 @@ export const makeTransferRecorder = ({
         'value_num, value_denom, quantity_num, quantity_denom, lot_guid',
         ') VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)',
       ].join(' '),
-    ).run(splitGuid, txGuid, accountGuid, '', '', 'n', amount.toString(), 1, amount.toString(), 1);
+    ).run(
+      splitGuid,
+      txGuid,
+      accountGuid,
+      '',
+      '',
+      reconcileState,
+      amount.toString(),
+      1,
+      amount.toString(),
+      1,
+    );
+    return splitGuid;
   };
 
   const recordTransaction = (txGuid: Guid, amount: bigint) => {
@@ -181,10 +205,34 @@ export const makeTransferRecorder = ({
     ).run(txGuid, commodityGuid, '', now, now, `ledgerguise ${amount.toString()}`);
   };
 
-  return (accountGuid: Guid, amount: bigint) => {
+  const createHold = ({
+    fromAccountGuid,
+    amount,
+  }: {
+    fromAccountGuid: Guid;
+    amount: bigint;
+  }) => {
     const txGuid = makeGuid();
     recordTransaction(txGuid, amount);
-    recordSplit(txGuid, accountGuid, amount);
-    recordSplit(txGuid, balanceAccountGuid, -amount);
+    const holdingSplitGuid = recordSplit(txGuid, holdingAccountGuid, amount, 'n');
+    recordSplit(txGuid, fromAccountGuid, -amount, 'n');
+    return { txGuid, holdingSplitGuid };
   };
+
+  const finalizeHold = ({
+    txGuid,
+    holdingSplitGuid,
+    toAccountGuid,
+  }: {
+    txGuid: Guid;
+    holdingSplitGuid: Guid;
+    toAccountGuid: Guid;
+  }) => {
+    db.prepare(
+      'UPDATE splits SET account_guid = ?, reconcile_state = ? WHERE guid = ?',
+    ).run(toAccountGuid, 'c', holdingSplitGuid);
+    db.prepare('UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?').run('c', txGuid);
+  };
+
+  return { createHold, finalizeHold };
 };

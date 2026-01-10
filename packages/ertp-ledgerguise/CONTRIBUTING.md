@@ -34,6 +34,7 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
 - Add succinct comments only when logic is non-obvious.
 - Keep files ASCII unless the file already uses Unicode.
 - Avoid functions with more than 3 positional arguments; prefer a single options/config object with named properties.
+- Use JSDoc docstrings when attaching documentation to declarations or parameters; reserve `//` comments for implementation details.
 
 ## Testing
 
@@ -84,6 +85,26 @@ Decision: Start with synchronous DB access, but keep IO injected so async backen
 Consequences:
 - Tests should allow in-memory sync adapters first, with async-capable adapters introduced later.
 - The facade should avoid hidden filesystem opens; pass DB capabilities explicitly (ocap discipline).
+
+## IBIS: Payment holds vs immediate transfers
+
+Issue: How should in-flight payments be represented in the GnuCash ledger?
+
+Position A (account-to-account only, no holds):
+- Only record direct account-to-account transfers at deposit time.
+- Avoids “hold” rows but loses in-flight payment durability and makes GC destroy value.
+- Requires deferred ledger writes, which hides exposure windows.
+
+Position B (mutable hold transaction):
+- Record a hold transaction at withdraw time from source to a holding account.
+- On deposit, update the holding split to the destination account and mark splits cleared.
+- Preserves a single transaction per payment while keeping a durable record.
+
+Decision: Use the mutable hold transaction approach with a holding account and reconcile-state updates.
+
+Consequences:
+- Transfers remain auditable via a single tx with two splits after deposit.
+- We accept that split destination mutation is part of the model and must be tested.
 
 ## Documentation
 

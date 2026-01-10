@@ -24,6 +24,7 @@ import type {
 import {
   createCommodityRow,
   ensureAccountRow,
+  getAccountBalance,
   getCommodityAllegedName,
   makeTransferRecorder,
 } from './db-helpers';
@@ -69,15 +70,38 @@ const makeIssuerKitForCommodity = ({
   // TODO: consider validation of DB capability and schema.
   const displayInfo = freeze({ assetKind: 'nat' as const });
   const amountShape = freeze({});
-  const paymentRecords = new WeakMap<object, { amount: bigint; live: boolean }>();
-  const makeAmount = (value: bigint) => freeze({ brand, value: Nat(value) });
-  const makePayment = (amount: AmountLike) => {
+  const paymentRecords = new WeakMap<
+    object,
+    {
+      amount: bigint;
+      live: boolean;
+      sourceAccountGuid: Guid;
+      txGuid: Guid;
+      holdingSplitGuid: Guid;
+    }
+  >();
+  const assertAmount = (amount: AmountLike) => {
     if (amount.brand !== brand) {
       throw new Error('amount brand mismatch');
     }
-    Nat(amount.value);
+    return Nat(amount.value);
+  };
+  const makeAmount = (value: bigint) => freeze({ brand, value: Nat(value) });
+  const makePayment = (
+    amount: AmountLike,
+    sourceAccountGuid: Guid,
+    txGuid: Guid,
+    holdingSplitGuid: Guid,
+  ) => {
+    const amountValue = assertAmount(amount);
     const payment = freeze({});
-    paymentRecords.set(payment, { amount: amount.value, live: true });
+    paymentRecords.set(payment, {
+      amount: amountValue,
+      live: true,
+      sourceAccountGuid,
+      txGuid,
+      holdingSplitGuid,
+    });
     return payment;
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
@@ -89,10 +113,10 @@ const makeIssuerKitForCommodity = ({
     commodityGuid,
     accountType: 'EQUITY',
   });
-  const applyTransfer = makeTransferRecorder({
+  const transferRecorder = makeTransferRecorder({
     db,
     commodityGuid,
-    balanceAccountGuid,
+    holdingAccountGuid: balanceAccountGuid,
     makeGuid,
     nowMs,
   });
@@ -102,7 +126,7 @@ const makeIssuerKitForCommodity = ({
     makeAmount,
     makePayment,
     paymentRecords,
-    applyTransfer,
+    transferRecorder,
     Nat,
     getBrand: () => brand,
   });
@@ -127,12 +151,24 @@ const makeIssuerKitForCommodity = ({
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
       record.live = false;
+      transferRecorder.finalizeHold({
+        txGuid: record.txGuid,
+        holdingSplitGuid: record.holdingSplitGuid,
+        toAccountGuid: balanceAccountGuid,
+      });
       return makeAmount(record.amount);
     },
   });
   const mint = freezeProps({
     getIssuer: () => issuer,
-    mintPayment: (amount: AmountLike) => makePayment(amount),
+    mintPayment: (amount: AmountLike) => {
+      const amountValue = assertAmount(amount);
+      const { txGuid, holdingSplitGuid } = transferRecorder.createHold({
+        fromAccountGuid: balanceAccountGuid,
+        amount: amountValue,
+      });
+      return makePayment(amount, balanceAccountGuid, txGuid, holdingSplitGuid);
+    },
   });
   const mintRecoveryPurse = ensurePurse(
     makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`),
@@ -146,8 +182,18 @@ const makeIssuerKitForCommodity = ({
     displayInfo,
   }) as unknown as IssuerKit;
   const accounts = freezeProps({
-    makeAccountPurse: (accountGuid: Guid) => makeNewPurse(accountGuid, accountGuid),
-    openAccountPurse: (accountGuid: Guid) => openPurse(accountGuid, accountGuid),
+    makeAccountPurse: (accountGuid: Guid) => {
+      if (accountGuid === balanceAccountGuid) {
+        throw new Error('holding account is not externally accessible');
+      }
+      return makeNewPurse(accountGuid, accountGuid);
+    },
+    openAccountPurse: (accountGuid: Guid) => {
+      if (accountGuid === balanceAccountGuid) {
+        throw new Error('holding account is not externally accessible');
+      }
+      return openPurse(accountGuid, accountGuid);
+    },
   });
   return freezeProps({ kit, accounts, purseGuids });
 };

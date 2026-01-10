@@ -77,6 +77,62 @@ test('alice sends 10 to bob', t => {
   t.is(bobPurse.getCurrentAmount().value, 10n);
 });
 
+test('alice-to-bob transfer records a single transaction', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = () => 0;
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = issuedKit.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+  const alicePurse = issuedKit.issuer.makeEmptyPurse();
+  const bobPurse = issuedKit.issuer.makeEmptyPurse();
+  const aliceGuid = issuedKit.purses.getGuid(alicePurse);
+  const bobGuid = issuedKit.purses.getGuid(bobPurse);
+
+  const payment = issuedKit.mint.mintPayment(bucks(10n));
+  alicePurse.deposit(payment);
+  bobPurse.deposit(alicePurse.withdraw(bucks(10n)));
+
+  const txRows = db
+    .prepare<
+      [string, string],
+      { tx_guid: string; alice_count: number; bob_count: number; split_count: number }
+    >(
+      [
+        'SELECT tx_guid,',
+        'SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS alice_count,',
+        'SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS bob_count,',
+        'COUNT(*) AS split_count',
+        'FROM splits',
+        'GROUP BY tx_guid',
+        'HAVING alice_count > 0 AND bob_count > 0',
+      ].join(' '),
+    )
+    .all(aliceGuid, bobGuid);
+  t.is(txRows.length, 1);
+  t.is(txRows[0].split_count, 2);
+  const splits = db
+    .prepare<[string], { reconcile_state: string }>(
+      'SELECT reconcile_state FROM splits WHERE tx_guid = ?',
+    )
+    .all(txRows[0].tx_guid);
+  t.is(splits.length, 2);
+  t.true(splits.every(split => split.reconcile_state === 'c'));
+});
+
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');
