@@ -133,6 +133,48 @@ test('alice-to-bob transfer records a single transaction', t => {
   t.true(splits.every(split => split.reconcile_state === 'c'));
 });
 
+test('payments can be reified by check number', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = () => 0;
+  const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = created.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+  const alicePurse = created.issuer.makeEmptyPurse();
+  const bobPurse = created.issuer.makeEmptyPurse();
+  const bobGuid = created.purses.getGuid(bobPurse);
+
+  const payment = created.mint.mintPayment(bucks(10n));
+  alicePurse.deposit(payment);
+  const checkNumber = created.payments.getCheckNumber(
+    alicePurse.withdraw(bucks(10n)),
+  );
+
+  const reopened = openIssuerKit(
+    freeze({ db, commodityGuid: created.commodityGuid, makeGuid, nowMs }),
+  );
+  const reified = reopened.payments.openPayment(
+    checkNumber,
+  ) as ReturnType<typeof created.mint.mintPayment>;
+  const reopenedBob = reopened.accounts.openAccountPurse(bobGuid);
+  reopenedBob.deposit(reified);
+
+  t.is(reopenedBob.getCurrentAmount().value, 10n);
+});
+
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');

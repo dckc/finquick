@@ -78,6 +78,7 @@ const makeIssuerKitForCommodity = ({
       sourceAccountGuid: Guid;
       txGuid: Guid;
       holdingSplitGuid: Guid;
+      checkNumber: string;
     }
   >();
   const assertAmount = (amount: AmountLike) => {
@@ -92,6 +93,7 @@ const makeIssuerKitForCommodity = ({
     sourceAccountGuid: Guid,
     txGuid: Guid,
     holdingSplitGuid: Guid,
+    checkNumber: string,
   ) => {
     const amountValue = assertAmount(amount);
     const payment = freeze({});
@@ -101,6 +103,7 @@ const makeIssuerKitForCommodity = ({
       sourceAccountGuid,
       txGuid,
       holdingSplitGuid,
+      checkNumber,
     });
     return payment;
   };
@@ -163,11 +166,11 @@ const makeIssuerKitForCommodity = ({
     getIssuer: () => issuer,
     mintPayment: (amount: AmountLike) => {
       const amountValue = assertAmount(amount);
-      const { txGuid, holdingSplitGuid } = transferRecorder.createHold({
+      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
         fromAccountGuid: balanceAccountGuid,
         amount: amountValue,
       });
-      return makePayment(amount, balanceAccountGuid, txGuid, holdingSplitGuid);
+      return makePayment(amount, balanceAccountGuid, txGuid, holdingSplitGuid, checkNumber);
     },
   });
   const mintRecoveryPurse = ensurePurse(
@@ -181,6 +184,67 @@ const makeIssuerKitForCommodity = ({
     mintRecoveryPurse,
     displayInfo,
   }) as unknown as IssuerKit;
+  const payments = freezeProps({
+    getCheckNumber: (payment: unknown) => {
+      const record = paymentRecords.get(payment as object);
+      if (!record) throw new Error('unknown payment');
+      return record.checkNumber;
+    },
+    openPayment: (checkNumber: string) => {
+      const rows = db
+        .prepare<[string], { guid: string }>('SELECT guid FROM transactions WHERE num = ?')
+        .all(checkNumber);
+      if (rows.length !== 1) {
+        throw new Error('payment check number not unique');
+      }
+      const txGuid = rows[0]?.guid as Guid | undefined;
+      if (!txGuid) {
+        throw new Error('payment not found');
+      }
+      const holdingSplit = db
+        .prepare<
+          [string, string],
+          { guid: string; account_guid: string; quantity_num: string; reconcile_state: string }
+        >(
+          [
+            'SELECT guid, account_guid, quantity_num, reconcile_state',
+            'FROM splits',
+            'WHERE tx_guid = ? AND account_guid = ?',
+          ].join(' '),
+        )
+        .get(txGuid, balanceAccountGuid);
+      if (!holdingSplit) {
+        throw new Error('payment not live');
+      }
+      if (holdingSplit.reconcile_state !== 'n') {
+        throw new Error('payment not live');
+      }
+      const sourceSplit = db
+        .prepare<
+          [string, string],
+          { account_guid: string }
+        >(
+          [
+            'SELECT account_guid',
+            'FROM splits',
+            'WHERE tx_guid = ? AND account_guid != ?',
+          ].join(' '),
+        )
+        .get(txGuid, balanceAccountGuid);
+      if (!sourceSplit) {
+        throw new Error('payment missing source split');
+      }
+      const amountValue = BigInt(holdingSplit.quantity_num);
+      const amount = makeAmount(amountValue);
+      return makePayment(
+        amount,
+        sourceSplit.account_guid as Guid,
+        txGuid,
+        holdingSplit.guid as Guid,
+        checkNumber,
+      );
+    },
+  });
   const accounts = freezeProps({
     makeAccountPurse: (accountGuid: Guid) => {
       if (accountGuid === balanceAccountGuid) {
@@ -195,7 +259,7 @@ const makeIssuerKitForCommodity = ({
       return openPurse(accountGuid, accountGuid);
     },
   });
-  return freezeProps({ kit, accounts, purseGuids });
+  return freezeProps({ kit, accounts, purseGuids, payments });
 };
 
 /**
@@ -207,7 +271,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
-  const { kit, purseGuids } = makeIssuerKitForCommodity({
+  const { kit, purseGuids, payments } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
@@ -220,7 +284,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
       return guid;
     },
   });
-  return freezeProps({ ...kit, commodityGuid, purses }) as IssuerKitWithPurseGuids;
+  return freezeProps({ ...kit, commodityGuid, purses, payments }) as IssuerKitWithPurseGuids;
 };
 
 /**

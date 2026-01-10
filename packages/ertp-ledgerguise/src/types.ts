@@ -53,6 +53,7 @@ export type IssuerKitForCommodity = {
   kit: IssuerKit;
   accounts: AccountPurseAccess;
   purseGuids: WeakMap<AccountPurse, Guid>;
+  payments: PaymentAccess;
 };
 
 export type IssuerKitWithGuid = IssuerKit & { commodityGuid: Guid };
@@ -61,6 +62,12 @@ export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
   purses: {
     getGuid: (purse: unknown) => Guid;
   };
+  payments: PaymentAccess;
+};
+
+export type PaymentAccess = {
+  getCheckNumber: (payment: unknown) => string;
+  openPayment: (checkNumber: string) => object;
 };
 
 export type { Guid } from './guids';

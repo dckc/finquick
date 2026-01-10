@@ -194,7 +194,7 @@ export const makeTransferRecorder = ({
     return splitGuid;
   };
 
-  const recordTransaction = (txGuid: Guid, amount: bigint) => {
+  const recordTransaction = (txGuid: Guid, amount: bigint, checkNumber: string) => {
     const now = new Date(nowMs()).toISOString().slice(0, 19);
     db.prepare(
       [
@@ -202,21 +202,24 @@ export const makeTransferRecorder = ({
         'guid, currency_guid, num, post_date, enter_date, description',
         ') VALUES (?, ?, ?, ?, ?, ?)',
       ].join(' '),
-    ).run(txGuid, commodityGuid, '', now, now, `ledgerguise ${amount.toString()}`);
+    ).run(txGuid, commodityGuid, checkNumber, now, now, `ledgerguise ${amount.toString()}`);
   };
 
   const createHold = ({
     fromAccountGuid,
     amount,
+    checkNumber,
   }: {
     fromAccountGuid: Guid;
     amount: bigint;
+    checkNumber?: string;
   }) => {
     const txGuid = makeGuid();
-    recordTransaction(txGuid, amount);
+    const resolvedCheckNumber = checkNumber ?? txGuid;
+    recordTransaction(txGuid, amount, resolvedCheckNumber);
     const holdingSplitGuid = recordSplit(txGuid, holdingAccountGuid, amount, 'n');
     recordSplit(txGuid, fromAccountGuid, -amount, 'n');
-    return { txGuid, holdingSplitGuid };
+    return { txGuid, holdingSplitGuid, checkNumber: resolvedCheckNumber };
   };
 
   const finalizeHold = ({

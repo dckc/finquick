@@ -17,10 +17,18 @@ type PurseFactoryOptions = {
     sourceAccountGuid: Guid,
     txGuid: Guid,
     holdingSplitGuid: Guid,
+    checkNumber: string,
   ) => object;
   paymentRecords: WeakMap<
     object,
-    { amount: bigint; live: boolean; sourceAccountGuid: Guid; txGuid: Guid; holdingSplitGuid: Guid }
+    {
+      amount: bigint;
+      live: boolean;
+      sourceAccountGuid: Guid;
+      txGuid: Guid;
+      holdingSplitGuid: Guid;
+      checkNumber: string;
+    }
   >;
   /** @see makeTransferRecorder */
   transferRecorder: ReturnType<typeof makeTransferRecorder>;
@@ -60,11 +68,11 @@ export const makePurseFactory = ({
       Nat(amount.value);
       const balance = getAccountBalance(db, accountGuid);
       if (amount.value > balance) throw new Error('insufficient funds');
-      const { txGuid, holdingSplitGuid } = transferRecorder.createHold({
+      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
         fromAccountGuid: accountGuid,
         amount: amount.value,
       });
-      return makePayment(amount, accountGuid, txGuid, holdingSplitGuid);
+      return makePayment(amount, accountGuid, txGuid, holdingSplitGuid, checkNumber);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
     const purse = freezeProps({ deposit, withdraw, getCurrentAmount });
