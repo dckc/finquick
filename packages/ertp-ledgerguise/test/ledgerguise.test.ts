@@ -22,6 +22,29 @@ test('initGnuCashSchema creates GnuCash tables', t => {
   t.is(row?.name, 'accounts');
 });
 
+test('brand.isMyIssuer rejects unrelated issuers', async t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const kit = createIssuerKit(freeze({ db, commodity, makeGuid }));
+  const other = createIssuerKit(freeze({ db, commodity, makeGuid }));
+
+  t.true(await kit.brand.isMyIssuer(kit.issuer));
+  t.false(await kit.brand.isMyIssuer(other.issuer));
+});
+
 test('alice sends 10 to bob', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');

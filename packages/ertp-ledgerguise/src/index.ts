@@ -78,7 +78,7 @@ const makeIssuerKitForCommodity = (
     applyTransfer,
   });
   const brand = freezeProps({
-    isMyIssuer: async () => false,
+    isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
     getDisplayInfo: () => displayInfo,
     getAmountShape: () => amountShape,
