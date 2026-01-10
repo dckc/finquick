@@ -35,8 +35,14 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
 
 - Use `rg` for searches.
 - Avoid network access unless explicitly requested.
+- Use `npm run codegen:sql` to regenerate `src/sql/gc_empty.ts` from `sql/gc_empty.sql`. Keep codegen scripts ESM (no `.cjs`).
+- No CommonJS in this package (source, tests, scripts). Use ESM everywhere.
+- TODO: use full extensions in module specifiers.
 
 ## Agent Tactics
+
+the mutable let point is not agent tactics; it's code style. likewise API
+  surface stuff. make a new subsection for the API surface freezing stuff.
 
 - Always check for static errors before running tests.
 - Always run all tests relevant to any code changes before asking the user for further input.

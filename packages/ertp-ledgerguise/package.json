@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "codegen:sql": "node scripts/codegen-sql.mjs",
     "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
     "test": "ava",
     "check": "npm run lint:types && npm run test"
