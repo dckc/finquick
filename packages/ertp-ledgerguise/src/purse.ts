@@ -22,7 +22,7 @@ export const makePurseFactory = ({
   const purseGuids = new WeakMap<AccountPurse, Guid>();
 
   const makePurse = (accountGuid: Guid, name: string): AccountPurse => {
-    ensureAccountRow(db, accountGuid, name, commodityGuid);
+    ensureAccountRow({ db, accountGuid, name, commodityGuid });
     const deposit = (payment: object) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');

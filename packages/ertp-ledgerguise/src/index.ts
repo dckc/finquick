@@ -44,12 +44,17 @@ export const initGnuCashSchema = (db: Database): void => {
   db.exec(gcEmptySql);
 };
 
-const makeIssuerKitForCommodity = (
-  db: Database,
-  commodityGuid: Guid,
-  makeGuid: () => Guid,
-  nowMs: () => number,
-): IssuerKitForCommodity => {
+const makeIssuerKitForCommodity = ({
+  db,
+  commodityGuid,
+  makeGuid,
+  nowMs,
+}: {
+  db: Database;
+  commodityGuid: Guid;
+  makeGuid: () => Guid;
+  nowMs: () => number;
+}): IssuerKitForCommodity => {
   const { freeze } = Object;
   // TODO: consider validation of DB capability and schema.
   const displayInfo = freeze({ assetKind: 'nat' as const });
@@ -63,14 +68,20 @@ const makeIssuerKitForCommodity = (
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
   const balanceAccountGuid = makeDeterministicGuid(`ledgerguise-balance:${commodityGuid}`);
-  ensureAccountRow(db, balanceAccountGuid, 'Ledgerguise Balance', commodityGuid, 'EQUITY');
-  const applyTransfer = makeTransferRecorder(
+  ensureAccountRow({
+    db,
+    accountGuid: balanceAccountGuid,
+    name: 'Ledgerguise Balance',
+    commodityGuid,
+    accountType: 'EQUITY',
+  });
+  const applyTransfer = makeTransferRecorder({
     db,
     commodityGuid,
     balanceAccountGuid,
     makeGuid,
     nowMs,
-  );
+  });
   const { makePurse, purseGuids } = makePurseFactory({
     db,
     commodityGuid,
@@ -134,12 +145,12 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   ensureCommodityRow(db, commodityGuid, commodity);
-  const { kit, purseGuids } = makeIssuerKitForCommodity(
+  const { kit, purseGuids } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
     nowMs,
-  );
+  });
   const purses = freezeProps({
     getGuid: (purse: unknown) => {
       const guid = purseGuids.get(purse as AccountPurse);
@@ -158,5 +169,5 @@ export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity =
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
-  return makeIssuerKitForCommodity(db, commodityGuid, makeGuid, nowMs);
+  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs });
 };

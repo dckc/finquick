@@ -23,13 +23,19 @@ export const ensureCommodityRow = (
   insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
 };
 
-export const ensureAccountRow = (
-  db: Database,
-  accountGuid: Guid,
-  name: string,
-  commodityGuid: Guid,
+export const ensureAccountRow = ({
+  db,
+  accountGuid,
+  name,
+  commodityGuid,
   accountType = 'ASSET',
-): void => {
+}: {
+  db: Database;
+  accountGuid: Guid;
+  name: string;
+  commodityGuid: Guid;
+  accountType?: string;
+}): void => {
   db.prepare(
     [
       'INSERT OR IGNORE INTO accounts(',
@@ -57,13 +63,19 @@ export const getAccountBalance = (db: Database, accountGuid: Guid): bigint => {
   return row ? BigInt(row.qty) : 0n;
 };
 
-export const makeTransferRecorder = (
-  db: Database,
-  commodityGuid: Guid,
-  balanceAccountGuid: Guid,
-  makeGuid: () => Guid,
-  nowMs: () => number,
-) => {
+export const makeTransferRecorder = ({
+  db,
+  commodityGuid,
+  balanceAccountGuid,
+  makeGuid,
+  nowMs,
+}: {
+  db: Database;
+  commodityGuid: Guid;
+  balanceAccountGuid: Guid;
+  makeGuid: () => Guid;
+  nowMs: () => number;
+}) => {
   const recordSplit = (txGuid: Guid, accountGuid: Guid, amount: bigint) => {
     const splitGuid = makeGuid();
     db.prepare(
