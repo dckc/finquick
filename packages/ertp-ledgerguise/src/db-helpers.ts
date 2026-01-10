@@ -62,6 +62,7 @@ export const makeTransferRecorder = (
   commodityGuid: Guid,
   balanceAccountGuid: Guid,
   makeGuid: () => Guid,
+  nowMs: () => number,
 ) => {
   const recordSplit = (txGuid: Guid, accountGuid: Guid, amount: bigint) => {
     const splitGuid = makeGuid();
@@ -76,7 +77,7 @@ export const makeTransferRecorder = (
   };
 
   const recordTransaction = (txGuid: Guid, amount: bigint) => {
-    const now = new Date().toISOString().slice(0, 19);
+    const now = new Date(nowMs()).toISOString().slice(0, 19);
     db.prepare(
       [
         'INSERT INTO transactions(',

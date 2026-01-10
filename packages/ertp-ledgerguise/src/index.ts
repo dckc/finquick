@@ -48,6 +48,7 @@ const makeIssuerKitForCommodity = (
   db: Database,
   commodityGuid: Guid,
   makeGuid: () => Guid,
+  nowMs: () => number,
 ): IssuerKitForCommodity => {
   const { freeze } = Object;
   // TODO: consider validation of DB capability and schema.
@@ -68,6 +69,7 @@ const makeIssuerKitForCommodity = (
     commodityGuid,
     balanceAccountGuid,
     makeGuid,
+    nowMs,
   );
   const { makePurse, purseGuids } = makePurseFactory({
     db,
@@ -128,11 +130,16 @@ const makeIssuerKitForCommodity = (
  * The returned kit includes `commodityGuid` and a `purses.getGuid()` facet.
  */
 export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseGuids => {
-  const { db, commodity, makeGuid } = config;
+  const { db, commodity, makeGuid, nowMs } = config;
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   ensureCommodityRow(db, commodityGuid, commodity);
-  const { kit, purseGuids } = makeIssuerKitForCommodity(db, commodityGuid, makeGuid);
+  const { kit, purseGuids } = makeIssuerKitForCommodity(
+    db,
+    commodityGuid,
+    makeGuid,
+    nowMs,
+  );
   const purses = freezeProps({
     getGuid: (purse: unknown) => {
       const guid = purseGuids.get(purse as AccountPurse);
@@ -147,9 +154,9 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
  * Open an existing commodity by GUID and return the kit plus account access.
  */
 export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity => {
-  const { db, commodityGuid, makeGuid } = config;
+  const { db, commodityGuid, makeGuid, nowMs } = config;
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
-  return makeIssuerKitForCommodity(db, commodityGuid, makeGuid);
+  return makeIssuerKitForCommodity(db, commodityGuid, makeGuid, nowMs);
 };

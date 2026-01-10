@@ -17,6 +17,10 @@ export type CreateIssuerConfig = {
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
   makeGuid: () => Guid;
+  /**
+   * Injected clock returning milliseconds since epoch.
+   */
+  nowMs: () => number;
 };
 
 export type OpenIssuerConfig = {
@@ -26,6 +30,10 @@ export type OpenIssuerConfig = {
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
   makeGuid: () => Guid;
+  /**
+   * Injected clock returning milliseconds since epoch.
+   */
+  nowMs: () => number;
 };
 
 export type AmountLike = { value: bigint };

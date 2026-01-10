@@ -38,8 +38,9 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const kit = createIssuerKit(freeze({ db, commodity, makeGuid }));
-  const other = createIssuerKit(freeze({ db, commodity, makeGuid }));
+  const nowMs = () => 0;
+  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const other = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
 
   t.true(await kit.brand.isMyIssuer(kit.issuer));
   t.false(await kit.brand.isMyIssuer(other.issuer));
@@ -61,7 +62,8 @@ test('alice sends 10 to bob', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid }));
+  const nowMs = () => 0;
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const alicePurse = issuedKit.issuer.makeEmptyPurse();
@@ -93,7 +95,8 @@ test('createIssuerKit persists balances across re-open', t => {
   });
 
   const [aliceGuid, bobGuid, createdCommodityGuid] = (() => {
-    const created = createIssuerKit(freeze({ db, commodity, makeGuid }));
+    const nowMs = () => 0;
+    const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
     t.truthy(created.issuer);
     t.truthy(created.brand);
     t.truthy(created.mint);
@@ -115,7 +118,9 @@ test('createIssuerKit persists balances across re-open', t => {
     ];
   })();
 
-  const reopened = openIssuerKit(freeze({ db, commodityGuid: createdCommodityGuid, makeGuid }));
+  const reopened = openIssuerKit(
+    freeze({ db, commodityGuid: createdCommodityGuid, makeGuid, nowMs: () => 0 }),
+  );
   t.is(reopened.accounts.openAccountPurse(aliceGuid).getCurrentAmount().value, 0n);
   t.is(reopened.accounts.openAccountPurse(bobGuid).getCurrentAmount().value, 10n);
 });
