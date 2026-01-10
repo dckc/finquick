@@ -23,6 +23,38 @@ export const ensureCommodityRow = (
   insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
 };
 
+export const createCommodityRow = ({
+  db,
+  guid,
+  commodity,
+}: {
+  db: Database;
+  guid: Guid;
+  commodity: CommoditySpec;
+}): void => {
+  const row = db
+    .prepare<[string], { guid: string }>('SELECT guid FROM commodities WHERE guid = ?')
+    .get(guid);
+  if (row) {
+    throw new Error('commodity already exists');
+  }
+  const {
+    namespace = 'COMMODITY',
+    mnemonic,
+    fullname = mnemonic,
+    fraction = 1,
+    quoteFlag = 0,
+  } = commodity;
+  const insert = db.prepare(
+    [
+      'INSERT INTO commodities(',
+      'guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz',
+      ') VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)',
+    ].join(' '),
+  );
+  insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
+};
+
 export const ensureAccountRow = ({
   db,
   accountGuid,

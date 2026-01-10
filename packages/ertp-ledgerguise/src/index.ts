@@ -21,8 +21,8 @@ import type {
   OpenIssuerConfig,
 } from './types';
 import {
+  createCommodityRow,
   ensureAccountRow,
-  ensureCommodityRow,
   getCommodityAllegedName,
   makeTransferRecorder,
 } from './db-helpers';
@@ -155,7 +155,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   const { db, commodity, makeGuid, nowMs } = config;
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
-  ensureCommodityRow(db, commodityGuid, commodity);
+  createCommodityRow({ db, guid: commodityGuid, commodity });
   const { kit, purseGuids } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
