@@ -21,6 +21,7 @@ import type {
   IssuerKitWithPurseGuids,
   OpenIssuerConfig,
 } from './types';
+import { makeChartFacet } from './chart';
 import {
   createCommodityRow,
   ensureAccountRow,
@@ -37,6 +38,7 @@ export type {
   IssuerKitWithPurseGuids,
 } from './types';
 export { asGuid } from './guids';
+export { makeChartFacet } from './chart';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.

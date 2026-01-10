@@ -109,3 +109,8 @@ Consequences:
 ## Documentation
 
 - Update package docs or README when behavior or public API changes.
+
+## TODO
+
+- Consider Flow B (accrual then payout): record contributor payable before minting.
+- Consider periodic minting (budgeted supply) vs per-contribution minting.

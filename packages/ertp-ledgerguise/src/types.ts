@@ -70,4 +70,13 @@ export type PaymentAccess = {
   openPayment: (checkNumber: string) => object;
 };
 
+export type ChartFacet = {
+  placePurse: (args: {
+    purse: unknown;
+    name: string;
+    parentGuid?: Guid | null;
+    accountType?: string;
+  }) => void;
+};
+
 export type { Guid } from './guids';
