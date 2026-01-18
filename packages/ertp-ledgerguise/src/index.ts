@@ -30,15 +30,18 @@ import {
   makeTransferRecorder,
 } from './db-helpers';
 import { makePurseFactory } from './purse';
+import { makeEscrow } from './escrow';
 
 export type {
   CommoditySpec,
+  EscrowFacet,
   IssuerKitForCommodity,
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
 } from './types';
 export { asGuid } from './guids';
 export { makeChartFacet } from './chart';
+export { makeEscrow } from './escrow';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.
@@ -101,13 +104,15 @@ const makeIssuerKitForCommodity = ({
     return payment;
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
+  const commodityLabel = getAllegedName();
   const balanceAccountGuid = makeDeterministicGuid(`ledgerguise-balance:${commodityGuid}`);
   ensureAccountRow({
     db,
     accountGuid: balanceAccountGuid,
-    name: 'Ledgerguise Balance',
+    name: `${commodityLabel} Mint Holding`,
     commodityGuid,
-    accountType: 'EQUITY',
+    // GnuCash requires non-currency commodities to live under STOCK/MUTUAL/related accounts.
+    accountType: 'STOCK',
   });
   const transferRecorder = makeTransferRecorder({
     db,
@@ -165,10 +170,15 @@ const makeIssuerKitForCommodity = ({
       return makePayment(amount, balanceAccountGuid, txGuid, holdingSplitGuid, checkNumber);
     },
   });
-  const mintRecoveryPurse = ensurePurse(
-    makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`),
-    '__mintRecovery',
-  );
+  const mintRecoveryGuid = makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`);
+  ensureAccountRow({
+    db,
+    accountGuid: mintRecoveryGuid,
+    name: `${commodityLabel} Mint Recovery`,
+    commodityGuid,
+    accountType: 'STOCK',
+  });
+  const mintRecoveryPurse = openPurse(mintRecoveryGuid, `${commodityLabel} Mint Recovery`);
   const kit = freeze({
     brand,
     issuer,
@@ -176,6 +186,12 @@ const makeIssuerKitForCommodity = ({
     mintRecoveryPurse,
     displayInfo,
   }) as unknown as IssuerKit;
+  const mintInfo = freezeProps({
+    getMintInfo: () => ({
+      holdingAccountGuid: balanceAccountGuid,
+      recoveryPurseGuid: mintRecoveryGuid,
+    }),
+  });
   const payments = freezeProps({
     getCheckNumber: (payment: unknown) => {
       const record = paymentRecords.get(payment as object);
@@ -251,7 +267,7 @@ const makeIssuerKitForCommodity = ({
       return openPurse(accountGuid, accountGuid);
     },
   });
-  return freezeProps({ kit, accounts, purseGuids, payments });
+  return freezeProps({ kit, accounts, purseGuids, payments, mintInfo });
 };
 
 /**
@@ -263,7 +279,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
-  const { kit, purseGuids, payments } = makeIssuerKitForCommodity({
+  const { kit, purseGuids, payments, mintInfo } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
@@ -276,7 +292,13 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
       return guid;
     },
   });
-  return freezeProps({ ...kit, commodityGuid, purses, payments }) as IssuerKitWithPurseGuids;
+  return freezeProps({
+    ...kit,
+    commodityGuid,
+    purses,
+    payments,
+    mintInfo,
+  }) as IssuerKitWithPurseGuids;
 };
 
 /**

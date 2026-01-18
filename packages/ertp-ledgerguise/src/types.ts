@@ -54,6 +54,7 @@ export type IssuerKitForCommodity = {
   accounts: AccountPurseAccess;
   purseGuids: WeakMap<AccountPurse, Guid>;
   payments: PaymentAccess;
+  mintInfo: MintInfoAccess;
 };
 
 export type IssuerKitWithGuid = IssuerKit & { commodityGuid: Guid };
@@ -63,11 +64,19 @@ export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
     getGuid: (purse: unknown) => Guid;
   };
   payments: PaymentAccess;
+  mintInfo: MintInfoAccess;
 };
 
 export type PaymentAccess = {
   getCheckNumber: (payment: unknown) => string;
   openPayment: (checkNumber: string) => object;
+};
+
+export type MintInfoAccess = {
+  getMintInfo: () => {
+    holdingAccountGuid: Guid;
+    recoveryPurseGuid: Guid;
+  };
 };
 
 export type ChartFacet = {
@@ -76,7 +85,28 @@ export type ChartFacet = {
     name: string;
     parentGuid?: Guid | null;
     accountType?: string;
+    placeholder?: boolean;
   }) => void;
+  placeAccount: (args: {
+    accountGuid: Guid;
+    name: string;
+    parentGuid?: Guid | null;
+    accountType?: string;
+    placeholder?: boolean;
+  }) => void;
+};
+
+export type EscrowFacet = {
+  makeOffer: (
+    left: { fromPurse: unknown; toPurse: unknown; amount: AmountLike },
+    right: { fromPurse: unknown; toPurse: unknown; amount: AmountLike },
+    checkNumber: string,
+    description?: string,
+  ) => {
+    accept: () => void;
+    cancel: () => void;
+    getOfferId: () => string;
+  };
 };
 
 export type { Guid } from './guids';

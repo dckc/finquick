@@ -61,20 +61,22 @@ export const ensureAccountRow = ({
   name,
   commodityGuid,
   accountType = 'ASSET',
+  parentGuid = null,
 }: {
   db: Database;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
   accountType?: string;
+  parentGuid?: Guid | null;
 }): void => {
   db.prepare(
     [
       'INSERT OR IGNORE INTO accounts(',
       'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
-      ') VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, 0)',
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)',
     ].join(' '),
-  ).run(accountGuid, name, accountType, commodityGuid, 1, 0);
+  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const createAccountRow = ({
@@ -83,12 +85,14 @@ export const createAccountRow = ({
   name,
   commodityGuid,
   accountType = 'ASSET',
+  parentGuid = null,
 }: {
   db: Database;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
   accountType?: string;
+  parentGuid?: Guid | null;
 }): void => {
   const row = db
     .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
@@ -100,9 +104,9 @@ export const createAccountRow = ({
     [
       'INSERT INTO accounts(',
       'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
-      ') VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, 0)',
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)',
     ].join(' '),
-  ).run(accountGuid, name, accountType, commodityGuid, 1, 0);
+  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const requireAccountCommodity = ({
@@ -230,7 +234,7 @@ export const makeTransferRecorder = ({
       [
         'INSERT INTO transactions(',
         'guid, currency_guid, num, post_date, enter_date, description',
-        ") VALUES (?, ?, ?, date(?, 'unixepoch'), date(?, 'unixepoch'), ?)",
+        ") VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)",
       ].join(' '),
     ).run(
       txGuid,

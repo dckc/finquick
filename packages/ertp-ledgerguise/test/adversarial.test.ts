@@ -205,7 +205,7 @@ test('openAccountPurse rejects the holding account', t => {
     .prepare<[string, string], { guid: string }>(
       'SELECT guid FROM accounts WHERE name = ? AND commodity_guid = ?',
     )
-    .get('Ledgerguise Balance', created.commodityGuid);
+    .get('BUCKS Mint Holding', created.commodityGuid);
   t.truthy(row?.guid);
 
   t.throws(() => reopened.accounts.openAccountPurse(asGuid(row!.guid)), {
