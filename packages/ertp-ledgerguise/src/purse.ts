@@ -1,4 +1,4 @@
-import { freezeProps } from './jessie-tools';
+import { freezeProps, Nat } from './jessie-tools';
 import {
   createAccountRow,
   ensureAccountRow,
@@ -32,7 +32,6 @@ type PurseFactoryOptions = {
   >;
   /** @see makeTransferRecorder */
   transferRecorder: ReturnType<typeof makeTransferRecorder>;
-  Nat: (specimen: bigint) => bigint;
   getBrand: () => unknown;
 };
 export const makePurseFactory = ({
@@ -42,7 +41,6 @@ export const makePurseFactory = ({
   makePayment,
   paymentRecords,
   transferRecorder,
-  Nat,
   getBrand,
 }: PurseFactoryOptions) => {
   const purseGuids = new WeakMap<AccountPurse, Guid>();

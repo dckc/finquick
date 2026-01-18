@@ -10,7 +10,7 @@
 import type { IssuerKit } from '@agoric/ertp';
 import type { Database } from 'better-sqlite3';
 import { gcEmptySql } from './sql/gc_empty';
-import { freezeProps } from './jessie-tools';
+import { freezeProps, Nat } from './jessie-tools';
 import { makeDeterministicGuid } from './guids';
 import type {
   AccountPurse,
@@ -60,15 +60,6 @@ const makeIssuerKitForCommodity = ({
   nowMs: () => number;
 }): IssuerKitForCommodity => {
   const { freeze } = Object;
-  const Nat = (specimen: bigint) => {
-    if (typeof specimen !== 'bigint') {
-      throw new Error('amount must be bigint');
-    }
-    if (specimen < 0n) {
-      throw new Error('amount must be non-negative');
-    }
-    return specimen;
-  };
   // TODO: consider validation of DB capability and schema.
   const displayInfo = freeze({ assetKind: 'nat' as const });
   const amountShape = freeze({});
@@ -132,7 +123,6 @@ const makeIssuerKitForCommodity = ({
     makePayment,
     paymentRecords,
     transferRecorder,
-    Nat,
     getBrand: () => brand,
   });
   const brand = freezeProps({
