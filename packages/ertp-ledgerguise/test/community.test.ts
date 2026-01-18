@@ -14,6 +14,7 @@ import Database from 'better-sqlite3';
 import type { Brand, NatAmount } from '@agoric/ertp';
 import type { Guid } from '../src/types';
 import { asGuid, createIssuerKit, initGnuCashSchema, makeChartFacet } from '../src/index';
+import { makeTestClock } from './helpers/clock';
 
 type PurseLike = ReturnType<ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']>;
 
@@ -26,13 +27,30 @@ type CommunityContext = {
   members: Map<string, PurseLike>;
 };
 
-const state: {
+const sharedState: {
   rootPurse?: PurseLike;
   rootGuid?: Guid;
   members: Map<string, PurseLike>;
 } = { members: new Map() };
 
 const serial = test.serial as TestFn<CommunityContext>;
+
+const getTotalForAccountType = (
+  db: import('better-sqlite3').Database,
+  commodityGuid: Guid,
+  accountType: string,
+) => {
+  const row = db
+    .prepare<[string, string], { total: string }>(
+      [
+        'SELECT COALESCE(SUM(quantity_num), 0) AS total',
+        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
+        "WHERE accounts.account_type = ? AND accounts.commodity_guid = ?",
+      ].join(' '),
+    )
+    .get(accountType, commodityGuid);
+  return BigInt(row?.total ?? '0');
+};
 
 serial.before(t => {
   const { freeze } = Object;
@@ -46,7 +64,7 @@ serial.before(t => {
     guidCounter += 1n;
     return asGuid(guid.toString(16).padStart(32, '0'));
   };
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const chart = makeChartFacet({
@@ -63,7 +81,7 @@ serial.before(t => {
     chart,
     brand,
     bucks,
-    members: state.members,
+    members: sharedState.members,
   };
 });
 
@@ -87,8 +105,8 @@ serial('stage 1: create the community root account', t => {
     accountType: 'EQUITY',
   });
   const rootGuid = kit.purses.getGuid(rootPurse);
-  state.rootPurse = rootPurse;
-  state.rootGuid = rootGuid;
+  sharedState.rootPurse = rootPurse;
+  sharedState.rootGuid = rootGuid;
 
   const row = t.context.db
     .prepare<[string], { name: string; account_type: string }>(
@@ -101,34 +119,34 @@ serial('stage 1: create the community root account', t => {
 
 serial('stage 2: add member purses to the chart', t => {
   const { chart, kit } = t.context as CommunityContext;
-  t.truthy(state.rootGuid);
+  t.truthy(sharedState.rootGuid);
   const members = ['Alice', 'Bob', 'Carol'];
   for (const name of members) {
     const purse = kit.issuer.makeEmptyPurse();
     chart.placePurse({
       purse,
       name,
-      parentGuid: state.rootGuid,
+      parentGuid: sharedState.rootGuid,
       accountType: 'ASSET',
     });
-    state.members.set(name, purse);
+    sharedState.members.set(name, purse);
   }
 
-  const aliceGuid = kit.purses.getGuid(state.members.get('Alice')!);
+  const aliceGuid = kit.purses.getGuid(sharedState.members.get('Alice')!);
   const row = t.context.db
     .prepare<[string], { name: string; parent_guid: string | null }>(
       'SELECT name, parent_guid FROM accounts WHERE guid = ?',
     )
     .get(aliceGuid);
   t.is(row?.name, 'Alice');
-  t.is(row?.parent_guid, state.rootGuid);
+  t.is(row?.parent_guid, sharedState.rootGuid);
 });
 
 serial('stage 3: award contributions to members', t => {
   const { kit, bucks } = t.context as CommunityContext;
-  const alice = state.members.get('Alice')!;
-  const bob = state.members.get('Bob')!;
-  const carol = state.members.get('Carol')!;
+  const alice = sharedState.members.get('Alice')!;
+  const bob = sharedState.members.get('Bob')!;
+  const carol = sharedState.members.get('Carol')!;
 
   alice.deposit(kit.mint.mintPayment(bucks(10n)));
   bob.deposit(kit.mint.mintPayment(bucks(7n)));
@@ -142,35 +160,7 @@ serial('stage 3: award contributions to members', t => {
 
 serial('stage 4: run balance sheet and income statement', t => {
   const { db, kit } = t.context as CommunityContext;
-  const assetTotal = db
-    .prepare<[string], { total: string }>(
-      [
-        'SELECT COALESCE(SUM(quantity_num), 0) AS total',
-        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
-        "WHERE accounts.account_type = 'ASSET' AND accounts.commodity_guid = ?",
-      ].join(' '),
-    )
-    .get(kit.commodityGuid)?.total;
-  const equityTotal = db
-    .prepare<[string], { total: string }>(
-      [
-        'SELECT COALESCE(SUM(quantity_num), 0) AS total',
-        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
-        "WHERE accounts.account_type = 'EQUITY' AND accounts.commodity_guid = ?",
-      ].join(' '),
-    )
-    .get(kit.commodityGuid)?.total;
-  const expenseTotal = db
-    .prepare<[string], { total: string }>(
-      [
-        'SELECT COALESCE(SUM(quantity_num), 0) AS total',
-        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
-        "WHERE accounts.account_type = 'EXPENSE' AND accounts.commodity_guid = ?",
-      ].join(' '),
-    )
-    .get(kit.commodityGuid)?.total;
-
-  t.is(BigInt(assetTotal ?? '0'), 25n);
-  t.is(BigInt(equityTotal ?? '0'), -25n);
-  t.is(BigInt(expenseTotal ?? '0'), 0n);
+  t.is(getTotalForAccountType(db, kit.commodityGuid, 'ASSET'), 25n);
+  t.is(getTotalForAccountType(db, kit.commodityGuid, 'EQUITY'), -25n);
+  t.is(getTotalForAccountType(db, kit.commodityGuid, 'EXPENSE'), 0n);
 });

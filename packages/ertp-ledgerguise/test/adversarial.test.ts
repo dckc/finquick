@@ -7,6 +7,7 @@ import test from 'ava';
 import Database from 'better-sqlite3';
 import type { Brand, NatAmount } from '@agoric/ertp';
 import { asGuid, createIssuerKit, initGnuCashSchema, openIssuerKit } from '../src/index';
+import { makeTestClock } from './helpers/clock';
 
 const seedAccountBalance = (
   db: import('better-sqlite3').Database,
@@ -55,7 +56,7 @@ test('rejects negative withdraw amounts', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -83,7 +84,7 @@ test('makeEmptyPurse rejects account GUID collisions', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
 
   seedAccountBalance(db, victimAccountGuid, issuedKit.commodityGuid, 25n);
@@ -111,7 +112,7 @@ test('createIssuerKit rejects commodity GUID collisions', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
 
   t.throws(() => createIssuerKit(freeze({ db, commodity, makeGuid, nowMs })), {
     message: /commodity/i,
@@ -130,7 +131,7 @@ test('withdraw rejects wrong-brand amounts', t => {
     guidCounter += 1n;
     return asGuid(guid.toString(16).padStart(32, '0'));
   };
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
@@ -161,7 +162,7 @@ test('openAccountPurse rejects wrong-commodity accounts', t => {
     guidCounter += 1n;
     return asGuid(guid.toString(16).padStart(32, '0'));
   };
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
@@ -193,7 +194,7 @@ test('openAccountPurse rejects the holding account', t => {
     guidCounter += 1n;
     return asGuid(guid.toString(16).padStart(32, '0'));
   };
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const reopened = openIssuerKit(

@@ -7,6 +7,7 @@ import test from 'ava';
 import Database from 'better-sqlite3';
 import type { Brand, NatAmount } from '@agoric/ertp';
 import { asGuid, createIssuerKit, initGnuCashSchema, openIssuerKit } from '../src/index';
+import { makeTestClock } from './helpers/clock';
 
 test('initGnuCashSchema creates GnuCash tables', t => {
   const db = new Database(':memory:');
@@ -38,7 +39,7 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const other = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
 
@@ -62,7 +63,7 @@ test('alice sends 10 to bob', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -93,7 +94,7 @@ test('alice-to-bob transfer records a single transaction', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -149,7 +150,7 @@ test('payments can be reified by check number', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const nowMs = () => 0;
+  const nowMs = makeTestClock();
   const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const brand = created.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -164,7 +165,7 @@ test('payments can be reified by check number', t => {
   );
 
   const reopened = openIssuerKit(
-    freeze({ db, commodityGuid: created.commodityGuid, makeGuid, nowMs }),
+    freeze({ db, commodityGuid: created.commodityGuid, makeGuid, nowMs: makeTestClock() }),
   );
   const reified = reopened.payments.openPayment(
     checkNumber,
@@ -193,7 +194,7 @@ test('createIssuerKit persists balances across re-open', t => {
   });
 
   const [aliceGuid, bobGuid, createdCommodityGuid] = (() => {
-    const nowMs = () => 0;
+    const nowMs = makeTestClock();
     const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
     t.truthy(created.issuer);
     t.truthy(created.brand);
@@ -217,7 +218,7 @@ test('createIssuerKit persists balances across re-open', t => {
   })();
 
   const reopened = openIssuerKit(
-    freeze({ db, commodityGuid: createdCommodityGuid, makeGuid, nowMs: () => 0 }),
+    freeze({ db, commodityGuid: createdCommodityGuid, makeGuid, nowMs: makeTestClock() }),
   );
   t.is(reopened.accounts.openAccountPurse(aliceGuid).getCurrentAmount().value, 0n);
   t.is(reopened.accounts.openAccountPurse(bobGuid).getCurrentAmount().value, 10n);
