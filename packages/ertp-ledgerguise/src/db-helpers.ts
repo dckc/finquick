@@ -165,6 +165,31 @@ export const makeTransferRecorder = ({
   makeGuid: () => Guid;
   nowMs: () => number;
 }) => {
+  const formatCheckNumber = (nowMsValue: number) => {
+    const date = new Date(nowMsValue);
+    const hh = String(date.getUTCHours()).padStart(2, '0');
+    const mm = String(date.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const resolveCheckNumber = (base: string) => {
+    const rows = db
+      .prepare<[string, string], { num: string }>(
+        'SELECT num FROM transactions WHERE num = ? OR num LIKE ?',
+      )
+      .all(base, `${base}.%`);
+    if (rows.length === 0) return base;
+    let maxSuffix = 1;
+    for (const row of rows) {
+      if (row.num === base) continue;
+      const suffix = Number(row.num.slice(base.length + 1));
+      if (Number.isInteger(suffix) && suffix > maxSuffix) {
+        maxSuffix = suffix;
+      }
+    }
+    return `${base}.${maxSuffix + 1}`;
+  };
+
   const recordSplit = (
     txGuid: Guid,
     accountGuid: Guid,
@@ -194,29 +219,40 @@ export const makeTransferRecorder = ({
     return splitGuid;
   };
 
-  const recordTransaction = (txGuid: Guid, amount: bigint, checkNumber: string) => {
-    const now = new Date(nowMs()).toISOString().slice(0, 19);
+  const recordTransaction = (
+    txGuid: Guid,
+    amount: bigint,
+    checkNumber: string,
+    nowMsValue: number,
+  ) => {
+    const seconds = Math.floor(nowMsValue / 1000);
     db.prepare(
       [
         'INSERT INTO transactions(',
         'guid, currency_guid, num, post_date, enter_date, description',
-        ') VALUES (?, ?, ?, ?, ?, ?)',
+        ") VALUES (?, ?, ?, date(?, 'unixepoch'), date(?, 'unixepoch'), ?)",
       ].join(' '),
-    ).run(txGuid, commodityGuid, checkNumber, now, now, `ledgerguise ${amount.toString()}`);
+    ).run(
+      txGuid,
+      commodityGuid,
+      checkNumber,
+      seconds,
+      seconds,
+      `ledgerguise ${amount.toString()}`,
+    );
   };
 
   const createHold = ({
     fromAccountGuid,
     amount,
-    checkNumber,
   }: {
     fromAccountGuid: Guid;
     amount: bigint;
-    checkNumber?: string;
   }) => {
+    const nowMsValue = nowMs();
     const txGuid = makeGuid();
-    const resolvedCheckNumber = checkNumber ?? txGuid;
-    recordTransaction(txGuid, amount, resolvedCheckNumber);
+    const resolvedCheckNumber = resolveCheckNumber(formatCheckNumber(nowMsValue));
+    recordTransaction(txGuid, amount, resolvedCheckNumber, nowMsValue);
     const holdingSplitGuid = recordSplit(txGuid, holdingAccountGuid, amount, 'n');
     recordSplit(txGuid, fromAccountGuid, -amount, 'n');
     return { txGuid, holdingSplitGuid, checkNumber: resolvedCheckNumber };

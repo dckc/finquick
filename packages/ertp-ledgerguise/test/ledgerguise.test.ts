@@ -176,6 +176,39 @@ test('payments can be reified by check number', t => {
   t.is(reopenedBob.getCurrentAmount().value, 10n);
 });
 
+test('check numbers increment on collisions', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const nowMs = (() => {
+    const fixed = Date.UTC(2020, 0, 1, 9, 15);
+    return () => fixed;
+  })();
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = created.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+
+  const p1 = created.mint.mintPayment(bucks(1n));
+  const p2 = created.mint.mintPayment(bucks(1n));
+  const n1 = created.payments.getCheckNumber(p1);
+  const n2 = created.payments.getCheckNumber(p2);
+
+  t.is(n1, '09:15');
+  t.is(n2, '09:15.2');
+});
+
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');
