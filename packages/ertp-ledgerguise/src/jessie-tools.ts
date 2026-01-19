@@ -1,12 +1,24 @@
-export const freezeProps = <T extends Record<string, unknown>>(
+export const freezeProps = <T extends Record<PropertyKey, unknown>>(
   obj: T,
 ): Readonly<T> => {
-  for (const value of Object.values(obj)) {
+  for (const key of Reflect.ownKeys(obj)) {
+    const value = (obj as Record<PropertyKey, unknown>)[key];
     if (typeof value === 'function') {
       Object.freeze(value);
     }
   }
   return Object.freeze(obj);
+};
+
+export type Zone = {
+  exo: <T extends Record<PropertyKey, unknown>>(
+    interfaceName: string,
+    methods: T,
+  ) => Readonly<T>;
+};
+
+export const defaultZone: Zone = {
+  exo: (_interfaceName, methods) => freezeProps(methods),
 };
 
 export const Nat = (specimen: bigint) => {

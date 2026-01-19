@@ -1,4 +1,5 @@
-import { freezeProps } from './jessie-tools';
+import { defaultZone } from './jessie-tools';
+import type { Zone } from './jessie-tools';
 import type { SqlDatabase } from './sql-db';
 import type { ChartFacet, Guid } from './types';
 import { requireAccountCommodity } from './db-helpers';
@@ -14,11 +15,14 @@ export const makeChartFacet = ({
   db,
   commodityGuid,
   getPurseGuid,
+  zone = defaultZone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
   getPurseGuid: (purse: unknown) => Guid;
+  zone?: Zone;
 }): ChartFacet => {
+  const { exo } = zone;
   const updateAccount = ({
     accountGuid,
     name,
@@ -49,7 +53,7 @@ export const makeChartFacet = ({
     ).run(name, accountType, parentGuid, placeholder ? 1 : 0, accountGuid);
   };
 
-  return freezeProps({
+  return exo('ChartFacet', {
     placePurse: ({
       purse,
       name,

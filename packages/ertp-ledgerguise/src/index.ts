@@ -10,7 +10,8 @@
 import type { IssuerKit } from '@agoric/ertp';
 import type { SqlDatabase } from './sql-db';
 import { gcEmptySql } from './sql/gc_empty';
-import { freezeProps, Nat } from './jessie-tools';
+import { defaultZone, Nat } from './jessie-tools';
+import type { Zone } from './jessie-tools';
 import { makeDeterministicGuid } from './guids';
 import type {
   AccountPurse,
@@ -43,13 +44,25 @@ export { asGuid } from './guids';
 export { makeChartFacet } from './chart';
 export { makeEscrow } from './escrow';
 export type { SqlDatabase, SqlStatement } from './sql-db';
+export type { Zone } from './jessie-tools';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.
  * @see ./sql/gc_empty.sql
  */
-export const initGnuCashSchema = (db: SqlDatabase): void => {
-  db.exec(gcEmptySql);
+export const initGnuCashSchema = (
+  db: SqlDatabase,
+  options: { allowTransactionStatements?: boolean } = {},
+): void => {
+  const { allowTransactionStatements = true } = options;
+  if (allowTransactionStatements) {
+    db.exec(gcEmptySql);
+    return;
+  }
+  const sanitized = gcEmptySql
+    .replace(/\bBEGIN TRANSACTION;\s*/gi, '')
+    .replace(/\bCOMMIT;\s*/gi, '');
+  db.exec(sanitized);
 };
 
 const makeIssuerKitForCommodity = ({
@@ -57,12 +70,15 @@ const makeIssuerKitForCommodity = ({
   commodityGuid,
   makeGuid,
   nowMs,
+  zone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
   makeGuid: () => Guid;
   nowMs: () => number;
+  zone: Zone;
 }): IssuerKitForCommodity => {
+  const { exo } = zone;
   const { freeze } = Object;
   // TODO: consider validation of DB capability and schema.
   const displayInfo = freeze({ assetKind: 'nat' as const });
@@ -78,6 +94,7 @@ const makeIssuerKitForCommodity = ({
       checkNumber: string;
     }
   >();
+  const livePayments = new Set<object>();
   const assertAmount = (amount: AmountLike) => {
     if (amount.brand !== brand) {
       throw new Error('amount brand mismatch');
@@ -93,7 +110,20 @@ const makeIssuerKitForCommodity = ({
     checkNumber: string,
   ) => {
     const amountValue = assertAmount(amount);
-    const payment = freeze({});
+    const payment = exo('Payment', {
+      __getAllegedInterface__: () => {
+        // TODO: return ERTP interface metadata once defined.
+        throw new Error('not implemented');
+      },
+      [Symbol.dispose]: () => {
+        const record = paymentRecords.get(payment as object);
+        if (record?.live) {
+          console.warn('ledgerguise payment disposed while live', {
+            checkNumber: record.checkNumber,
+          });
+        }
+      },
+    });
     paymentRecords.set(payment, {
       amount: amountValue,
       live: true,
@@ -102,6 +132,7 @@ const makeIssuerKitForCommodity = ({
       holdingSplitGuid,
       checkNumber,
     });
+    livePayments.add(payment as object);
     return payment;
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
@@ -127,17 +158,19 @@ const makeIssuerKitForCommodity = ({
     commodityGuid,
     makeAmount,
     makePayment,
+    livePayments,
     paymentRecords,
     transferRecorder,
     getBrand: () => brand,
+    zone,
   });
-  const brand = freezeProps({
+  const brand = exo('Brand', {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
     getDisplayInfo: () => displayInfo,
     getAmountShape: () => amountShape,
   });
-  const issuer = freezeProps({
+  const issuer = exo('Issuer', {
     getBrand: () => brand,
     getAllegedName: () => getAllegedName(),
     getAssetKind: () => 'nat' as const,
@@ -152,6 +185,7 @@ const makeIssuerKitForCommodity = ({
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
       record.live = false;
+      livePayments.delete(payment as object);
       transferRecorder.finalizeHold({
         txGuid: record.txGuid,
         holdingSplitGuid: record.holdingSplitGuid,
@@ -160,7 +194,7 @@ const makeIssuerKitForCommodity = ({
       return makeAmount(record.amount);
     },
   });
-  const mint = freezeProps({
+  const mint = exo('Mint', {
     getIssuer: () => issuer,
     mintPayment: (amount: AmountLike) => {
       const amountValue = assertAmount(amount);
@@ -187,13 +221,13 @@ const makeIssuerKitForCommodity = ({
     mintRecoveryPurse,
     displayInfo,
   }) as unknown as IssuerKit;
-  const mintInfo = freezeProps({
+  const mintInfo = exo('MintInfoAccess', {
     getMintInfo: () => ({
       holdingAccountGuid: balanceAccountGuid,
       recoveryPurseGuid: mintRecoveryGuid,
     }),
   });
-  const payments = freezeProps({
+  const payments = exo('PaymentAccess', {
     getCheckNumber: (payment: unknown) => {
       const record = paymentRecords.get(payment as object);
       if (!record) throw new Error('unknown payment');
@@ -254,7 +288,7 @@ const makeIssuerKitForCommodity = ({
       );
     },
   });
-  const accounts = freezeProps({
+  const accounts = exo('AccountAccess', {
     makeAccountPurse: (accountGuid: Guid) => {
       if (accountGuid === balanceAccountGuid) {
         throw new Error('holding account is not externally accessible');
@@ -268,7 +302,7 @@ const makeIssuerKitForCommodity = ({
       return openPurse(accountGuid, accountGuid);
     },
   });
-  return freezeProps({ kit, accounts, purseGuids, payments, mintInfo });
+  return freeze({ kit, accounts, purseGuids, payments, mintInfo });
 };
 
 /**
@@ -277,6 +311,7 @@ const makeIssuerKitForCommodity = ({
  */
 export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseGuids => {
   const { db, commodity, makeGuid, nowMs } = config;
+  const zone = config.zone ?? defaultZone;
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
@@ -285,15 +320,16 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
     commodityGuid,
     makeGuid,
     nowMs,
+    zone,
   });
-  const purses = freezeProps({
+  const purses = zone.exo('PurseGuids', {
     getGuid: (purse: unknown) => {
       const guid = purseGuids.get(purse as AccountPurse);
       if (!guid) throw new Error('unknown purse');
       return guid;
     },
   });
-  return freezeProps({
+  return Object.freeze({
     ...kit,
     commodityGuid,
     purses,
@@ -307,8 +343,9 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
  */
 export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity => {
   const { db, commodityGuid, makeGuid, nowMs } = config;
+  const zone = config.zone ?? defaultZone;
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
-  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs });
+  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs, zone });
 };

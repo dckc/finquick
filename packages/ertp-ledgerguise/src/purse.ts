@@ -1,4 +1,5 @@
-import { freezeProps, Nat } from './jessie-tools';
+import { Nat } from './jessie-tools';
+import type { Zone } from './jessie-tools';
 import {
   createAccountRow,
   ensureAccountRow,
@@ -20,6 +21,8 @@ type PurseFactoryOptions = {
     holdingSplitGuid: Guid,
     checkNumber: string,
   ) => object;
+  livePayments: Set<object>;
+  zone: Zone;
   paymentRecords: WeakMap<
     object,
     {
@@ -40,10 +43,13 @@ export const makePurseFactory = ({
   commodityGuid,
   makeAmount,
   makePayment,
+  livePayments,
   paymentRecords,
   transferRecorder,
   getBrand,
+  zone,
 }: PurseFactoryOptions) => {
+  const { exo } = zone;
   const purseGuids = new WeakMap<AccountPurse, Guid>();
 
   const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
@@ -53,6 +59,7 @@ export const makePurseFactory = ({
       if (!record?.live) throw new Error('payment not live');
       Nat(record.amount);
       record.live = false;
+      livePayments.delete(payment);
       transferRecorder.finalizeHold({
         txGuid: record.txGuid,
         holdingSplitGuid: record.holdingSplitGuid,
@@ -74,7 +81,7 @@ export const makePurseFactory = ({
       return makePayment(amount, accountGuid, txGuid, holdingSplitGuid, checkNumber);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
-    const purse = freezeProps({ deposit, withdraw, getCurrentAmount });
+    const purse = exo('Purse', { deposit, withdraw, getCurrentAmount });
     purseGuids.set(purse, accountGuid);
     return purse;
   };

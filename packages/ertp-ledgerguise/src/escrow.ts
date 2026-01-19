@@ -1,4 +1,5 @@
-import { freezeProps, Nat } from './jessie-tools';
+import { defaultZone, Nat } from './jessie-tools';
+import type { Zone } from './jessie-tools';
 import type { AmountLike, EscrowFacet, Guid } from './types';
 import type { SqlDatabase } from './sql-db';
 import { requireAccountCommodity } from './db-helpers';
@@ -29,6 +30,7 @@ export const makeEscrow = ({
   brand,
   makeGuid,
   nowMs,
+  zone = defaultZone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
@@ -37,7 +39,9 @@ export const makeEscrow = ({
   brand: unknown;
   makeGuid: () => Guid;
   nowMs: () => number;
+  zone?: Zone;
 }): EscrowFacet => {
+  const { exo } = zone;
   const offers = new WeakMap<object, EscrowRecord>();
   const assertAmount = (amount: AmountLike) => {
     if (amount.brand !== brand) {
@@ -94,7 +98,7 @@ export const makeEscrow = ({
   const markCleared = (txGuid: Guid) => {
     db.prepare('UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?').run('c', txGuid);
   };
-  return freezeProps({
+  return exo('Escrow', {
     makeOffer: (left, right, checkNumber, description = 'escrow') => {
       assertCheckNumberAvailable(checkNumber);
       const leftAmount = assertAmount(left.amount);
@@ -120,7 +124,7 @@ export const makeEscrow = ({
       const rightHoldingSplitGuid = recordSplit(txGuid, holdingAccountGuid, rightAmount, 'n');
       recordSplit(txGuid, leftAccountGuid, -leftAmount, 'n');
       recordSplit(txGuid, rightAccountGuid, -rightAmount, 'n');
-      const offer = freezeProps({
+      const offer = exo('EscrowOffer', {
         accept: () => {
           const record = offers.get(offer);
           if (!record?.live) throw new Error('escrow offer not live');

@@ -1,6 +1,7 @@
 import type { IssuerKit } from '@agoric/ertp';
 import type { SqlDatabase } from './sql-db';
 import type { Guid } from './guids';
+import type { Zone } from './jessie-tools';
 
 export type CommoditySpec = {
   namespace?: string;
@@ -13,6 +14,7 @@ export type CommoditySpec = {
 export type CreateIssuerConfig = {
   db: SqlDatabase;
   commodity: CommoditySpec;
+  zone?: Zone;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
@@ -26,6 +28,7 @@ export type CreateIssuerConfig = {
 export type OpenIssuerConfig = {
   db: SqlDatabase;
   commodityGuid: Guid;
+  zone?: Zone;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
