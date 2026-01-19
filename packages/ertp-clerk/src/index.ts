@@ -1,5 +1,5 @@
-import type { DurableObjectNamespace } from 'cloudflare:workers';
 import { LedgerDurableObject } from './ledger-do';
+import type { Env } from '../worker-configuration';
 
 const { freeze } = Object;
 
@@ -30,10 +30,6 @@ url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
 const bootstrap = newWebSocketRpcSession(url.toString());
 export { bootstrap };
 `;
-
-type Env = {
-  LEDGER: DurableObjectNamespace;
-};
 
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {

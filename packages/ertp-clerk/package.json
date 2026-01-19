@@ -5,13 +5,17 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "smoke": "node scripts/smoke.js",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "capnweb": "^0.4.0",
     "drizzle-orm": "^0.44.5"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
+    "patch-package": "^8.0.1",
     "wrangler": "^4.59.2"
   }
 }

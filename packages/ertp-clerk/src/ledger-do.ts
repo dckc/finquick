@@ -2,109 +2,100 @@ import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
 import { drizzle, type DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlite';
 import { DurableObject } from 'cloudflare:workers';
 import type { DurableObjectState } from 'cloudflare:workers';
+import type { Env } from '../worker-configuration';
 import {
   createIssuerKit,
   initGnuCashSchema,
   asGuid,
-  type IssuerKitWithPurseGuids,
   type SqlDatabase,
   type Guid,
+  type Zone,
 } from '../../ertp-ledgerguise/src/index.js';
 import { makeSqlDatabaseFromStorage } from './sql-adapter';
 
-const makeGuidFactory = () => {
-  let guidCounter = 0n;
-  return () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
+const { freeze } = Object;
+
+const makeGuid = () => asGuid(crypto.randomUUID().replace(/-/g, ''));
+
+const isAmountLike = (value: unknown): value is { brand: unknown; value: unknown } =>
+  !!value && typeof value === 'object' && 'brand' in value && 'value' in value;
+
+const asAmountValue = (value: unknown): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  throw new Error('amount value must be bigint-compatible');
+};
+
+const normalizeAmountLike = (
+  value: { brand: unknown; value: unknown },
+  target: object,
+) => {
+  const targetRecord = target as {
+    getBrand?: () => unknown;
+    getIssuer?: () => { getBrand?: () => unknown };
+    getCurrentAmount?: () => { brand?: unknown };
+  };
+  const targetBrand =
+    targetRecord.getBrand?.() ??
+    targetRecord.getIssuer?.()?.getBrand?.() ??
+    targetRecord.getCurrentAmount?.()?.brand ??
+    undefined;
+  return {
+    ...value,
+    brand: targetBrand ?? value.brand,
+    value: asAmountValue(value.value),
   };
 };
 
-const isPromiseLike = (value: unknown): value is Promise<unknown> =>
-  !!value && typeof (value as Promise<unknown>).then === 'function';
-
-const isAmountLike = (value: unknown): value is { brand: unknown; value: bigint } =>
-  !!value &&
-  typeof value === 'object' &&
-  'brand' in value &&
-  'value' in value &&
-  typeof (value as { value: unknown }).value === 'bigint';
-
-const makeExternalWrapper = () => {
-  const targetToExternal = new WeakMap<object, object>();
-  const externalToTarget = new WeakMap<object, object>();
-  const unwrapValue = (value: unknown): unknown => {
-    if (value === null || value === undefined) return value;
-    if (isPromiseLike(value)) {
-      return value.then(unwrapValue);
-    }
-    if (typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map(unwrapValue);
-    if (isAmountLike(value)) {
-      const amount = value as { brand: unknown; value: bigint };
-      return { ...amount, brand: unwrapValue(amount.brand) };
-    }
-    const target = externalToTarget.get(value as object);
-    return target ?? value;
-  };
-  const wrapValue = (value: unknown): unknown => {
-    if (value === null || value === undefined) return value;
-    if (isPromiseLike(value)) {
-      return value.then(wrapValue);
-    }
-    if (typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map(wrapValue);
-    if (isAmountLike(value)) {
-      const amount = value as { brand: unknown; value: bigint };
-      return Object.freeze({ ...amount, brand: wrapValue(amount.brand) });
-    }
-    const cached = targetToExternal.get(value as object);
-    if (cached) return cached;
-    const external = new Proxy(new External(value as object), {
-      get(target, prop, receiver) {
-        if (prop in target) {
-          return Reflect.get(target, prop, receiver);
-        }
-        const targetValue = (target.target as Record<PropertyKey, unknown>)[prop];
-        if (typeof targetValue === 'function') {
-          return (...args: unknown[]) => {
-            const unwrappedArgs = args.map(unwrapValue);
-            return wrapValue(targetValue.apply(target.target, unwrappedArgs));
-          };
-        }
-        return wrapValue(targetValue);
-      },
-    });
-    targetToExternal.set(value as object, external);
-    externalToTarget.set(external, value as object);
-    return external;
-  };
-  return { wrapValue };
-};
-
-class External<T extends object> extends RpcTarget {
-  constructor(readonly target: T) {
-    super();
+const normalizeArgForTarget = (arg: unknown, target: object): unknown => {
+  if (isAmountLike(arg)) {
+    return normalizeAmountLike(arg, target);
   }
-}
+  if (arg && typeof arg === 'object' && 'amount' in arg) {
+    const record = arg as { amount?: unknown };
+    if (record.amount && isAmountLike(record.amount)) {
+      return {
+        ...arg,
+        amount: normalizeAmountLike(record.amount, target),
+      };
+    }
+  }
+  return arg;
+};
 
-const wrapIssuerKit = (wrapValue: (value: unknown) => unknown, kit: IssuerKitWithPurseGuids) => ({
-  commodityGuid: kit.commodityGuid,
-  brand: wrapValue(kit.brand),
-  issuer: wrapValue(kit.issuer),
-  mint: wrapValue(kit.mint),
-  mintRecoveryPurse: wrapValue(kit.mintRecoveryPurse),
-  purses: wrapValue(kit.purses),
-  payments: wrapValue(kit.payments),
-  mintInfo: wrapValue(kit.mintInfo),
+const makeRpcZone = (): Zone => ({
+  exo: (_interfaceName, methods) => {
+    class ExoTarget extends RpcTarget {}
+    for (const key of Reflect.ownKeys(methods)) {
+      const value = (methods as Record<PropertyKey, unknown>)[key];
+      if (typeof value === 'function') {
+        const wrappedMethod = function (this: object, ...args: unknown[]) {
+          return value(...args.map((arg) => normalizeArgForTarget(arg, this)));
+        };
+        freeze(wrappedMethod);
+        Object.defineProperty(ExoTarget.prototype, key, {
+          value: wrappedMethod,
+          writable: false,
+        });
+        continue;
+      }
+      Object.defineProperty(ExoTarget.prototype, key, {
+        get() {
+          return value;
+        },
+      });
+    }
+    freeze(ExoTarget.prototype);
+    return freeze(new ExoTarget());
+  },
 });
 
 class Bootstrap extends RpcTarget {
   constructor(
     private readonly db: SqlDatabase,
-    private readonly wrapValue: (value: unknown) => unknown,
     private readonly makeGuid: () => Guid,
+    private readonly zone: Zone,
   ) {
     super();
   }
@@ -115,8 +106,9 @@ class Bootstrap extends RpcTarget {
       commodity: { namespace: 'COMMODITY', mnemonic: name },
       makeGuid: this.makeGuid,
       nowMs: () => Date.now(),
+      zone: this.zone,
     });
-    return wrapIssuerKit(this.wrapValue, kit);
+    return kit;
   }
 }
 
@@ -126,12 +118,11 @@ export class LedgerDurableObject extends DurableObject {
   private readonly ready: Promise<void>;
   private readonly bootstrap: Bootstrap;
 
-  constructor(ctx: DurableObjectState) {
-    super(ctx);
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
     this.db = makeSqlDatabaseFromStorage(ctx.storage.sql);
     this.drizzle = drizzle(ctx.storage, { logger: false });
-    const { wrapValue } = makeExternalWrapper();
-    this.bootstrap = new Bootstrap(this.db, wrapValue, makeGuidFactory());
+    this.bootstrap = new Bootstrap(this.db, makeGuid, makeRpcZone());
     this.ready = this.ensureSchema();
   }
 
@@ -142,7 +133,8 @@ export class LedgerDurableObject extends DurableObject {
       )
       .get('accounts');
     if (!row) {
-      initGnuCashSchema(this.db);
+      // TODO: replace schema bootstrap with drizzle migrations.
+      initGnuCashSchema(this.db, { allowTransactionStatements: false });
     }
   }
 
