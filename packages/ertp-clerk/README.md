@@ -1,5 +1,9 @@
 # ertp-clerk
 
-A minimal worker that will eventually expose ERTP-ledger services over Cap'n Web.
+ERTP ledger access over Cap'n Web, hosted as a Cloudflare Worker.
 
-Current behavior: all HTTP requests return a failure response.
+## Usage
+
+- Visit `/` to load a small page that exposes `globalThis.bootstrap` in the browser console.
+- Call `await bootstrap.makeIssuerKit("BUCKS")` to obtain issuer facets backed by the durable ledger.
+- POST or WebSocket requests to `/api` speak Cap'n Web RPC; other endpoints return 501/204.
