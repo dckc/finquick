@@ -114,3 +114,23 @@ Consequences:
 
 - Consider Flow B (accrual then payout): record contributor payable before minting.
 - Consider periodic minting (budgeted supply) vs per-contribution minting.
+- Consider a read-only openIssuerKit facade with a reduced capability surface:
+  - No account access (no make/open purse).
+  - No mint access.
+  - No escrow access.
+  - Expose brand and displayInfo for identification.
+  - Expose issuer.getAmountOf / issuer.isLive for payment inspection.
+  - Optional: read-only chart/balance reporting facet (account tree, balances, recent txs).
+  - Keep payment reification behind a separate explicit capability if needed.
+- Consider generalizing escrow beyond a single brand (e.g., $ for stock). Two design options:
+  - Dual-transaction escrow (one transaction per brand):
+    - Use one holding account per brand; write two transactions with a shared offer ID/check number.
+    - Each transaction stays single-commodity (currency_guid matches the brand commodity).
+    - Accept/cancel retargets each brand's holding split to the destination/source account.
+    - Pros: avoids TRADING accounts; preserves current ledger invariants.
+    - Cons: two txs to correlate; needs shared offer ID and consistency checks.
+  - Single-transaction with TRADING splits:
+    - Create a single transaction with both commodities plus balancing splits to a TRADING account.
+    - Leverages GnuCash's multi-commodity transaction model.
+    - Pros: one tx per offer; native to GnuCash if configured correctly.
+    - Cons: requires TRADING accounts and correct valuation; more complex and harder to audit.
