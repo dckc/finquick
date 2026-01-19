@@ -1,0 +1,6 @@
+name = "ertp-clerk"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[observability]
+enabled = true
