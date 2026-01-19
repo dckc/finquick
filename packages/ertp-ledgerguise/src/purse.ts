@@ -65,7 +65,7 @@ export const makePurseFactory = ({
         holdingSplitGuid: record.holdingSplitGuid,
         toAccountGuid: accountGuid,
       });
-      return makeAmount(getAccountBalance(db, accountGuid));
+      return makeAmount(record.amount);
     };
     const withdraw = (amount: AmountLike) => {
       if (amount.brand !== brand) {

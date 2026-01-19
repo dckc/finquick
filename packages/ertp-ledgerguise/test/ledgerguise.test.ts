@@ -78,6 +78,35 @@ test('alice sends 10 to bob', t => {
   t.is(bobPurse.getCurrentAmount().value, 10n);
 });
 
+test('deposit returns the payment amount', t => {
+  const { freeze } = Object;
+  const db = new Database(':memory:');
+  t.teardown(() => db.close());
+  initGnuCashSchema(db);
+
+  let guidCounter = 0n;
+  const makeGuid = () => {
+    const guid = guidCounter;
+    guidCounter += 1n;
+    return asGuid(guid.toString(16).padStart(32, '0'));
+  };
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = makeTestClock();
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = issuedKit.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+  const purse = issuedKit.issuer.makeEmptyPurse();
+
+  const firstDeposit = purse.deposit(issuedKit.mint.mintPayment(bucks(2n)));
+  const secondDeposit = purse.deposit(issuedKit.mint.mintPayment(bucks(3n)));
+
+  t.is(firstDeposit.value, 2n);
+  t.is(secondDeposit.value, 3n);
+});
+
 test('alice-to-bob transfer records a single transaction', t => {
   const { freeze } = Object;
   const db = new Database(':memory:');
