@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "wrangler dev"
   },
+  "dependencies": {
+    "capnweb": "^0.4.0",
+    "drizzle-orm": "^0.44.5"
+  },
   "devDependencies": {
-    "wrangler": "^3.114.0"
+    "wrangler": "^4.59.2"
   }
 }

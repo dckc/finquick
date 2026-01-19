@@ -1,9 +1,63 @@
+import type { DurableObjectNamespace } from 'cloudflare:workers';
+import { LedgerDurableObject } from './ledger-do';
+
 const { freeze } = Object;
 
+const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ertp-clerk</title>
+  </head>
+  <body>
+    <h1>ertp-clerk</h1>
+    <p>Open the browser console to explore the bootstrap object.</p>
+    <script type="module">
+      const log = (...args) => console.log('[ertp-clerk]', ...args);
+      const mod = await import('/bootstrap');
+      globalThis.bootstrap = mod.bootstrap;
+      log('bootstrap ready as globalThis.bootstrap');
+      log('Try: await bootstrap.makeIssuerKit("BUCKS")');
+    </script>
+  </body>
+</html>
+`;
+
+const bootstrapModule = `const { newWebSocketRpcSession } = await import('https://esm.sh/capnweb@0.4.0');
+const url = new URL('/api', globalThis.location.href);
+url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+const bootstrap = newWebSocketRpcSession(url.toString());
+export { bootstrap };
+`;
+
+type Env = {
+  LEDGER: DurableObjectNamespace;
+};
+
 const handler = {
-  async fetch(_request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === '/') {
+      return new Response(html, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
+    if (url.pathname === '/bootstrap') {
+      return new Response(bootstrapModule, {
+        headers: { 'content-type': 'application/javascript; charset=utf-8' },
+      });
+    }
+    if (url.pathname === '/favicon.ico') {
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname === '/api') {
+      const stub = env.LEDGER.get(env.LEDGER.idFromName('default'));
+      return stub.fetch(request);
+    }
     return new Response('ertp-clerk: not implemented', { status: 501 });
   },
 };
 
 export default freeze(handler);
+export { LedgerDurableObject };

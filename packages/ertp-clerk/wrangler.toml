@@ -1,6 +1,15 @@
 name = "ertp-clerk"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [observability]
 enabled = true
+
+[[durable_objects.bindings]]
+name = "LEDGER"
+class_name = "LedgerDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LedgerDurableObject"]

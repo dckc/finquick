@@ -19,3 +19,6 @@ Thanks for your interest in contributing! This package will host the worker/serv
 - Add request routing conventions (per-ledger DO instance vs per-commodity vs per-org).
 - Add error taxonomy and map ledger errors to HTTP status codes.
 - Confirm whether the wrangler dependency warning about rollup-plugin-inject is acceptable or needs remediation per best practices.
+- Evaluate alternatives to loading capnweb from esm.sh (e.g., bundling locally).
+- Replace better-sqlite3 with a Worker-compatible backend (Durable Object SQLite or D1) and keep IO injected.
+- Consider moving the External wrapper into ertp-ledgerguise (Far/exo-style) so facets are RPC-ready.
