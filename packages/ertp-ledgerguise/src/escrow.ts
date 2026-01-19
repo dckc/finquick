@@ -1,5 +1,6 @@
 import { freezeProps, Nat } from './jessie-tools';
 import type { AmountLike, EscrowFacet, Guid } from './types';
+import type { SqlDatabase } from './sql-db';
 import { requireAccountCommodity } from './db-helpers';
 
 /**
@@ -29,7 +30,7 @@ export const makeEscrow = ({
   makeGuid,
   nowMs,
 }: {
-  db: import('better-sqlite3').Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   holdingAccountGuid: Guid;
   getPurseGuid: (purse: unknown) => Guid;

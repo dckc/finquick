@@ -1,8 +1,8 @@
-import type { Database } from 'better-sqlite3';
+import type { SqlDatabase } from './sql-db';
 import type { CommoditySpec, Guid } from './types';
 
 export const ensureCommodityRow = (
-  db: Database,
+  db: SqlDatabase,
   guid: Guid,
   commodity: CommoditySpec,
 ): void => {
@@ -28,7 +28,7 @@ export const createCommodityRow = ({
   guid,
   commodity,
 }: {
-  db: Database;
+  db: SqlDatabase;
   guid: Guid;
   commodity: CommoditySpec;
 }): void => {
@@ -63,7 +63,7 @@ export const ensureAccountRow = ({
   accountType = 'ASSET',
   parentGuid = null,
 }: {
-  db: Database;
+  db: SqlDatabase;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
@@ -87,7 +87,7 @@ export const createAccountRow = ({
   accountType = 'ASSET',
   parentGuid = null,
 }: {
-  db: Database;
+  db: SqlDatabase;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
@@ -114,7 +114,7 @@ export const requireAccountCommodity = ({
   accountGuid,
   commodityGuid,
 }: {
-  db: Database;
+  db: SqlDatabase;
   accountGuid: Guid;
   commodityGuid: Guid;
 }): void => {
@@ -131,7 +131,7 @@ export const requireAccountCommodity = ({
   }
 };
 
-export const getCommodityAllegedName = (db: Database, commodityGuid: Guid): string => {
+export const getCommodityAllegedName = (db: SqlDatabase, commodityGuid: Guid): string => {
   const row = db
     .prepare<[string], { fullname: string | null; mnemonic: string }>(
       'SELECT fullname, mnemonic FROM commodities WHERE guid = ?',
@@ -140,7 +140,7 @@ export const getCommodityAllegedName = (db: Database, commodityGuid: Guid): stri
   return row?.fullname || row?.mnemonic || 'GnuCash';
 };
 
-export const getAccountBalance = (db: Database, accountGuid: Guid): bigint => {
+export const getAccountBalance = (db: SqlDatabase, accountGuid: Guid): bigint => {
   const row = db
     .prepare<[string], { qty: string }>(
       'SELECT COALESCE(SUM(quantity_num), 0) AS qty FROM splits WHERE account_guid = ?',
@@ -163,7 +163,7 @@ export const makeTransferRecorder = ({
   makeGuid,
   nowMs,
 }: {
-  db: Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   holdingAccountGuid: Guid;
   makeGuid: () => Guid;

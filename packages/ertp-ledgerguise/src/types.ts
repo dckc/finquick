@@ -1,5 +1,5 @@
 import type { IssuerKit } from '@agoric/ertp';
-import type { Database } from 'better-sqlite3';
+import type { SqlDatabase } from './sql-db';
 import type { Guid } from './guids';
 
 export type CommoditySpec = {
@@ -11,7 +11,7 @@ export type CommoditySpec = {
 };
 
 export type CreateIssuerConfig = {
-  db: Database;
+  db: SqlDatabase;
   commodity: CommoditySpec;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
@@ -24,7 +24,7 @@ export type CreateIssuerConfig = {
 };
 
 export type OpenIssuerConfig = {
-  db: Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.

@@ -8,7 +8,7 @@
  */
 
 import type { IssuerKit } from '@agoric/ertp';
-import type { Database } from 'better-sqlite3';
+import type { SqlDatabase } from './sql-db';
 import { gcEmptySql } from './sql/gc_empty';
 import { freezeProps, Nat } from './jessie-tools';
 import { makeDeterministicGuid } from './guids';
@@ -42,12 +42,13 @@ export type {
 export { asGuid } from './guids';
 export { makeChartFacet } from './chart';
 export { makeEscrow } from './escrow';
+export type { SqlDatabase, SqlStatement } from './sql-db';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.
  * @see ./sql/gc_empty.sql
  */
-export const initGnuCashSchema = (db: Database): void => {
+export const initGnuCashSchema = (db: SqlDatabase): void => {
   db.exec(gcEmptySql);
 };
 
@@ -57,7 +58,7 @@ const makeIssuerKitForCommodity = ({
   makeGuid,
   nowMs,
 }: {
-  db: Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   makeGuid: () => Guid;
   nowMs: () => number;

@@ -7,9 +7,10 @@ import {
   requireAccountCommodity,
 } from './db-helpers';
 import type { AccountPurse, AmountLike, Guid } from './types';
+import type { SqlDatabase } from './sql-db';
 
 type PurseFactoryOptions = {
-  db: import('better-sqlite3').Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   makeAmount: (value: bigint) => AmountLike;
   makePayment: (

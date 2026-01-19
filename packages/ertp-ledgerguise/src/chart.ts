@@ -1,4 +1,5 @@
 import { freezeProps } from './jessie-tools';
+import type { SqlDatabase } from './sql-db';
 import type { ChartFacet, Guid } from './types';
 import { requireAccountCommodity } from './db-helpers';
 
@@ -14,7 +15,7 @@ export const makeChartFacet = ({
   commodityGuid,
   getPurseGuid,
 }: {
-  db: import('better-sqlite3').Database;
+  db: SqlDatabase;
   commodityGuid: Guid;
   getPurseGuid: (purse: unknown) => Guid;
 }): ChartFacet => {
