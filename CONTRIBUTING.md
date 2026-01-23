@@ -18,3 +18,11 @@
 - Avoid local dev deps that use `workspace:` (e.g., private monorepo packages) unless you also add their workspaces here.
 - TODO: Restore optional `@endo/cli` support for `packages/fincaps` without breaking installs (e.g., document a separate Endo monorepo workflow or make it an opt-in dev dependency).
 - TODO: Consider `yarn workspaces focus` to avoid Electron (via `packages/ofxies`) when not working on that package.
+
+## Agoric dev versions
+- To update `@agoric/*` deps to their current `dev` dist-tags (from npm): `./scripts/update-agoric-dev.js`
+- Then run `yarn install` to refresh the lockfile.
+
+## better-sqlite3
+- Multiple versions are expected when packages depend on different major ranges.
+- If you need a single version, align the package.json ranges and run `yarn install`.

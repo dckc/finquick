@@ -12,8 +12,8 @@
     "google-spreadsheet": "^3.3.0"
   },
   "devDependencies": {
-    "@agoric/eslint-config": "^0.3.3",
-    "@agoric/eslint-plugin": "^0.2.3",
+    "@agoric/eslint-config": "0.4.1-dev-dc67c18.0.dc67c18",
+    "@agoric/eslint-plugin": "0.1.1-dev-dc67c18.0.dc67c18",
     "@endo/eslint-config": "^0.5.1",
     "@types/better-sqlite3": "^7.6.1",
     "@types/node": "^14.14.7",
