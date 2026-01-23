@@ -9,7 +9,6 @@
     "lint:types": "tsc -p jsconfig.json"
   },
   "devDependencies": {
-    "@endo/cli": "/home/connolly/projects/endo/packages/cli",
     "@fast-check/ava": "^1.1.5",
     "@types/google-spreadsheet": "^4.0.0",
     "ava": "^5.3.1",
