@@ -9,20 +9,21 @@
  * If ERTP_DB is set, the test writes the sqlite database at that path.
  */
 
-import test, { TestFn } from 'ava';
+import test from 'ava';
+import type { TestFn } from 'ava';
 import Database from 'better-sqlite3';
-import type { SqlDatabase } from '../src/sql-db';
-import type { Brand, NatAmount } from '../src/ertp-types';
-import type { Guid } from '../src/types';
+import type { SqlDatabase } from '../src/sql-db.js';
+import type { Brand, NatAmount } from '../src/ertp-types.js';
+import type { Guid } from '../src/types.js';
 import {
   createIssuerKit,
   initGnuCashSchema,
   makeChartFacet,
   makeEscrow,
   wrapBetterSqlite3Database,
-} from '../src/index';
-import { makeDeterministicGuid, mockMakeGuid } from '../src/guids';
-import { makeTestClock } from './helpers/clock';
+} from '../src/index.js';
+import { makeDeterministicGuid, mockMakeGuid } from '../src/guids.js';
+import { makeTestClock } from './helpers/clock.js';
 
 type PurseLike = ReturnType<ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']>;
 

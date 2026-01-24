@@ -1,5 +1,5 @@
 import type { Database } from 'better-sqlite3';
-import type { SqlDatabase, SqlStatement } from './sql-db';
+import type { SqlDatabase, SqlStatement } from './sql-db.js';
 
 type BetterSqliteStatement = {
   run: (...args: any[]) => unknown;

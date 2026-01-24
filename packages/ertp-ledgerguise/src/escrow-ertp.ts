@@ -3,9 +3,9 @@
  * @see ./escrow.ts
  */
 
-import type { AssetKind, DepositFacet, Issuer, Payment, Purse, Amount } from './ertp-types';
-import { defaultZone } from './jessie-tools';
-import type { Zone } from './jessie-tools';
+import type { AssetKind, DepositFacet, Issuer, Payment, Purse, Amount } from './ertp-types.js';
+import { defaultZone } from './jessie-tools.js';
+import type { Zone } from './jessie-tools.js';
 
 export type EscrowParty<GiveKind extends AssetKind, WantKind extends AssetKind> = {
   give: Promise<Payment<GiveKind>>;

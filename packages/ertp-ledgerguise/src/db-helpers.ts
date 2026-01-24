@@ -1,5 +1,5 @@
-import type { SqlDatabase } from './sql-db';
-import type { CommoditySpec, Guid } from './types';
+import type { SqlDatabase } from './sql-db.js';
+import type { CommoditySpec, Guid } from './types.js';
 
 export const ensureCommodityRow = (
   db: SqlDatabase,

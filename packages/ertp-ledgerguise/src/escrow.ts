@@ -1,8 +1,8 @@
-import { defaultZone, Nat } from './jessie-tools';
-import type { Zone } from './jessie-tools';
-import type { AmountLike, EscrowFacet, Guid } from './types';
-import type { SqlDatabase } from './sql-db';
-import { requireAccountCommodity } from './db-helpers';
+import { defaultZone, Nat } from './jessie-tools.js';
+import type { Zone } from './jessie-tools.js';
+import type { AmountLike, EscrowFacet, Guid } from './types.js';
+import type { SqlDatabase } from './sql-db.js';
+import { requireAccountCommodity } from './db-helpers.js';
 
 /**
  * @file Minimal two-party escrow layered on ERTP-style purses.

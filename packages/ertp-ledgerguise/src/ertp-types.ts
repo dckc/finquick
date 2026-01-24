@@ -6,7 +6,7 @@ import type {
   LatestTopic,
   Pattern,
   RemotableObject,
-} from './endo-types';
+} from './endo-types.js';
 
 // #region from @agoric/internal
 declare const tag: 'Symbol(tag)';

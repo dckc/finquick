@@ -5,17 +5,17 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '../src/ertp-types';
+import type { Brand, NatAmount } from '../src/ertp-types.js';
 import {
   asGuid,
   createIssuerKit,
   initGnuCashSchema,
   openIssuerKit,
   wrapBetterSqlite3Database,
-} from '../src/index';
-import { mockMakeGuid } from '../src/guids';
-import type { SqlDatabase } from '../src/sql-db';
-import { makeTestClock } from './helpers/clock';
+} from '../src/index.js';
+import { mockMakeGuid } from '../src/guids.js';
+import type { SqlDatabase } from '../src/sql-db.js';
+import { makeTestClock } from './helpers/clock.js';
 
 const seedAccountBalance = (
   db: SqlDatabase,

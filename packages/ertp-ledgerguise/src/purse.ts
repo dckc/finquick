@@ -1,14 +1,14 @@
-import { Nat } from './jessie-tools';
-import type { Zone } from './jessie-tools';
+import { Nat } from './jessie-tools.js';
+import type { Zone } from './jessie-tools.js';
 import {
   createAccountRow,
   ensureAccountRow,
   getAccountBalance,
   makeTransferRecorder,
   requireAccountCommodity,
-} from './db-helpers';
-import type { AccountPurse, AmountLike, Guid } from './types';
-import type { SqlDatabase } from './sql-db';
+} from './db-helpers.js';
+import type { AccountPurse, AmountLike, Guid } from './types.js';
+import type { SqlDatabase } from './sql-db.js';
 
 type PurseFactoryOptions = {
   db: SqlDatabase;

@@ -7,11 +7,11 @@
  * @see openIssuerKit
  */
 
-import type { SqlDatabase } from './sql-db';
-import { gcEmptySql } from './sql/gc_empty';
-import { defaultZone, Nat } from './jessie-tools';
-import type { Zone } from './jessie-tools';
-import { makeDeterministicGuid } from './guids';
+import type { SqlDatabase } from './sql-db.js';
+import { gcEmptySql } from './sql/gc_empty.js';
+import { defaultZone, Nat } from './jessie-tools.js';
+import type { Zone } from './jessie-tools.js';
+import { makeDeterministicGuid } from './guids.js';
 import type {
   AccountPurse,
   AmountLike,
@@ -21,17 +21,17 @@ import type {
   IssuerKitForCommodity,
   IssuerKitWithPurseGuids,
   OpenIssuerConfig,
-} from './types';
-import { makeChartFacet } from './chart';
+} from './types.js';
+import { makeChartFacet } from './chart.js';
 import {
   createCommodityRow,
   ensureAccountRow,
   getAccountBalance,
   getCommodityAllegedName,
   makeTransferRecorder,
-} from './db-helpers';
-import { makePurseFactory } from './purse';
-import { makeEscrow } from './escrow';
+} from './db-helpers.js';
+import { makePurseFactory } from './purse.js';
+import { makeEscrow } from './escrow.js';
 
 export type {
   CommoditySpec,
@@ -40,13 +40,13 @@ export type {
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
   NatIssuerKit,
-} from './types';
-export { asGuid } from './guids';
-export { makeChartFacet } from './chart';
-export { makeEscrow } from './escrow';
-export { wrapBetterSqlite3Database } from './sqlite-shim';
-export type { SqlDatabase, SqlStatement } from './sql-db';
-export type { Zone } from './jessie-tools';
+} from './types.js';
+export { asGuid } from './guids.js';
+export { makeChartFacet } from './chart.js';
+export { makeEscrow } from './escrow.js';
+export { wrapBetterSqlite3Database } from './sqlite-shim.js';
+export type { SqlDatabase, SqlStatement } from './sql-db.js';
+export type { Zone } from './jessie-tools.js';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.

@@ -1,7 +1,7 @@
-import type { IssuerKit } from './ertp-types';
-import type { SqlDatabase } from './sql-db';
-import type { Guid } from './guids';
-import type { Zone } from './jessie-tools';
+import type { IssuerKit } from './ertp-types.js';
+import type { SqlDatabase } from './sql-db.js';
+import type { Guid } from './guids.js';
+import type { Zone } from './jessie-tools.js';
 
 export type CommoditySpec = {
   namespace?: string;
@@ -114,4 +114,4 @@ export type EscrowFacet = {
   };
 };
 
-export type { Guid } from './guids';
+export type { Guid } from './guids.js';

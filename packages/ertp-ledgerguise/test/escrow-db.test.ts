@@ -5,18 +5,18 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { EscrowParty } from '../src/escrow-ertp';
-import type { NatAmount, Payment } from '../src/ertp-types';
+import type { EscrowParty } from '../src/escrow-ertp.js';
+import type { NatAmount, Payment } from '../src/ertp-types.js';
 import {
   createIssuerKit,
   initGnuCashSchema,
   wrapBetterSqlite3Database,
-} from '../src/index';
+} from '../src/index.js';
 // TODO: move mockMakeGuid and makeTestClock to test/test-io.ts
-import { mockMakeGuid } from '../src/guids';
-import { makeTestClock } from './helpers/clock';
-import { ertpOnly, withAmountUtils } from './ertp-tools';
-import { makeErtpEscrow } from '../src/escrow-ertp';
+import { mockMakeGuid } from '../src/guids.js';
+import { makeTestClock } from './helpers/clock.js';
+import { ertpOnly, withAmountUtils } from './ertp-tools.js';
+import { makeErtpEscrow } from '../src/escrow-ertp.js';
 
 const makeKit = ({
   db,

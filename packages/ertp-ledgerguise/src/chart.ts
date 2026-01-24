@@ -1,8 +1,8 @@
-import { defaultZone } from './jessie-tools';
-import type { Zone } from './jessie-tools';
-import type { SqlDatabase } from './sql-db';
-import type { ChartFacet, Guid } from './types';
-import { requireAccountCommodity } from './db-helpers';
+import { defaultZone } from './jessie-tools.js';
+import type { Zone } from './jessie-tools.js';
+import type { SqlDatabase } from './sql-db.js';
+import type { ChartFacet, Guid } from './types.js';
+import { requireAccountCommodity } from './db-helpers.js';
 
 /**
  * @file Chart facet for placing purse accounts into a community chart of accounts.

@@ -5,13 +5,13 @@
 
 import test, { type ExecutionContext } from 'ava';
 import Database from 'better-sqlite3';
-import type { IssuerKit, Payment } from '../src/ertp-types';
-import { makeErtpEscrow } from '../src/escrow-ertp';
-import { createIssuerKit, initGnuCashSchema } from '../src/index';
-import { mockMakeGuid } from '../src/guids';
-import { wrapBetterSqlite3Database } from '../src/sqlite-shim';
-import { makeTestClock } from './helpers/clock';
-import { withAmountUtils } from './ertp-tools';
+import type { IssuerKit, Payment } from '../src/ertp-types.js';
+import { makeErtpEscrow } from '../src/escrow-ertp.js';
+import { createIssuerKit, initGnuCashSchema } from '../src/index.js';
+import { mockMakeGuid } from '../src/guids.js';
+import { wrapBetterSqlite3Database } from '../src/sqlite-shim.js';
+import { makeTestClock } from './helpers/clock.js';
+import { withAmountUtils } from './ertp-tools.js';
 
 const onlyERTP = <T extends IssuerKit<'nat'>>(kit: T): IssuerKit<'nat'> => ({
   mint: kit.mint,

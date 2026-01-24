@@ -1,4 +1,4 @@
-import type { DepositFacet, IssuerKit, NatAmount, Purse } from '../src/ertp-types';
+import type { DepositFacet, IssuerKit, NatAmount, Purse } from '../src/ertp-types.js';
 
 type Dollars = `$${string}`;
 const numeral = (amt: Dollars) => amt.replace(/[$,]/g, '');
