@@ -54,7 +54,7 @@ export const makePurseFactory = ({
 
   const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
     const brand = getBrand();
-    const deposit = (payment: object) => {
+    const deposit = (payment: object, _optAmountShape?: unknown) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
       Nat(record.amount);
@@ -81,7 +81,16 @@ export const makePurseFactory = ({
       return makePayment(amount, accountGuid, txGuid, holdingSplitGuid, checkNumber);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
-    const purse = exo('Purse', { deposit, withdraw, getCurrentAmount });
+    const depositFacet = exo('DepositFacet', {
+      receive: (payment: object, optAmountShape?: unknown) =>
+        deposit(payment, optAmountShape),
+    });
+    const purse = exo('Purse', {
+      deposit,
+      withdraw,
+      getCurrentAmount,
+      getDepositFacet: () => depositFacet,
+    });
     purseGuids.set(purse, accountGuid);
     return purse;
   };

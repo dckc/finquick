@@ -1,4 +1,4 @@
-import type { IssuerKit } from '@agoric/ertp';
+import type { IssuerKit } from './ertp-types';
 import type { SqlDatabase } from './sql-db';
 import type { Guid } from './guids';
 import type { Zone } from './jessie-tools';
@@ -39,6 +39,8 @@ export type OpenIssuerConfig = {
   nowMs: () => number;
 };
 
+export type NatIssuerKit = IssuerKit<'nat'>;
+
 export type AmountLike = { brand: unknown; value: bigint };
 
 export type AccountPurse = {
@@ -53,14 +55,14 @@ export type AccountPurseAccess = {
 };
 
 export type IssuerKitForCommodity = {
-  kit: IssuerKit;
+  kit: NatIssuerKit;
   accounts: AccountPurseAccess;
   purseGuids: WeakMap<AccountPurse, Guid>;
   payments: PaymentAccess;
   mintInfo: MintInfoAccess;
 };
 
-export type IssuerKitWithGuid = IssuerKit & { commodityGuid: Guid };
+export type IssuerKitWithGuid = NatIssuerKit & { commodityGuid: Guid };
 
 export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
   purses: {

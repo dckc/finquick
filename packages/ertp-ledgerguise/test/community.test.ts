@@ -11,22 +11,24 @@
 
 import test, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '@agoric/ertp';
+import type { SqlDatabase } from '../src/sql-db';
+import type { Brand, NatAmount } from '../src/ertp-types';
 import type { Guid } from '../src/types';
 import {
-  asGuid,
   createIssuerKit,
   initGnuCashSchema,
   makeChartFacet,
   makeEscrow,
+  wrapBetterSqlite3Database,
 } from '../src/index';
-import { makeDeterministicGuid } from '../src/guids';
+import { makeDeterministicGuid, mockMakeGuid } from '../src/guids';
 import { makeTestClock } from './helpers/clock';
 
 type PurseLike = ReturnType<ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']>;
 
 type CommunityContext = {
-  db: import('better-sqlite3').Database;
+  db: SqlDatabase;
+  closeDb: () => void;
   kit: ReturnType<typeof createIssuerKit>;
   chart: ReturnType<typeof makeChartFacet>;
   escrow: ReturnType<typeof makeEscrow>;
@@ -51,7 +53,7 @@ const sharedState: {
 const serial = test.serial as TestFn<CommunityContext>;
 
 const getTotalForAccountType = (
-  db: import('better-sqlite3').Database,
+  db: SqlDatabase,
   commodityGuid: Guid,
   accountType: string,
   excludeGuids: Guid[] = [],
@@ -76,15 +78,11 @@ const getTotalForAccountType = (
 serial.before(t => {
   const { freeze } = Object;
   const dbPath = process.env.ERTP_DB ?? ':memory:';
-  const db = new Database(dbPath);
+  const rawDb = new Database(dbPath);
+  const db = wrapBetterSqlite3Database(rawDb);
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock(Date.UTC(2020, 0, 1, 9, 15), 1);
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
@@ -107,6 +105,7 @@ serial.before(t => {
 
   t.context = {
     db,
+    closeDb: () => rawDb.close(),
     kit,
     chart,
     escrow,
@@ -116,7 +115,7 @@ serial.before(t => {
 });
 
 serial.after(t => {
-  t.context.db.close();
+  t.context.closeDb();
 });
 
 serial('stage 1: create the community root account', t => {

@@ -5,23 +5,25 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '@agoric/ertp';
-import { asGuid, createIssuerKit, initGnuCashSchema, makeEscrow } from '../src/index';
+import type { Brand, NatAmount } from '../src/ertp-types';
+import {
+  createIssuerKit,
+  initGnuCashSchema,
+  makeEscrow,
+  wrapBetterSqlite3Database,
+} from '../src/index';
+import { mockMakeGuid } from '../src/guids';
 import { makeDeterministicGuid } from '../src/guids';
 import { makeTestClock } from './helpers/clock';
 
 test('escrow swaps two purses with a single holding account', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));

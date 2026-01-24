@@ -8,6 +8,20 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
   - Relevant ERTP note: mint/purse patterns and amount math are treated as stable, foundational properties for escrow reasoning.
 - Vbank bridge flow: `packages/cosmic-swingset/README-bridge.md` in agoric-sdk (ERTP transfer via vbank).
 
+## Status checklist
+
+- [ ] Create an ERTP-compatible facade backed by a GnuCash SQLite DB.
+  - [x] Establish contributor/agent guidance in `CONTRIBUTING` (planning phases, ocap IO injection, freeze API surface, testing discipline).
+  - [x] Build a minimal ERTP-like API (issuer/brand/purse/payment) mapped to GnuCash accounts/splits.
+  - [x] Add tests for canonical ERTP flows (Alice->Bob $10), persistence, and adversarial cases.
+  - [x] Implement escrow semantics in GnuCash (holding account, tx/split rules).
+  - [x] Add a pure-ERTP escrow module and unit tests (no DB).
+  - [x] Build the community story/simulation (chart placement, contributions, reports).
+  - [x] Keep ocap/no-ambient-IO, freeze API surfaces, no CJS, docs aligned to API.
+  - [x] Restore `lint:types` after changing `tsconfig.json` `lib` to `ESNext` (SqlDatabase type mismatch with better-sqlite3).
+    - [x] Abstract: define a backend-agnostic SqlDatabase interface for sync sqlite.
+    - [x] Concrete: add a better-sqlite3 shim and use it in tests.
+
 ## Planning
 
 - Brainstorm and write down the initial motivation (ERTP + GnuCash insight).
@@ -48,6 +62,15 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
 - Use `npm run codegen:sql` to regenerate `src/sql/gc_empty.ts` from `sql/gc_empty.sql`. Keep codegen scripts ESM (no `.cjs`).
 - No CommonJS in this package (source, tests, scripts). Use ESM everywhere.
 - TODO: use full extensions in module specifiers.
+
+## Entry points and structure
+
+- `src/index.ts`: main facade entry points; table of contents in file header.
+- `src/escrow.ts`: GnuCash-backed escrow logic.
+- `src/escrow-ertp.ts`: ERTP-only escrow (no DB).
+- `src/jessie-tools.ts`: freeze helpers and Nat guard.
+- `src/sql/`: schema and SQL helpers.
+- `test/`: canonical flow, persistence, adversarial, escrow, and community tests.
 
 ## Agent Tactics
 
@@ -111,7 +134,6 @@ Consequences:
 - Update package docs or README when behavior or public API changes.
 
 ## TODO
-
 - Consider Flow B (accrual then payout): record contributor payable before minting.
 - Consider periodic minting (budgeted supply) vs per-contribution minting.
 - Consider a read-only openIssuerKit facade with a reduced capability surface:

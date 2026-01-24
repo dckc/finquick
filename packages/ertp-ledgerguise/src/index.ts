@@ -7,7 +7,6 @@
  * @see openIssuerKit
  */
 
-import type { IssuerKit } from '@agoric/ertp';
 import type { SqlDatabase } from './sql-db';
 import { gcEmptySql } from './sql/gc_empty';
 import { defaultZone, Nat } from './jessie-tools';
@@ -18,6 +17,7 @@ import type {
   AmountLike,
   CreateIssuerConfig,
   Guid,
+  NatIssuerKit,
   IssuerKitForCommodity,
   IssuerKitWithPurseGuids,
   OpenIssuerConfig,
@@ -39,10 +39,12 @@ export type {
   IssuerKitForCommodity,
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
+  NatIssuerKit,
 } from './types';
 export { asGuid } from './guids';
 export { makeChartFacet } from './chart';
 export { makeEscrow } from './escrow';
+export { wrapBetterSqlite3Database } from './sqlite-shim';
 export type { SqlDatabase, SqlStatement } from './sql-db';
 export type { Zone } from './jessie-tools';
 
@@ -220,7 +222,7 @@ const makeIssuerKitForCommodity = ({
     mint,
     mintRecoveryPurse,
     displayInfo,
-  }) as unknown as IssuerKit;
+  }) as unknown as NatIssuerKit;
   const mintInfo = exo('MintInfoAccess', {
     getMintInfo: () => ({
       holdingAccountGuid: balanceAccountGuid,

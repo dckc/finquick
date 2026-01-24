@@ -5,12 +5,20 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '@agoric/ertp';
-import { asGuid, createIssuerKit, initGnuCashSchema, openIssuerKit } from '../src/index';
+import type { Brand, NatAmount } from '../src/ertp-types';
+import {
+  asGuid,
+  createIssuerKit,
+  initGnuCashSchema,
+  openIssuerKit,
+  wrapBetterSqlite3Database,
+} from '../src/index';
+import { mockMakeGuid } from '../src/guids';
+import type { SqlDatabase } from '../src/sql-db';
 import { makeTestClock } from './helpers/clock';
 
 const seedAccountBalance = (
-  db: import('better-sqlite3').Database,
+  db: SqlDatabase,
   accountGuid: string,
   commodityGuid: string,
   amount: bigint,
@@ -42,16 +50,12 @@ const seedAccountBalance = (
 
 test('rejects negative withdraw amounts', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -68,8 +72,9 @@ test('rejects negative withdraw amounts', t => {
 
 test('makeEmptyPurse rejects account GUID collisions', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
   const commodityGuid = asGuid('a'.repeat(32));
@@ -94,8 +99,9 @@ test('makeEmptyPurse rejects account GUID collisions', t => {
 
 test('createIssuerKit rejects commodity GUID collisions', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
   const existingGuid = asGuid('f'.repeat(32));
@@ -121,16 +127,12 @@ test('createIssuerKit rejects commodity GUID collisions', t => {
 
 test('withdraw rejects wrong-brand amounts', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
@@ -152,16 +154,12 @@ test('withdraw rejects wrong-brand amounts', t => {
 
 test('openAccountPurse rejects wrong-commodity accounts', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
@@ -184,16 +182,12 @@ test('openAccountPurse rejects wrong-commodity accounts', t => {
 
 test('openAccountPurse rejects the holding account', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));

@@ -5,13 +5,20 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '@agoric/ertp';
-import { asGuid, createIssuerKit, initGnuCashSchema, openIssuerKit } from '../src/index';
+import type { Brand, NatAmount } from '../src/ertp-types';
+import {
+  createIssuerKit,
+  initGnuCashSchema,
+  openIssuerKit,
+  wrapBetterSqlite3Database,
+} from '../src/index';
+import { mockMakeGuid } from '../src/guids';
 import { makeTestClock } from './helpers/clock';
 
 test('initGnuCashSchema creates GnuCash tables', t => {
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
 
   initGnuCashSchema(db);
 
@@ -25,16 +32,12 @@ test('initGnuCashSchema creates GnuCash tables', t => {
 
 test('brand.isMyIssuer rejects unrelated issuers', async t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -49,16 +52,12 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
 
 test('alice sends 10 to bob', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -80,16 +79,12 @@ test('alice sends 10 to bob', t => {
 
 test('deposit returns the payment amount', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -109,16 +104,12 @@ test('deposit returns the payment amount', t => {
 
 test('alice-to-bob transfer records a single transaction', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -165,16 +156,12 @@ test('alice-to-bob transfer records a single transaction', t => {
 
 test('payments can be reified by check number', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -207,16 +194,12 @@ test('payments can be reified by check number', t => {
 
 test('check numbers increment on collisions', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const nowMs = (() => {
     const fixed = Date.UTC(2020, 0, 1, 9, 15);
     return () => fixed;
@@ -240,16 +223,12 @@ test('check numbers increment on collisions', t => {
 
 test('createIssuerKit persists balances across re-open', t => {
   const { freeze } = Object;
-  const db = new Database(':memory:');
-  t.teardown(() => db.close());
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
   initGnuCashSchema(db);
 
-  let guidCounter = 0n;
-  const makeGuid = () => {
-    const guid = guidCounter;
-    guidCounter += 1n;
-    return asGuid(guid.toString(16).padStart(32, '0'));
-  };
+  const makeGuid = mockMakeGuid();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
