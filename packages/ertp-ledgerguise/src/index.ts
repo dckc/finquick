@@ -112,7 +112,7 @@ const makeIssuerKitForCommodity = ({
     checkNumber: string,
   ) => {
     const amountValue = assertAmount(amount);
-    const payment = exo('Payment', {
+    const payment = exo(`${commodityLabel} Payment`, {
       __getAllegedInterface__: () => {
         // TODO: return ERTP interface metadata once defined.
         throw new Error('not implemented');
@@ -158,6 +158,7 @@ const makeIssuerKitForCommodity = ({
   const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory({
     db,
     commodityGuid,
+    commodityLabel,
     makeAmount,
     makePayment,
     livePayments,
@@ -166,13 +167,13 @@ const makeIssuerKitForCommodity = ({
     getBrand: () => brand,
     zone,
   });
-  const brand = exo('Brand', {
+  const brand = exo(`${commodityLabel} Brand`, {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
     getDisplayInfo: () => displayInfo,
     getAmountShape: () => amountShape,
   });
-  const issuer = exo('Issuer', {
+  const issuer = exo(`${commodityLabel} Issuer`, {
     getBrand: () => brand,
     getAllegedName: () => getAllegedName(),
     getAssetKind: () => 'nat' as const,
@@ -196,7 +197,7 @@ const makeIssuerKitForCommodity = ({
       return makeAmount(record.amount);
     },
   });
-  const mint = exo('Mint', {
+  const mint = exo(`${commodityLabel} Mint`, {
     getIssuer: () => issuer,
     mintPayment: (amount: AmountLike) => {
       const amountValue = assertAmount(amount);

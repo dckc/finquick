@@ -13,6 +13,7 @@ import type { SqlDatabase } from './sql-db';
 type PurseFactoryOptions = {
   db: SqlDatabase;
   commodityGuid: Guid;
+  commodityLabel: string;
   makeAmount: (value: bigint) => AmountLike;
   makePayment: (
     amount: AmountLike,
@@ -41,6 +42,7 @@ type PurseFactoryOptions = {
 export const makePurseFactory = ({
   db,
   commodityGuid,
+  commodityLabel,
   makeAmount,
   makePayment,
   livePayments,
@@ -81,11 +83,11 @@ export const makePurseFactory = ({
       return makePayment(amount, accountGuid, txGuid, holdingSplitGuid, checkNumber);
     };
     const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
-    const depositFacet = exo('DepositFacet', {
+    const depositFacet = exo(`${commodityLabel} DepositFacet`, {
       receive: (payment: object, optAmountShape?: unknown) =>
         deposit(payment, optAmountShape),
     });
-    const purse = exo('Purse', {
+    const purse = exo(`${commodityLabel} Purse`, {
       deposit,
       withdraw,
       getCurrentAmount,
