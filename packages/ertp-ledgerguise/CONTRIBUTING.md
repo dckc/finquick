@@ -21,6 +21,7 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
   - [x] Restore `lint:types` after changing `tsconfig.json` `lib` to `ESNext` (SqlDatabase type mismatch with better-sqlite3).
     - [x] Abstract: define a backend-agnostic SqlDatabase interface for sync sqlite.
     - [x] Concrete: add a better-sqlite3 shim and use it in tests.
+  - [ ] Figure out how to persist escrow exchanges at each state change.
 
 ## Planning
 
@@ -76,6 +77,16 @@ Thanks for your interest in contributing! This package provides an ERTP facade o
 
 the mutable let point is not agent tactics; it's code style. likewise API
   surface stuff. make a new subsection for the API surface freezing stuff.
+
+### Commit Ritual
+
+- Propose commit boundaries before committing when multiple changes are in play.
+- Use conventional commit headers and focus the subject on the most important user-facing change.
+- Provide a draft commit message for review before creating the commit.
+- In the body, detail all changes with indented bullets.
+- Only commit after explicit user approval.
+
+### General Tactics
 
 - Always check for static errors before running tests.
 - Always run all tests relevant to any code changes before asking the user for further input.
