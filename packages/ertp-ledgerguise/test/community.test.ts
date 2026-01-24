@@ -75,6 +75,19 @@ const getTotalForAccountType = (
     ) as { total: string } | undefined;
   return BigInt(row?.total ?? '0');
 };
+const toRowStrings = (
+  rows: Record<string, string>[],
+  columns: string[],
+): string[] => {
+  const widths = columns.map(column =>
+    Math.max(column.length, ...rows.map(row => String(row[column] ?? '').length)),
+  );
+  const format = (row: Record<string, string>) =>
+    columns.map((column, index) => String(row[column] ?? '').padEnd(widths[index])).join(' | ');
+  const header = Object.fromEntries(columns.map(column => [column, column]));
+  return [format(header), ...rows.map(format)];
+};
+const shortGuid = (value: string) => value.slice(-12);
 
 serial.before(t => {
   const { freeze } = Object;
@@ -304,4 +317,112 @@ serial('stage 4: run balance sheet and income statement', t => {
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'EQUITY'), 0n);
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'EXPENSE'), 0n);
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'INCOME'), 0n);
+
+  const accounts = db
+    .prepare<
+      [string],
+      {
+        guid: string;
+        name: string;
+        parent_guid: string | null;
+        account_type: string;
+        placeholder: number;
+      }
+    >(
+      [
+        'SELECT guid, name, parent_guid, account_type, placeholder',
+        'FROM accounts',
+        'WHERE commodity_guid = ?',
+        'ORDER BY guid',
+      ].join(' '),
+    )
+    .all(kit.commodityGuid);
+  const book = db
+    .prepare<[], { root_account_guid: string }>(
+      'SELECT root_account_guid FROM books LIMIT 1',
+    )
+    .get();
+  const rootGuid = book?.root_account_guid ?? '';
+  t.snapshot(
+    toRowStrings(
+      accounts.map(row => ({
+        guid: shortGuid(row.guid),
+        name: row.name,
+        parent_guid: row.parent_guid ? shortGuid(row.parent_guid) : '',
+        account_type: row.account_type,
+        placeholder: row.placeholder ? '1' : '0',
+      })),
+      ['guid', 'name', 'parent_guid', 'account_type', 'placeholder'],
+    ),
+    'accounts view',
+  );
+
+  const registerColumns = ['tx_guid', 'num', 'description', 'value_num', 'reconcile_state'];
+  const accountByGuid = new Map(accounts.map(account => [account.guid, account]));
+  const accountLabelCache = new Map<string, string>();
+  const toAccountLabel = (guid: string): string => {
+    const cached = accountLabelCache.get(guid);
+    if (cached) return cached;
+    const account = accountByGuid.get(guid);
+    if (!account) return guid;
+    const label =
+      account.parent_guid && account.parent_guid !== '' && account.parent_guid !== rootGuid
+        ? `${toAccountLabel(account.parent_guid)}:${account.name}`
+        : account.name;
+    accountLabelCache.set(guid, label);
+    return label;
+  };
+  for (const account of accounts) {
+    const registerRows = db
+      .prepare<
+        [string],
+        {
+          tx_guid: string;
+          num: string;
+          description: string;
+          value_num: string;
+          reconcile_state: string;
+        }
+      >(
+        [
+          'SELECT splits.tx_guid, transactions.num, transactions.description,',
+          'splits.value_num, splits.reconcile_state',
+          'FROM splits JOIN transactions ON splits.tx_guid = transactions.guid',
+          'WHERE splits.account_guid = ?',
+          'ORDER BY splits.tx_guid, splits.guid',
+        ].join(' '),
+      )
+      .all(account.guid);
+    t.snapshot(
+      toRowStrings(
+        registerRows.map(row => ({
+          tx_guid: shortGuid(row.tx_guid),
+          num: row.num,
+          description: row.description,
+          value_num: row.value_num,
+          reconcile_state: row.reconcile_state,
+        })),
+        registerColumns,
+      ),
+      `register: ${toAccountLabel(account.guid)}`,
+    );
+  }
+
+  const balanceSheetRows = ['STOCK', 'EQUITY'].map(accountType => ({
+    account_type: accountType,
+    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [holdingGuid]).toString(),
+  }));
+  t.snapshot(
+    toRowStrings(balanceSheetRows, ['account_type', 'total']),
+    'balance sheet',
+  );
+
+  const incomeStatementRows = ['INCOME', 'EXPENSE'].map(accountType => ({
+    account_type: accountType,
+    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [holdingGuid]).toString(),
+  }));
+  t.snapshot(
+    toRowStrings(incomeStatementRows, ['account_type', 'total']),
+    'income statement',
+  );
 });
