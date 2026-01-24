@@ -5,15 +5,13 @@
 
 import test, { type ExecutionContext } from 'ava';
 import Database from 'better-sqlite3';
-import type { IssuerKit, NatAmount, Payment, Purse } from '../src/ertp-types';
+import type { IssuerKit, Payment } from '../src/ertp-types';
 import { makeErtpEscrow } from '../src/escrow-ertp';
 import { createIssuerKit, initGnuCashSchema } from '../src/index';
 import { mockMakeGuid } from '../src/guids';
 import { wrapBetterSqlite3Database } from '../src/sqlite-shim';
 import { makeTestClock } from './helpers/clock';
-
-type Dollars = `$${string}`;
-const numeral = (amt: Dollars) => amt.replace(/[$,]/g, '');
+import { withAmountUtils } from './ertp-tools';
 
 const onlyERTP = <T extends IssuerKit<'nat'>>(kit: T): IssuerKit<'nat'> => ({
   mint: kit.mint,
@@ -21,17 +19,6 @@ const onlyERTP = <T extends IssuerKit<'nat'>>(kit: T): IssuerKit<'nat'> => ({
   issuer: kit.issuer,
   brand: kit.brand,
   displayInfo: kit.displayInfo,
-});
-
-const withAmountUtils = (kit: IssuerKit<'nat'>) => ({
-  ...kit,
-  amount: (value: bigint): NatAmount => ({ brand: kit.brand, value }),
-  $: (amt: Dollars): NatAmount => ({
-    brand: kit.brand,
-    value: BigInt(numeral(amt)), // XXX should support decimals with parseRatio
-  }),
-  fund: (purse: Purse<'nat'>, value: bigint) =>
-    purse.deposit(kit.mint.mintPayment({ brand: kit.brand, value })),
 });
 
 const makeScenario = (t: ExecutionContext) => {

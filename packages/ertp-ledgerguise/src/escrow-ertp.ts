@@ -7,7 +7,7 @@ import type { AssetKind, DepositFacet, Issuer, Payment, Purse, Amount } from './
 import { defaultZone } from './jessie-tools';
 import type { Zone } from './jessie-tools';
 
-type EscrowParty<GiveKind extends AssetKind, WantKind extends AssetKind> = {
+export type EscrowParty<GiveKind extends AssetKind, WantKind extends AssetKind> = {
   give: Promise<Payment<GiveKind>>;
   want: Amount<WantKind>;
   payouts: {
