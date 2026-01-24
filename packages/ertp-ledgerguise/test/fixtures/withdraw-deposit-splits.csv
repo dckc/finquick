@@ -1,0 +1,3 @@
+guid,tx_guid,account_guid,value_num,value_denom,memo,reconcile_state
+split-hold-001,tx-hold-001,acct-dest,5000,1,hold->deposit,c
+split-src-001,tx-hold-001,acct-source,-5000,1,withdraw,c

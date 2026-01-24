@@ -1,0 +1,5 @@
+guid,tx_guid,account_guid,value_num,value_denom,memo,reconcile_state
+split-money-hold,tx-escrow-money,acct-vendor-money,10000,1,hold->commit,c
+split-money-src,tx-escrow-money,acct-client-money,-10000,1,escrow withdraw,c
+split-stock-hold,tx-escrow-stock,acct-client-stock,20,1,hold->commit,c
+split-stock-src,tx-escrow-stock,acct-vendor-stock,-20,1,escrow withdraw,c

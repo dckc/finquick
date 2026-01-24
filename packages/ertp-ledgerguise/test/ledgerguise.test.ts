@@ -5,15 +5,42 @@
 
 import test from 'ava';
 import Database from 'better-sqlite3';
-import type { Brand, NatAmount } from '../src/ertp-types';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import type { Brand, NatAmount } from '../src/ertp-types.js';
 import {
   createIssuerKit,
   initGnuCashSchema,
   openIssuerKit,
   wrapBetterSqlite3Database,
-} from '../src/index';
-import { mockMakeGuid } from '../src/guids';
-import { makeTestClock } from './helpers/clock';
+} from '../src/index.js';
+import { mockMakeGuid } from '../src/guids.js';
+import { makeTestClock } from './helpers/clock.js';
+
+const nodeRequire = createRequire(import.meta.url);
+const asset = (spec: string) => readFile(nodeRequire.resolve(spec), 'utf8');
+const parseCsv = (text: string): Record<string, string>[] => {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  const lines = trimmed.split(/\r?\n/);
+  const headers = lines[0]?.split(',') ?? [];
+  return lines.slice(1).filter(Boolean).map(line => {
+    const values = line.split(',');
+    return headers.reduce(
+      (row, header, index) => ({ ...row, [header]: values[index] ?? '' }),
+      {} as Record<string, string>,
+    );
+  });
+};
+const toRowStrings = (rows: Record<string, string>[], columns: string[]) => {
+  const widths = columns.map(column =>
+    Math.max(column.length, ...rows.map(row => String(row[column] ?? '').length)),
+  );
+  const format = (row: Record<string, string>) =>
+    columns.map((column, index) => String(row[column] ?? '').padEnd(widths[index])).join(' | ');
+  const header = Object.fromEntries(columns.map(column => [column, column]));
+  return [format(header), ...rows.map(format)];
+};
 
 test('initGnuCashSchema creates GnuCash tables', t => {
   const rawDb = new Database(':memory:');
@@ -100,6 +127,145 @@ test('deposit returns the payment amount', t => {
 
   t.is(firstDeposit.value, 2n);
   t.is(secondDeposit.value, 3n);
+});
+
+test('fixture: withdraw-deposit matches ledger rows', async t => {
+  const { freeze } = Object;
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
+  initGnuCashSchema(db);
+
+  const makeGuid = mockMakeGuid();
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const nowMs = (() => {
+    const fixed = Date.UTC(2026, 0, 24, 0, 0);
+    return () => fixed;
+  })();
+  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const brand = issuedKit.brand as Brand<'nat'>;
+  const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+  const purse = issuedKit.issuer.makeEmptyPurse();
+  const payment = issuedKit.mint.mintPayment(bucks(5000n));
+  purse.deposit(payment);
+
+  const { holdingAccountGuid } = issuedKit.mintInfo.getMintInfo();
+  const destAccountGuid = issuedKit.purses.getGuid(purse);
+  const expectedTx = parseCsv(
+    await asset('./fixtures/withdraw-deposit-transactions.csv'),
+  )[0];
+  const expectedSplits = parseCsv(
+    await asset('./fixtures/withdraw-deposit-splits.csv'),
+  );
+  const normalize = (row: Record<string, string>) => {
+    const resolved = { ...row };
+    if (resolved.currency_guid === 'comm-USD') {
+      resolved.currency_guid = issuedKit.commodityGuid;
+    }
+    if (resolved.account_guid === 'acct-source') {
+      resolved.account_guid = holdingAccountGuid;
+    }
+    if (resolved.account_guid === 'acct-dest') {
+      resolved.account_guid = destAccountGuid;
+    }
+    return resolved;
+  };
+
+  const txRows = db
+    .prepare<
+      [],
+      {
+        guid: string;
+        currency_guid: string;
+        num: string;
+        post_date: string;
+        enter_date: string;
+        description: string;
+      }
+    >('SELECT guid, currency_guid, num, post_date, enter_date, description FROM transactions')
+    .all();
+  t.is(txRows.length, 1);
+  const actualTx = txRows[0];
+  const expectedTxNormalized = normalize(expectedTx);
+  t.deepEqual(
+    {
+      currency_guid: actualTx.currency_guid,
+      num: actualTx.num,
+      post_date: actualTx.post_date,
+      enter_date: actualTx.enter_date,
+      description: actualTx.description,
+    },
+    {
+      currency_guid: expectedTxNormalized.currency_guid,
+      num: expectedTxNormalized.num,
+      post_date: expectedTxNormalized.post_date,
+      enter_date: expectedTxNormalized.enter_date,
+      description: expectedTxNormalized.description,
+    },
+  );
+
+  const splitRows = db
+    .prepare<
+      [string],
+      {
+        account_guid: string;
+        value_num: string;
+        value_denom: string;
+        reconcile_state: string;
+      }
+    >(
+      [
+        'SELECT account_guid, value_num, value_denom, reconcile_state',
+        'FROM splits',
+        'WHERE tx_guid = ?',
+      ].join(' '),
+    )
+    .all(actualTx.guid);
+  const actualSplits = splitRows
+    .map(row => ({
+      account_guid: row.account_guid,
+      value_num: String(row.value_num),
+      value_denom: String(row.value_denom),
+      reconcile_state: row.reconcile_state,
+    }))
+    .sort((left, right) => left.account_guid.localeCompare(right.account_guid));
+  const expectedSplitRows = expectedSplits
+    .map(row => normalize(row))
+    .map(row => ({
+      account_guid: row.account_guid,
+      value_num: row.value_num,
+      value_denom: row.value_denom,
+      reconcile_state: row.reconcile_state,
+    }))
+    .sort((left, right) => left.account_guid.localeCompare(right.account_guid));
+  t.deepEqual(actualSplits, expectedSplitRows);
+  t.snapshot(
+    toRowStrings(
+      [
+        {
+          currency_guid: actualTx.currency_guid,
+          num: actualTx.num,
+          post_date: actualTx.post_date,
+          enter_date: actualTx.enter_date,
+          description: actualTx.description,
+        },
+      ],
+      ['currency_guid', 'num', 'post_date', 'enter_date', 'description'],
+    ),
+    'withdraw-deposit transactions',
+  );
+  t.snapshot(
+    toRowStrings(actualSplits, [
+      'account_guid',
+      'value_num',
+      'value_denom',
+      'reconcile_state',
+    ]),
+    'withdraw-deposit splits',
+  );
 });
 
 test('alice-to-bob transfer records a single transaction', t => {

@@ -91,6 +91,7 @@ the mutable let point is not agent tactics; it's code style. likewise API
 - Always check for static errors before running tests.
 - Always run all tests relevant to any code changes before asking the user for further input.
 - When fixing a bug, capture it with a failing test before applying the fix.
+- Avoid `readFileSync` unless critical; prefer async filesystem reads and document any sync IO.
 - Prefer avoiding mutable `let` for tests; use an IIFE or other pattern so types can be inferred.
 - Freeze API surface before use: any object literal, array literal, or function literal that escapes its creation context should be frozen (use `const { freeze } = Object;` and `freeze(...)`). Source: Jessie README, "Must freeze API Surface Before Use": https://github.com/endojs/Jessie/blob/main/README.md
 - Only freeze values you create (literals/functions). Do not freeze objects you receive from elsewhere (e.g., kit or purse objects returned by libraries); treat them as already-sealed API surfaces.
