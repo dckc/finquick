@@ -1,4 +1,6 @@
-# DESIGN
+# Plan + Interpreter Pattern
+
+**Status: Aspirational - not yet implemented**
 
 ## Goal
 
@@ -7,7 +9,7 @@ declarative "plans" (relational intent) from effectful execution (SQL/Drizzle),
 so intent can be reviewed without reading SQL and refactors do not blur
 semantics.
 
-## Pattern: Plan + Interpreter
+## Pattern
 
 - Define a small set of *plan steps* that represent relational intent
   (select, retarget, mark reconciled).
@@ -33,8 +35,6 @@ Treat each ERTP message as a plan of relational rewrites:
 
 - `withdraw(amount)` -> create holding transaction + splits
 - `deposit(payment)` -> retarget holding split + reconcile
-- `escrow.commit` -> finalize both sides' holds
-- `escrow.cancel` -> revert holds to source accounts
 
 The intent should be described as plan steps, not inline SQL.
 
@@ -55,19 +55,13 @@ Still needs runtime tests:
 Use static checks for structure and capability hygiene, and keep a small set
 of runtime tests for correctness.
 
-## Clock Injection
-
-Timestamped rows (e.g., `post_date`, `enter_date`) must read from an injected
-clock capability, not ambient `Date.now()`. This keeps tests deterministic and
-preserves ocap discipline.
-
 ## Operational Notes
 
 - The interpreter can be swapped (Drizzle, better-sqlite3, D1).
 - Plans are stable documentation: they are the spec.
 - Tests should assert outcomes; plan shapes can be snapshot-tested if needed.
 
-## Next Steps (non-exhaustive)
+## Next Steps
 
 - Implement `planDeposit` and `runPlan`.
 - Refactor `transferRecorder.finalizeHold` to use the plan/interpreter.

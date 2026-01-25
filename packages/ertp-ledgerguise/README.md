@@ -16,7 +16,7 @@ ERTP-compatible facade over a GnuCash SQLite database.
 
 ## Status
 
-Early sketch; API surface and mappings are expected to evolve.
+Early sketch; API surface and mappings are expected to evolve. Contributions welcome—see `CONTRIBUTING.md` for what's done and what remains.
 
 ## Name
 
