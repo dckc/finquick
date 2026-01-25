@@ -5,7 +5,8 @@ import type { SqlDatabase } from './sql-db.js';
 import { requireAccountCommodity } from './db-helpers.js';
 
 /**
- * @file Minimal two-party escrow layered on ERTP-style purses.
+ * @file This implementation is "all over the floor" and is not production ready.
+ *       See escrow-ertp.ts for a more solid, ERTP-only escrow exchange.
  */
 
 type EscrowRecord = {

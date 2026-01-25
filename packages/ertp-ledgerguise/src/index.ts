@@ -31,7 +31,37 @@ import {
   makeTransferRecorder,
 } from './db-helpers.js';
 import { makePurseFactory } from './purse.js';
-import { makeEscrow } from './escrow.js';
+// import { makeEscrow } from './escrow.js'; // This is the old, "all over the floor" escrow
+import { makeErtpEscrow } from './escrow-ertp.js'; // Use the solid escrow-ertp
+
+// Internal helper for sealer/unsealer pattern
+const makeSealerUnsealerPair = () => {
+  const sealedToReal = new WeakMap<object, object>();
+  const realToSealed = new WeakMap<object, object>();
+
+  const sealer = Object.freeze({
+    seal: (obj: object): object => {
+      if (realToSealed.has(obj)) return realToSealed.get(obj)!; // Return existing sealed object
+      const sealedObj = Object.freeze({}); // Create an inert token
+      sealedToReal.set(sealedObj, obj);
+      realToSealed.set(obj, sealedObj);
+      return sealedObj;
+    },
+  });
+
+  const unsealer = Object.freeze({
+    unseal: (sealedObj: object): object => {
+      if (!sealedToReal.has(sealedObj)) {
+        throw new Error("That's not my sealed object!");
+      }
+      return sealedToReal.get(sealedObj)!;
+    },
+  });
+  return { sealer, unsealer };
+};
+
+export type Sealer = ReturnType<typeof makeSealerUnsealerPair>['sealer'];
+export type Unsealer = ReturnType<typeof makeSealerUnsealerPair>['unsealer'];
 
 export type {
   CommoditySpec,
@@ -43,6 +73,7 @@ export type {
 } from './types.js';
 export { asGuid } from './guids.js';
 export { makeChartFacet } from './chart.js';
+export { makeErtpEscrow } from './escrow-ertp.js';
 export { makeEscrow } from './escrow.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';
 export type { SqlDatabase, SqlStatement } from './sql-db.js';
@@ -73,12 +104,14 @@ const makeIssuerKitForCommodity = ({
   makeGuid,
   nowMs,
   zone,
+  unsealer, // <<< ADDED
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
   makeGuid: () => Guid;
   nowMs: () => number;
   zone: Zone;
+  unsealer: Unsealer; // <<< ADDED
 }): IssuerKitForCommodity => {
   const { exo } = zone;
   const { freeze } = Object;
@@ -318,17 +351,25 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
+  const { sealer, unsealer } = makeSealerUnsealerPair(); // <<< ADDED
   const { kit, purseGuids, payments, mintInfo } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
     nowMs,
     zone,
+    unsealer, // <<< ADDED
   });
   const purses = zone.exo('PurseGuids', {
     getGuid: (purse: unknown) => {
       const guid = purseGuids.get(purse as AccountPurse);
       if (!guid) throw new Error('unknown purse');
+      return guid;
+    },
+    getGuidFromSealed: (sealedPurse: object) => {
+      const purse = unsealer.unseal(sealedPurse) as AccountPurse;
+      const guid = purseGuids.get(purse);
+      if (!guid) throw new Error('unknown sealed purse');
       return guid;
     },
   });
@@ -338,6 +379,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
     purses,
     payments,
     mintInfo,
+    sealer, // <<< ADDED
   }) as IssuerKitWithPurseGuids;
 };
 
@@ -350,5 +392,6 @@ export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity =
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
-  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs, zone });
+  const { unsealer } = makeSealerUnsealerPair();
+  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs, zone, unsealer });
 };
