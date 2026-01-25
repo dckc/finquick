@@ -29,12 +29,14 @@ export const makeChartFacet = ({
     parentGuid,
     accountType,
     placeholder,
+    code,
   }: {
     accountGuid: Guid;
     name: string;
     parentGuid: Guid | null;
     accountType: string;
     placeholder: boolean;
+    code: string | null;
   }) => {
     requireAccountCommodity({ db, accountGuid, commodityGuid });
     if (parentGuid !== null) {
@@ -47,10 +49,10 @@ export const makeChartFacet = ({
     }
     db.prepare(
       [
-        'UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?',
+        'UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?, code = ?',
         'WHERE guid = ?',
       ].join(' '),
-    ).run(name, accountType, parentGuid, placeholder ? 1 : 0, accountGuid);
+    ).run(name, accountType, parentGuid, placeholder ? 1 : 0, code, accountGuid);
   };
 
   return exo('ChartFacet', {
@@ -60,12 +62,14 @@ export const makeChartFacet = ({
       parentGuid = null,
       accountType = 'ASSET',
       placeholder = false,
+      code = null,
     }: {
       purse: unknown;
       name: string;
       parentGuid?: Guid | null;
       accountType?: string;
       placeholder?: boolean;
+      code?: string | null;
     }) => {
       const purseGuid = getPurseGuid(purse);
       updateAccount({
@@ -74,6 +78,7 @@ export const makeChartFacet = ({
         parentGuid,
         accountType,
         placeholder,
+        code,
       });
     },
     placeAccount: ({
@@ -82,12 +87,14 @@ export const makeChartFacet = ({
       parentGuid = null,
       accountType = 'ASSET',
       placeholder = false,
+      code = null,
     }: {
       accountGuid: Guid;
       name: string;
       parentGuid?: Guid | null;
       accountType?: string;
       placeholder?: boolean;
+      code?: string | null;
     }) => {
       updateAccount({
         accountGuid,
@@ -95,6 +102,7 @@ export const makeChartFacet = ({
         parentGuid,
         accountType,
         placeholder,
+        code,
       });
     },
   });

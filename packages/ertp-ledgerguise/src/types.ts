@@ -91,6 +91,7 @@ export type ChartFacet = {
     parentGuid?: Guid | null;
     accountType?: string;
     placeholder?: boolean;
+    code?: string | null;
   }) => void;
   placeAccount: (args: {
     accountGuid: Guid;
@@ -98,6 +99,7 @@ export type ChartFacet = {
     parentGuid?: Guid | null;
     accountType?: string;
     placeholder?: boolean;
+    code?: string | null;
   }) => void;
 };
 
