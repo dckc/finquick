@@ -1,6 +1,27 @@
 /**
- * @file Minimal escrow tests.
- * @see ../src/escrow.ts
+ * @file Escrow tests demonstrating actor encapsulation.
+ *
+ * ## Actor Encapsulation (POLA)
+ *
+ * Multi-party tests should encapsulate each actor's state and behavior in a
+ * factory function. This follows the Principle of Least Authority (POLA):
+ *
+ * - Actors own their purses privately; they expose only deposit facets to others
+ * - Actors expose narrow interfaces (e.g., `run()`, `getBalances()`) not raw purses
+ * - The test orchestrates actors without accessing their internal state
+ *
+ * Compare `makeClient` and `makeVendor` below: each creates private purses,
+ * exposes only what counterparties need, and encapsulates the escrow protocol.
+ * The test reads as a narrative: "Carl and Vince run their protocols."
+ *
+ * Anti-pattern (avoid in multi-party tests):
+ * ```js
+ * const alicePurse = issuer.makeEmptyPurse();  // leaked to test scope
+ * const bobPurse = issuer.makeEmptyPurse();    // leaked to test scope
+ * // test manually orchestrates withdraws/deposits
+ * ```
+ *
+ * @see ../docs-dev/ocap-discipline.md
  */
 
 import test from 'ava';

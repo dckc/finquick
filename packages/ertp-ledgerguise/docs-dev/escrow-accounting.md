@@ -73,7 +73,7 @@ Agreement → [Party A Funds] → [Party B Funds] → Settlement
             (cancellation triggers refund)
 ```
 
-See `docs-dev/gi_mi_x_ami_x_system_summary_for_llm_prompting.md` for the full AMIX model.
+See `amix-gimix-background.md` for the full AMIX model.
 
 ## IBIS: Payment Holds vs Immediate Transfers
 
@@ -96,6 +96,57 @@ See `docs-dev/gi_mi_x_ami_x_system_summary_for_llm_prompting.md` for the full AM
 - Split destination mutation is part of the model (tested in `design-doc.test.ts`)
 - The `reconcile_state` column serves double duty: GnuCash reconciliation + hold tracking
 
+## IBIS: Sync vs Async DB Access
+
+The hold transaction model above assumes we can atomically write to the database. This raises the question of sync vs async access.
+
+**Issue:** Should the GnuCash-backed ERTP facade use synchronous or asynchronous DB access?
+
+**Position A (sync):**
+- Closer to ERTP's synchronous semantics (brand/purse/amount operations are typically sync)
+- Easier to reason about atomicity in a single vat/turn
+- Aligns with `better-sqlite3` and some WASM in-memory modes
+
+**Position B (async):**
+- Required in some environments (Cloudflare Workers/D1, OPFS-backed WASM)
+- Matches vbank's pattern: sync bridge calls, async balance updates
+- Avoids blocking the event loop in hosted environments
+
+**Decision:** Start with synchronous DB access via injected capability.
+
+**Consequences:**
+- The `db` capability is sync (`better-sqlite3` style)
+- Async environments would need a different adapter that pre-loads data or uses a different injection pattern
+- Tests use in-memory sync adapters
+
+This is not "async on top of sync"—rather, the injection point allows swapping the entire DB capability for environments with different constraints.
+
+## Escrow Account Identification
+
+To query ledger rows for an escrow arrangement, we need the account GUIDs of the escrow purses. But returning the `Purse` objects would leak withdrawal authority (POLA violation).
+
+The sealer/unsealer pattern solves this:
+
+```js
+// Escrow creates internal purses, seals them
+const escrow = makeErtpEscrow({
+  issuers: { A: moolaKit.issuer, B: stockKit.issuer },
+  sealers: { A: moolaKit.sealer, B: stockKit.sealer },
+});
+
+// Get sealed tokens (inert, no withdrawal authority)
+const sealed = escrow.getSealedPurses();
+
+// Retrieve account GUIDs via the issuerKit's purses facet
+const moolaEscrowGuid = moolaKit.purses.getGuidFromSealed(sealed.A);
+const stockEscrowGuid = stockKit.purses.getGuidFromSealed(sealed.B);
+
+// Now we can query the ledger for these accounts
+db.prepare('SELECT * FROM splits WHERE account_guid = ?').all(moolaEscrowGuid);
+```
+
+The `account_guid` is safe to expose: it identifies but does not authorize.
+
 ## Implementation Notes
 
 - Funding uses `Promise<Payment>` to model async timing
@@ -104,5 +155,6 @@ See `docs-dev/gi_mi_x_ami_x_system_summary_for_llm_prompting.md` for the full AM
 
 ## See Also
 
-- `test/snapshots/design-doc.test.ts.md` - Executable documentation showing ledger state at each step
-- `sealer-unsealer.md` - Secure identification of escrow accounts
+- `test/snapshots/design-doc.test.ts.md` - Ledger state at each escrow step
+- `src/sealer.ts` - Sealer/unsealer implementation
+- `ocap-discipline.md` - Capability patterns and rationale

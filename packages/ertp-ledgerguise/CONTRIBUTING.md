@@ -30,8 +30,7 @@ Detailed design docs are in `docs-dev/`:
 
 - `escrow-accounting.md` - Ledger transactions, payment holds, AMIX state machine
 - `integration.md` - Account codes, cross-system integration
-- `ocap-discipline.md` - Clock injection, freezing, capability patterns
-- `sealer-unsealer.md` - Secure escrow account identification
+- `ocap-discipline.md` - Capability injection, encapsulation, sealer/unsealer
 
 The primary documentation of how ERTP is embedded in GnuCash is `test/snapshots/design-doc.test.ts.md`, integrated with the test suite.
 
@@ -39,9 +38,13 @@ The primary documentation of how ERTP is embedded in GnuCash is `test/snapshots/
 
 We use ESM (no CommonJS). Avoid more than 3 positional arguments; use an options object instead. Freeze API surfaces before use—see [jessie-tools](https://www.npmjs.com/package/jessie-tools) for the API or `docs-dev/ocap-discipline.md` for rationale.
 
+For JSDoc, put detailed documentation on the exported functions/classes so it appears when hovering over call sites. Keep `@file` comments brief (one line) with `@see` links to the main entrypoints.
+
 ## Testing
 
 We use in-memory databases for tests—never modify real ledger files. When fixing bugs, please capture them as failing tests first.
+
+For multi-party scenarios, encapsulate each actor to follow POLA (Principle of Least Authority). Actors own their purses privately and expose only narrow interfaces (e.g., deposit facets). See `test/escrow-db.test.ts` for an example and `docs-dev/ocap-discipline.md` for rationale.
 
 ## Data safety
 

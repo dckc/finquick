@@ -4,11 +4,14 @@ Guidelines for maintaining capability discipline in ertp-ledgerguise.
 
 ## Core Principles
 
-1. **No ambient authority** - All capabilities must be explicitly passed
-2. **Freeze API surfaces** - Objects that escape their creation context must be frozen
-3. **Inject, don't import** - IO capabilities come from parameters, not imports
+1. **Inject, don't import** - IO capabilities come from parameters, not imports
+   - This implies **no ambient authority**: all capabilities must be explicitly passed
+2. **Encapsulation** - Objects protect their internal state and communicate by messages
+   - **Freeze API surfaces** to enforce encapsulation at runtime
 
-## Clock Injection
+## Capability Injection
+
+### Clock Injection
 
 Timestamped rows (e.g., `post_date`, `enter_date`) must read from an injected clock capability, not ambient `Date.now()`.
 
@@ -28,7 +31,7 @@ const kit = createIssuerKit({ db, commodity, makeGuid, nowMs });
 
 This keeps tests deterministic and preserves ocap discipline.
 
-## Database Injection
+### Database Injection
 
 The database is passed as a capability, never opened from a path:
 
@@ -40,7 +43,11 @@ const kit = createIssuerKit({ db, ... });
 const db = openDatabase('/path/to/file.gnucash');  // Don't do this
 ```
 
-## Freezing API Surfaces
+See `escrow-accounting.md` for the sync vs async DB access decision.
+
+## Encapsulation
+
+### Freezing API Surfaces
 
 From the Jessie guidelines: any object literal, array literal, or function literal that escapes its creation context should be frozen.
 
@@ -60,19 +67,9 @@ return freeze({
 // Don't freeze objects received from elsewhere
 ```
 
-## Capability Attenuation
+### Zone Pattern
 
-The sealer/unsealer pattern demonstrates capability attenuation:
-
-- A `Purse` has full authority (deposit, withdraw, getBalance)
-- A sealed purse token has no authority (it's inert)
-- The `purses.getGuidFromSealed()` method provides read-only access to the GUID
-
-This allows sharing identification without sharing authority.
-
-## Zone Pattern
-
-The `zone` parameter provides controlled object creation:
+The `zone` parameter provides controlled object creation with built-in hardening:
 
 ```js
 const kit = createIssuerKit({
@@ -84,33 +81,54 @@ const kit = createIssuerKit({
 });
 ```
 
-This enables future integration with durable storage or virtual objects.
+`zone.exo()` creates frozen objects with method-only interfaces. This enables future integration with durable storage or virtual objects while enforcing encapsulation.
 
-## IBIS: Sync vs Async DB Access
+### Actors
 
-**Issue:** Should the GnuCash-backed ERTP facade use synchronous or asynchronous DB access?
+An **actor** is an object with encapsulated state that communicates only by messages (method calls). In multi-party scenarios (like escrow), each participant should be modeled as an actor:
 
-**Position A (sync):**
-- Closer to ERTP's synchronous semantics (brand/purse/amount operations are typically sync)
-- Easier to reason about atomicity in a single vat/turn
-- Aligns with `better-sqlite3` and some WASM in-memory modes
+- Private purses owned by the actor, not leaked to callers
+- Narrow interface exposed (e.g., `run()`, `getBalances()`)
+- Communication via deposit facets, not direct purse access
 
-**Position B (async):**
-- Required in some environments (Cloudflare Workers/D1, OPFS-backed WASM)
-- Matches vbank's pattern: sync bridge calls, async balance updates
-- Avoids blocking the event loop in hosted environments
+This follows the Principle of Least Authority (POLA): give each object only the capabilities it needs. See `test/escrow-db.test.ts` for an example of actor encapsulation in tests.
 
-**Decision:** Start with synchronous DB access via injected capability.
+## Increased Cooperation with Limited Vulnerability
 
-**Consequences:**
-- The `db` capability is sync (`better-sqlite3` style)
-- Async environments would need a different adapter that pre-loads data or uses a different injection pattern
-- Tests use in-memory sync adapters
+> Capability-based security enables the concise composition of powerful patterns of cooperation without vulnerability.
 
-This is not "async on top of sync"—rather, the injection point allows swapping the entire DB capability for environments with different constraints.
+The escrow pattern in `escrow-accounting.md` demonstrates this: two mutually distrusting parties can swap assets atomically. Each party funds the escrow with a `Promise<Payment>`, and settlement only occurs when both have funded. Neither party needs to trust the other—the escrow mechanism enforces the protocol.
+
+A key pattern enabling this is **capability attenuation**: reducing the authority of an object before sharing it.
+
+### Sealer/Unsealer Pattern
+
+A sealer and unsealer work like public key cryptography conceptually. You give something to the sealer and it puts that into a box that only the corresponding unsealer can open.
+
+```js
+const { sealer, unsealer } = makeSealerUnsealerPair();
+
+// Seal a powerful object into an inert token
+const token = sealer.seal(purse);  // token has no authority
+
+// Only the matching unsealer can retrieve the original
+const original = unsealer.unseal(token);  // returns the purse
+```
+
+This allows sharing identification without sharing authority:
+
+| What you have | Authority |
+|---------------|-----------|
+| Purse | Full: deposit, withdraw, getBalance |
+| Sealed token | No methods |
+| Unsealer | Can retrieve original to inspect it |
+
+See `src/sealer.ts` for the implementation and `escrow-accounting.md` for how it's used to identify escrow accounts without leaking withdrawal authority.
 
 ## See Also
 
 - Jessie README: https://github.com/endojs/Jessie
-- `sealer-unsealer.md` - Example of capability attenuation
+- `src/sealer.ts` - Sealer/unsealer implementation
+- `escrow-accounting.md` - Escrow as cooperation without vulnerability
+- `test/escrow-db.test.ts` - Actor encapsulation in tests
 - CONTRIBUTING.md - Agent tactics for maintaining ocap discipline
