@@ -32,36 +32,11 @@ import {
 } from './db-helpers.js';
 import { makePurseFactory } from './purse.js';
 // import { makeEscrow } from './escrow.js'; // This is the old, "all over the floor" escrow
-import { makeErtpEscrow } from './escrow-ertp.js'; // Use the solid escrow-ertp
+import { makeErtpEscrow } from './escrow-ertp.js';
+import { makeSealerUnsealerPair } from './sealer.js';
+import type { Sealed, Sealer, Unsealer } from './sealer.js';
 
-// Internal helper for sealer/unsealer pattern
-const makeSealerUnsealerPair = () => {
-  const sealedToReal = new WeakMap<object, object>();
-  const realToSealed = new WeakMap<object, object>();
-
-  const sealer = Object.freeze({
-    seal: (obj: object): object => {
-      if (realToSealed.has(obj)) return realToSealed.get(obj)!; // Return existing sealed object
-      const sealedObj = Object.freeze({}); // Create an inert token
-      sealedToReal.set(sealedObj, obj);
-      realToSealed.set(obj, sealedObj);
-      return sealedObj;
-    },
-  });
-
-  const unsealer = Object.freeze({
-    unseal: (sealedObj: object): object => {
-      if (!sealedToReal.has(sealedObj)) {
-        throw new Error("That's not my sealed object!");
-      }
-      return sealedToReal.get(sealedObj)!;
-    },
-  });
-  return { sealer, unsealer };
-};
-
-export type Sealer = ReturnType<typeof makeSealerUnsealerPair>['sealer'];
-export type Unsealer = ReturnType<typeof makeSealerUnsealerPair>['unsealer'];
+export type { Sealed, Sealer, Unsealer } from './sealer.js';
 
 export type {
   CommoditySpec,
@@ -343,7 +318,20 @@ const makeIssuerKitForCommodity = ({
 
 /**
  * Create a new GnuCash commodity entry and return an ERTP kit bound to it.
- * The returned kit includes `commodityGuid` and a `purses.getGuid()` facet.
+ *
+ * ## Facet Separation (POLA)
+ *
+ * The returned kit provides separate facets rather than expanding Issuer/Purse interfaces:
+ *
+ * - `issuer`, `brand`, `mint` - Standard ERTP interfaces (portable, no DB coupling)
+ * - `purses.getGuid(purse)` - Maps purse → account GUID (requires DB knowledge)
+ * - `purses.getGuidFromSealed(token)` - Unseal + map (for escrow identification)
+ * - `sealer` - Create inert tokens from purses (for secure sharing)
+ * - `payments` - Reify payments by check number (DB-specific recovery)
+ *
+ * This separation keeps ERTP interfaces clean and portable. DB-specific operations
+ * live in separate facets that can be withheld from code that doesn't need them.
+ * A caller with only `issuer` cannot learn account GUIDs or reify payments.
  */
 export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseGuids => {
   const { db, commodity, makeGuid, nowMs } = config;
@@ -351,7 +339,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
-  const { sealer, unsealer } = makeSealerUnsealerPair(); // <<< ADDED
+  const { sealer, unsealer } = makeSealerUnsealerPair<AccountPurse>();
   const { kit, purseGuids, payments, mintInfo } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
@@ -366,8 +354,8 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
       if (!guid) throw new Error('unknown purse');
       return guid;
     },
-    getGuidFromSealed: (sealedPurse: object) => {
-      const purse = unsealer.unseal(sealedPurse) as AccountPurse;
+    getGuidFromSealed: (sealedPurse: unknown) => {
+      const purse = unsealer.unseal(sealedPurse);
       const guid = purseGuids.get(purse);
       if (!guid) throw new Error('unknown sealed purse');
       return guid;
@@ -385,6 +373,12 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
 
 /**
  * Open an existing commodity by GUID and return the kit plus account access.
+ *
+ * Like `createIssuerKit`, returns separate facets for POLA. Unlike `createIssuerKit`,
+ * this does not return a `sealer` since opening an existing commodity does not grant
+ * the authority to create new sealed tokens for its purses.
+ *
+ * @see createIssuerKit for facet separation rationale
  */
 export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity => {
   const { db, commodityGuid, makeGuid, nowMs } = config;
