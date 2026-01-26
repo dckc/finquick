@@ -345,6 +345,7 @@ serial('Building account hierarchies with placeholder parents', t => {
     .all(moolaKit.commodityGuid)
     .filter(row => !row.name.includes('Mint')) // exclude internal accounts
     .map(row => ({
+      guid: shortGuid(row.guid),
       code: row.code ?? '',
       name: row.name,
       parent_guid: row.parent_guid ? shortGuid(row.parent_guid) : '',
@@ -352,7 +353,7 @@ serial('Building account hierarchies with placeholder parents', t => {
     }));
 
   t.snapshot(
-    toRowStrings(accounts, ['code', 'name', 'parent_guid', 'placeholder']),
+    toRowStrings(accounts, ['guid', 'code', 'name', 'parent_guid', 'placeholder']),
     [
       'The accounts table forms a tree via guid and parent_guid columns.',
       'Account codes (1000, 1100, etc.) enable cross-system integration.',
