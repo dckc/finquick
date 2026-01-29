@@ -9,12 +9,22 @@ GnuCash accounts have a `code` field designed for cross-system integration. Use 
 ### Setting Account Codes
 
 ```js
+// Using sealed token (POLA: no withdrawal authority leaked)
 chart.placePurse({
-  purse,
+  sealedPurse: sealer.seal(purse),
   name: 'Checking',
   parentGuid: bankGuid,
   accountType: 'BANK',
   code: '1110',  // Stable identifier for external systems
+});
+
+// Or using GUID directly (if you already know the account GUID)
+chart.placeAccount({
+  accountGuid,
+  name: 'Checking',
+  parentGuid: bankGuid,
+  accountType: 'BANK',
+  code: '1110',
 });
 ```
 

@@ -151,7 +151,7 @@ The `account_guid` is safe to expose: it identifies but does not authorize.
 
 - Funding uses `Promise<Payment>` to model async timing
 - The `reconcile_state` column tracks hold status: `'n'` = pending, `'c'` = cleared
-- Escrow purses are created via `issuer.makeEmptyPurse()` and optionally named via `chartFacet.placePurse()`
+- Escrow purses are created via `issuer.makeEmptyPurse()` and optionally named via `chartFacet.placePurse({ sealedPurse, ... })`
 
 ## See Also
 

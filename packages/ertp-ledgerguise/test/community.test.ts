@@ -23,7 +23,7 @@ import {
   wrapBetterSqlite3Database,
 } from '../src/index.js';
 import { makeDeterministicGuid, mockMakeGuid } from '../src/guids.js';
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock } from './mock-io.js';
 
 type PurseLike = ReturnType<ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']>;
 
@@ -103,8 +103,9 @@ serial.before(t => {
   const chart = makeChartFacet({
     db,
     commodityGuid: kit.commodityGuid,
-    getPurseGuid: kit.purses.getGuid,
+    getGuidFromSealed: kit.purses.getGuidFromSealed,
   });
+  const { sealer } = kit;
   const escrow = makeEscrow({
     db,
     commodityGuid: kit.commodityGuid,
@@ -134,6 +135,7 @@ serial.after(t => {
 
 serial('stage 1: create the community root account', t => {
   const { chart, kit, bucks } = t.context as CommunityContext;
+  const { sealer } = kit;
   const rootPurse = kit.issuer.makeEmptyPurse();
   const gnucashRoot = t.context.db
     .prepare<[], { root_account_guid: string }>(
@@ -143,7 +145,7 @@ serial('stage 1: create the community root account', t => {
   t.truthy(gnucashRoot?.root_account_guid);
   // GnuCash only shows commodity balances under STOCK/MUTUAL-style subtrees.
   chart.placePurse({
-    purse: rootPurse,
+    sealedPurse: sealer.seal(rootPurse),
     name: 'Org1',
     parentGuid: gnucashRoot!.root_account_guid as Guid,
     accountType: 'STOCK',
@@ -155,7 +157,7 @@ serial('stage 1: create the community root account', t => {
   const mintParentPurse = kit.issuer.makeEmptyPurse();
   const commodityLabel = kit.brand.getAllegedName();
   chart.placePurse({
-    purse: mintParentPurse,
+    sealedPurse: sealer.seal(mintParentPurse),
     name: `${commodityLabel} Mint`,
     parentGuid: gnucashRoot!.root_account_guid as Guid,
     accountType: 'STOCK',
@@ -170,7 +172,7 @@ serial('stage 1: create the community root account', t => {
     accountType: 'STOCK',
   });
   chart.placePurse({
-    purse: kit.mintRecoveryPurse,
+    sealedPurse: sealer.seal(kit.mintRecoveryPurse),
     name: `${commodityLabel} Mint Recovery`,
     parentGuid: mintParentGuid,
     accountType: 'STOCK',
@@ -178,7 +180,7 @@ serial('stage 1: create the community root account', t => {
 
   const treasuryPurse = kit.issuer.makeEmptyPurse();
   chart.placePurse({
-    purse: treasuryPurse,
+    sealedPurse: sealer.seal(treasuryPurse),
     name: 'Treasury',
     parentGuid: rootGuid,
     accountType: 'STOCK',
@@ -189,7 +191,7 @@ serial('stage 1: create the community root account', t => {
 
   const workPurse = kit.issuer.makeEmptyPurse();
   chart.placePurse({
-    purse: workPurse,
+    sealedPurse: sealer.seal(workPurse),
     name: 'Work',
     parentGuid: rootGuid,
     accountType: 'STOCK',
@@ -207,10 +209,11 @@ serial('stage 1: create the community root account', t => {
 
 serial('stage 2: add member purses to the chart', t => {
   const { chart, kit } = t.context as CommunityContext;
+  const { sealer } = kit;
   t.truthy(sharedState.rootGuid);
   const inPurse = kit.issuer.makeEmptyPurse();
   chart.placePurse({
-    purse: inPurse,
+    sealedPurse: sealer.seal(inPurse),
     name: 'In',
     parentGuid: sharedState.rootGuid,
     accountType: 'STOCK',
@@ -219,7 +222,7 @@ serial('stage 2: add member purses to the chart', t => {
   sharedState.inParentGuid = inGuid;
   const outPurse = kit.issuer.makeEmptyPurse();
   chart.placePurse({
-    purse: outPurse,
+    sealedPurse: sealer.seal(outPurse),
     name: 'Out',
     parentGuid: sharedState.rootGuid,
     accountType: 'STOCK',
@@ -230,7 +233,7 @@ serial('stage 2: add member purses to the chart', t => {
   for (const name of members) {
     const inMember = kit.issuer.makeEmptyPurse();
     chart.placePurse({
-      purse: inMember,
+      sealedPurse: sealer.seal(inMember),
       name,
       parentGuid: inGuid,
       accountType: 'STOCK',
@@ -238,7 +241,7 @@ serial('stage 2: add member purses to the chart', t => {
     sharedState.inPurses.set(name, inMember);
     const outMember = kit.issuer.makeEmptyPurse();
     chart.placePurse({
-      purse: outMember,
+      sealedPurse: sealer.seal(outMember),
       name,
       parentGuid: outGuid,
       accountType: 'STOCK',

@@ -339,7 +339,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
-  const { sealer, unsealer } = makeSealerUnsealerPair<AccountPurse>();
+  const { sealer, unsealer } = makeSealerUnsealerPair();
   const { kit, purseGuids, payments, mintInfo } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
@@ -355,7 +355,7 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
       return guid;
     },
     getGuidFromSealed: (sealedPurse: unknown) => {
-      const purse = unsealer.unseal(sealedPurse);
+      const purse = unsealer.unseal(sealedPurse) as AccountPurse;
       const guid = purseGuids.get(purse);
       if (!guid) throw new Error('unknown sealed purse');
       return guid;

@@ -67,7 +67,9 @@ export type IssuerKitWithGuid = NatIssuerKit & { commodityGuid: Guid };
 export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
   purses: {
     getGuid: (purse: unknown) => Guid;
+    getGuidFromSealed: (sealedPurse: unknown) => Guid;
   };
+  sealer: { seal: (purse: unknown) => unknown };
   payments: PaymentAccess;
   mintInfo: MintInfoAccess;
 };
@@ -86,7 +88,7 @@ export type MintInfoAccess = {
 
 export type ChartFacet = {
   placePurse: (args: {
-    purse: unknown;
+    sealedPurse: unknown;
     name: string;
     parentGuid?: Guid | null;
     accountType?: string;

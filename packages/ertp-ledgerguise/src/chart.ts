@@ -14,12 +14,12 @@ import { requireAccountCommodity } from './db-helpers.js';
 export const makeChartFacet = ({
   db,
   commodityGuid,
-  getPurseGuid,
+  getGuidFromSealed,
   zone = defaultZone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
-  getPurseGuid: (purse: unknown) => Guid;
+  getGuidFromSealed: (sealedPurse: unknown) => Guid;
   zone?: Zone;
 }): ChartFacet => {
   const { exo } = zone;
@@ -57,21 +57,21 @@ export const makeChartFacet = ({
 
   return exo('ChartFacet', {
     placePurse: ({
-      purse,
+      sealedPurse,
       name,
       parentGuid = null,
       accountType = 'ASSET',
       placeholder = false,
       code = null,
     }: {
-      purse: unknown;
+      sealedPurse: unknown;
       name: string;
       parentGuid?: Guid | null;
       accountType?: string;
       placeholder?: boolean;
       code?: string | null;
     }) => {
-      const purseGuid = getPurseGuid(purse);
+      const purseGuid = getGuidFromSealed(sealedPurse);
       updateAccount({
         accountGuid: purseGuid,
         name,
