@@ -10,7 +10,7 @@ import { makeErtpEscrow } from '../src/escrow-ertp.js';
 import { createIssuerKit, initGnuCashSchema } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
 import { wrapBetterSqlite3Database } from '../src/sqlite-shim.js';
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock } from './mock-io.js';
 import { withAmountUtils } from './ertp-tools.js';
 
 const onlyERTP = <T extends IssuerKit<'nat'>>(kit: T): IssuerKit<'nat'> => ({

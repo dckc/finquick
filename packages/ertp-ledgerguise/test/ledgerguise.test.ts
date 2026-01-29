@@ -15,7 +15,7 @@ import {
   wrapBetterSqlite3Database,
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock } from './mock-io.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const asset = (spec: string) => readFile(nodeRequire.resolve(spec), 'utf8');

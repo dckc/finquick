@@ -15,7 +15,7 @@ import {
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
 import type { SqlDatabase } from '../src/sql-db.js';
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock } from './mock-io.js';
 
 const seedAccountBalance = (
   db: SqlDatabase,

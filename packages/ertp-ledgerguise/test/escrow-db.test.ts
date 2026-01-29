@@ -35,7 +35,7 @@ import {
 } from '../src/index.js';
 // TODO: move mockMakeGuid and makeTestClock to test/test-io.ts
 import { mockMakeGuid } from '../src/guids.js';
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock } from './mock-io.js';
 import { ertpOnly, withAmountUtils } from './ertp-tools.js';
 import { makeErtpEscrow } from '../src/escrow-ertp.js';
 
