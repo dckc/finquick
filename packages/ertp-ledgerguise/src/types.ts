@@ -1,4 +1,5 @@
 import type { IssuerKit } from './ertp-types.js';
+import type { Sealer } from './sealer.js';
 import type { SqlDatabase } from './sql-db.js';
 import type { Guid } from './guids.js';
 import type { Zone } from './jessie-tools.js';
@@ -69,7 +70,7 @@ export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
     getGuid: (purse: unknown) => Guid;
     getGuidFromSealed: (sealedPurse: unknown) => Guid;
   };
-  sealer: { seal: (purse: unknown) => unknown };
+  sealer: Sealer;
   payments: PaymentAccess;
   mintInfo: MintInfoAccess;
 };

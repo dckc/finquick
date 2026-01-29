@@ -4,7 +4,8 @@
 
 import type { TestFn } from 'ava';
 import test from 'ava';
-import type { Brand, Issuer, NatAmount, Payment } from '../src/ertp-types.js';
+import type { Brand, DepositFacet, Issuer, NatAmount, Payment } from '../src/ertp-types.js';
+import { makeErtpEscrow, type EscrowParty } from '../src/escrow-ertp.js';
 import {
   createIssuerKit,
   makeChartFacet,
@@ -491,12 +492,22 @@ const splitColumns = [
   'reconcile_state',
 ];
 
-/** An offer describes what a party should give and how to deliver it. */
-type Offer = { give: NatAmount; resolve: (payment: Payment<'nat'>) => void };
+/**
+ * Tap a promise to signal when it resolves (for test observability).
+ */
+const withCoordination = <T>(paymentP: Promise<T>) => {
+  const { freeze } = Object;
+  const deposited = Promise.withResolvers<void>();
+  const observed = paymentP.then(p => {
+    deposited.resolve();
+    return p;
+  });
+  return freeze({ promise: observed, deposited: deposited.promise });
+};
 
 /**
  * Factory for a party (Alice or Bob) with encapsulated purses.
- * When run(offer) is called, the party decides to accept and fund accordingly.
+ * Party can create EscrowParty offers for escrow-ertp.
  */
 const makeParty = (
   moolaIssuer: Issuer<'nat'>,
@@ -516,72 +527,38 @@ const makeParty = (
     getSealedStock: () => stockSealer.seal(stock),
     getMoolaDeposit: () => moola.getDepositFacet(),
     getStockDeposit: () => stock.getDepositFacet(),
-    getBalances: () => ({ moola: moola.getCurrentAmount(), stock: stock.getCurrentAmount() }),
-    // Party decides to participate by accepting the offer
-    run: async (offer: Offer) => {
-      const purse = offer.give.brand === moolaBrand ? moola : stock;
-      offer.resolve(purse.withdraw(offer.give));
-    },
-  });
-};
+    getBalances: () =>
+      freeze({ moola: moola.getCurrentAmount(), stock: stock.getCurrentAmount() }),
 
-/**
- * Factory for escrow holder with encapsulated purses.
- * Escrow owns its purses; parties deliver payments via Promise resolvers.
- * When run() is called, escrow awaits payments and settles.
- */
-const makeEscrowHolder = (
-  moolaIssuer: Issuer<'nat'>,
-  stockIssuer: Issuer<'nat'>,
-  moolaSealer: Sealer,
-  stockSealer: Sealer,
-  terms: {
-    aliceGives: NatAmount;
-    bobGives: NatAmount;
-  },
-  settlement: {
-    aliceGetsStockAt: { receive: (p: Payment<'nat'>) => NatAmount };
-    bobGetsMoolaAt: { receive: (p: Payment<'nat'>) => NatAmount };
-  },
-) => {
-  const { freeze } = Object;
-  const moola = moolaIssuer.makeEmptyPurse();
-  const stock = stockIssuer.makeEmptyPurse();
+    /**
+     * Build an EscrowParty for escrow-ertp.
+     * Returns { party, run, deposited } - call run() when party decides to fund.
+     */
+    offer: (
+      giveAmt: NatAmount,
+      wantAmt: NatAmount,
+      wantDeposit: DepositFacet<'nat'>,
+    ) => {
+      const payment = Promise.withResolvers<Payment<'nat'>>();
+      const coord = withCoordination(payment.promise);
+      const givePurse = giveAmt.brand === moolaBrand ? moola : stock;
+      const refundDeposit =
+        giveAmt.brand === moolaBrand
+          ? moola.getDepositFacet()
+          : stock.getDepositFacet();
 
-  // Payment delivery promises (parties resolve these)
-  const moolaPayment = Promise.withResolvers<Payment<'nat'>>();
-  const stockPayment = Promise.withResolvers<Payment<'nat'>>();
-
-  // Deposit completion promises (for test observability - resolve to void, not Payment)
-  const moolaDeposited = Promise.withResolvers<void>();
-  const stockDeposited = Promise.withResolvers<void>();
-
-  return freeze({
-    getSealedMoola: () => moolaSealer.seal(moola),
-    getSealedStock: () => stockSealer.seal(stock),
-    getMoolaResolver: () => moolaPayment.resolve,
-    getStockResolver: () => stockPayment.resolve,
-    // Coordination facet for test observability (no authority leaked)
-    getCoordination: () =>
-      freeze({
-        moolaDeposited: moolaDeposited.promise,
-        stockDeposited: stockDeposited.promise,
-      }),
-    // Escrow awaits payments, deposits, and settles
-    run: async () => {
-      await Promise.all([
-        moolaPayment.promise.then(p => {
-          moola.deposit(p);
-          moolaDeposited.resolve();
-        }),
-        stockPayment.promise.then(p => {
-          stock.deposit(p);
-          stockDeposited.resolve();
-        }),
-      ]);
-      // Settle: Alice gets stock, Bob gets moola
-      settlement.aliceGetsStockAt.receive(stock.withdraw(terms.bobGives));
-      settlement.bobGetsMoolaAt.receive(moola.withdraw(terms.aliceGives));
+      return freeze({
+        party: freeze({
+          give: coord.promise,
+          want: wantAmt,
+          payouts: freeze({ refund: refundDeposit, want: wantDeposit }),
+          cancellationP: new Promise(() => {}),
+        }) as EscrowParty<'nat', 'nat'>,
+        run: async () => {
+          payment.resolve(givePurse.withdraw(giveAmt));
+        },
+        deposited: coord.deposited,
+      });
     },
   });
 };
@@ -652,40 +629,31 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   };
 
   // === AMIX STATE: Agreement ===
-  // Create parties first - they don't know about escrow yet
-  const alice = makeParty(
-    moola.issuer,
-    stock.issuer,
-    moola.sealer as Sealer,
-    stock.sealer as Sealer,
-  );
-  const bob = makeParty(
-    moola.issuer,
-    stock.issuer,
-    moola.sealer as Sealer,
-    stock.sealer as Sealer,
-  );
+  // Create parties
+  const parties = {
+    alice: makeParty(
+      moola.issuer,
+      stock.issuer,
+      moola.sealer,
+      stock.sealer,
+    ),
+    bob: makeParty(
+      moola.issuer,
+      stock.issuer,
+      moola.sealer,
+      stock.sealer,
+    ),
+  };
 
-  // Create escrow with terms and settlement destinations
-  const escrow = makeEscrowHolder(
-    moola.issuer,
-    stock.issuer,
-    moola.sealer as Sealer,
-    stock.sealer as Sealer,
-    { aliceGives: moolaAmt(10n), bobGives: stockAmt(1n) },
-    {
-      aliceGetsStockAt: alice.getStockDeposit(),
-      bobGetsMoolaAt: bob.getMoolaDeposit(),
-    },
-  );
+  // Create escrow using escrow-ertp
+  const escrow = makeErtpEscrow({
+    issuers: { A: moola.issuer, B: stock.issuer },
+    sealers: { A: moola.sealer, B: stock.sealer },
+  });
 
-  // Define offers - what each party gives and how to deliver it
-  const aliceOffer: Offer = { give: moolaAmt(10n), resolve: escrow.getMoolaResolver() };
-  const bobOffer: Offer = { give: stockAmt(1n), resolve: escrow.getStockResolver() };
-
-  // Place all purses in the chart
-  for (const [name, party] of Object.entries({ Alice: alice, Bob: bob })) {
-    const parentGuid = parentGuids[name.toLowerCase() as keyof typeof parentGuids];
+  // Place party purses in chart
+  for (const [name, party] of Object.entries(parties)) {
+    const parentGuid = parentGuids[name as keyof typeof parentGuids];
     charts.moola.placePurse({
       sealedPurse: party.getSealedMoola(),
       name: 'Moola',
@@ -699,14 +667,17 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
       accountType: 'STOCK',
     });
   }
+
+  // Place escrow purses in chart
+  const sealedEscrow = escrow.getSealedPurses();
   charts.moola.placePurse({
-    sealedPurse: escrow.getSealedMoola(),
+    sealedPurse: sealedEscrow.A,
     name: 'Moola',
     parentGuid: parentGuids.escrow,
     accountType: 'ASSET',
   });
   charts.stock.placePurse({
-    sealedPurse: escrow.getSealedStock(),
+    sealedPurse: sealedEscrow.B,
     name: 'Stock',
     parentGuid: parentGuids.escrow,
     accountType: 'STOCK',
@@ -717,9 +688,15 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   tracker.getNewSplits(); // Clear any setup splits
 
   // Fund parties' purses (they receive assets from elsewhere)
-  alice.getMoolaDeposit().receive(moola.mint.mintPayment(moolaAmt(10n)));
-  bob.getStockDeposit().receive(stock.mint.mintPayment(stockAmt(1n)));
+  parties.alice.getMoolaDeposit().receive(moola.mint.mintPayment(moolaAmt(10n)));
+  parties.bob.getStockDeposit().receive(stock.mint.mintPayment(stockAmt(1n)));
   tracker.getNewSplits(); // Clear funding splits
+
+  // Build offers - A gives moola, wants stock; B gives stock, wants moola
+  const offers = freeze({
+    A: parties.alice.offer(moolaAmt(10n), stockAmt(1n), parties.alice.getStockDeposit()),
+    B: parties.bob.offer(stockAmt(1n), moolaAmt(10n), parties.bob.getMoolaDeposit()),
+  });
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
@@ -732,14 +709,12 @@ No ledger changes yet.`,
   );
 
   // === AMIX STATE: Funding ===
-  // Escrow starts waiting for payments
-  const escrowDone = escrow.run();
+  // Start the exchange - escrow waits for payments
+  const exchangeP = escrow.escrowExchange(offers.A.party, offers.B.party);
 
-  const coord = escrow.getCoordination();
-
-  // Alice decides to fund
-  await alice.run(aliceOffer);
-  await coord.moolaDeposited;
+  // Parties fund in any order (sequential here for observable intermediate states)
+  await offers.A.run();
+  await offers.A.deposited;
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
     `STATE: Alice Funds (first mover)
@@ -747,9 +722,8 @@ Alice accepts her offer and funds escrow with 10 Moola.
 Escrow now holds moola; still waiting for Bob.`,
   );
 
-  // Bob decides to fund
-  await bob.run(bobOffer);
-  await coord.stockDeposited;
+  await offers.B.run();
+  await offers.B.deposited;
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
     `STATE: Bob Funds (second mover)
@@ -757,8 +731,8 @@ Bob accepts his offer and funds escrow with 1 Stock.
 Both parties funded - escrow settles.`,
   );
 
-  // Await settlement
-  await escrowDone;
+  // Settlement
+  await exchangeP;
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
     `STATE: Settlement
