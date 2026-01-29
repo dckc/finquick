@@ -5,18 +5,10 @@
 import test from 'ava';
 import type { ExecutionContext } from 'ava';
 import type { TestFn } from 'ava';
-import Database from 'better-sqlite3';
 import type { Brand, NatAmount, Payment } from '../src/ertp-types.js';
-import {
-  createIssuerKit,
-  initGnuCashSchema,
-  makeChartFacet,
-  wrapBetterSqlite3Database,
-} from '../src/index.js';
+import { createIssuerKit, makeChartFacet, wrapBetterSqlite3Database } from '../src/index.js';
 import type { Guid } from '../src/types.js';
-import { mockMakeGuid } from '../src/guids.js';
-// Note: makeErtpEscrow is used elsewhere; this test manually simulates escrow steps
-import { makeTestClock } from './helpers/clock.js';
+import { makeTestClock, mockMakeGuid, makeTestDb } from './mock-io.js';
 
 const toRowStrings = (
   rows: Record<string, string>[],
@@ -51,9 +43,7 @@ let closeDb: (() => void) | undefined;
 
 const withDesignContext = (t: ExecutionContext<DesignContext>) => {
   const { freeze } = Object;
-  const rawDb = new Database(':memory:');
-  const db = wrapBetterSqlite3Database(rawDb);
-  initGnuCashSchema(db);
+  const { db, close } = makeTestDb();
 
   const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock(Date.UTC(2026, 0, 24, 0, 0), 1);
@@ -66,7 +56,7 @@ const withDesignContext = (t: ExecutionContext<DesignContext>) => {
   const payment = kit.mint.mintPayment(bucks(5n));
   purse.deposit(payment);
 
-  closeDb = () => rawDb.close();
+  closeDb = close;
   t.context = { db, kit, purse };
 };
 
@@ -224,10 +214,10 @@ serial('Giving names in the chart of accounts', t => {
   const chart = makeChartFacet({
     db,
     commodityGuid: kit.commodityGuid,
-    getPurseGuid: kit.purses.getGuid,
+    getGuidFromSealed: kit.purses.getGuidFromSealed,
   });
   chart.placePurse({
-    purse,
+    sealedPurse: kit.sealer.seal(purse),
     name: 'Alice',
     parentGuid: root?.root_account_guid as Guid,
     accountType: 'STOCK',
@@ -270,19 +260,19 @@ serial('Giving names in the chart of accounts', t => {
       'makeIssuerKit("BUCKS") was a simplification.',
       'The actual setup wires a chart facet so we can name accounts:',
       '  const kit = createIssuerKit({ db, ... });',
-      '  const chart = makeChartFacet({ db, getPurseGuid: kit.purses.getGuid, ... });',
-      '  chart.placePurse({ purse, name: "Alice", parentGuid: rootGuid, accountType: "STOCK" });',
+      '  const chart = makeChartFacet({ db, getGuidFromSealed: kit.purses.getGuidFromSealed, ... });',
+      '  chart.placePurse({ sealedPurse: kit.sealer.seal(purse), name: "Alice", ... });',
       '',
       'Placing the purse under a parent account gives it a human name and a path (e.g., Org1:Alice).',
+      'The sealed token identifies the purse without leaking withdrawal authority.',
     ].join('\n'),
   );
 });
 
 serial('Building account hierarchies with placeholder parents', t => {
   const { freeze } = Object;
-  const rawDb = new Database(':memory:');
-  const db = wrapBetterSqlite3Database(rawDb);
-  initGnuCashSchema(db);
+  const { db, close } = makeTestDb();
+  t.teardown(close);
 
   const makeGuid = mockMakeGuid();
   const now = makeTestClock(Date.UTC(2026, 0, 25, 0, 0), 1);
@@ -299,8 +289,9 @@ serial('Building account hierarchies with placeholder parents', t => {
   const chart = makeChartFacet({
     db,
     commodityGuid: moolaKit.commodityGuid,
-    getPurseGuid: moolaKit.purses.getGuid,
+    getGuidFromSealed: moolaKit.purses.getGuidFromSealed,
   });
+  const { sealer } = moolaKit;
 
   const root = db
     .prepare<[], { root_account_guid: string }>(
@@ -317,19 +308,19 @@ serial('Building account hierarchies with placeholder parents', t => {
   const expenses = moolaKit.issuer.makeEmptyPurse();
   const food = moolaKit.issuer.makeEmptyPurse();
 
-  chart.placePurse({ purse: assets, name: 'Assets', parentGuid: rootGuid, accountType: 'ASSET', placeholder: true, code: '1000' });
+  chart.placePurse({ sealedPurse: sealer.seal(assets), name: 'Assets', parentGuid: rootGuid, accountType: 'ASSET', placeholder: true, code: '1000' });
   const assetsGuid = moolaKit.purses.getGuid(assets);
 
-  chart.placePurse({ purse: bank, name: 'Bank', parentGuid: assetsGuid, accountType: 'BANK', placeholder: true, code: '1100' });
+  chart.placePurse({ sealedPurse: sealer.seal(bank), name: 'Bank', parentGuid: assetsGuid, accountType: 'BANK', placeholder: true, code: '1100' });
   const bankGuid = moolaKit.purses.getGuid(bank);
 
-  chart.placePurse({ purse: checking, name: 'Checking', parentGuid: bankGuid, accountType: 'BANK', code: '1110' });
-  chart.placePurse({ purse: savings, name: 'Savings', parentGuid: bankGuid, accountType: 'BANK', code: '1120' });
+  chart.placePurse({ sealedPurse: sealer.seal(checking), name: 'Checking', parentGuid: bankGuid, accountType: 'BANK', code: '1110' });
+  chart.placePurse({ sealedPurse: sealer.seal(savings), name: 'Savings', parentGuid: bankGuid, accountType: 'BANK', code: '1120' });
 
-  chart.placePurse({ purse: expenses, name: 'Expenses', parentGuid: rootGuid, accountType: 'EXPENSE', placeholder: true, code: '6000' });
+  chart.placePurse({ sealedPurse: sealer.seal(expenses), name: 'Expenses', parentGuid: rootGuid, accountType: 'EXPENSE', placeholder: true, code: '6000' });
   const expensesGuid = moolaKit.purses.getGuid(expenses);
 
-  chart.placePurse({ purse: food, name: 'Food', parentGuid: expensesGuid, accountType: 'EXPENSE', code: '6100' });
+  chart.placePurse({ sealedPurse: sealer.seal(food), name: 'Food', parentGuid: expensesGuid, accountType: 'EXPENSE', code: '6100' });
 
   // Query showing how guid/parent_guid form the tree, with codes for cross-system integration
   const accounts = db
@@ -368,8 +359,6 @@ serial('Building account hierarchies with placeholder parents', t => {
       '    6100 Food',
     ].join('\n'),
   );
-
-  rawDb.close();
 });
 
 serial('Withdraw creates a hold', t => {
@@ -547,46 +536,120 @@ const splitColumns = [
   'reconcile_state',
 ];
 
+/**
+ * Factory for a party (Alice or Bob) with encapsulated purses.
+ * Follows POLA: purses are private, only deposit facets and sealed tokens exposed.
+ * Returns sealed tokens for chart placement - party doesn't need chart authority.
+ */
+const makeParty = ({
+  name,
+  moolaIssuer,
+  stockIssuer,
+  moolaSealer,
+  stockSealer,
+}: {
+  name: string;
+  moolaIssuer: ReturnType<typeof createIssuerKit>['issuer'];
+  stockIssuer: ReturnType<typeof createIssuerKit>['issuer'];
+  moolaSealer: ReturnType<typeof createIssuerKit>['sealer'];
+  stockSealer: ReturnType<typeof createIssuerKit>['sealer'];
+}) => {
+  const { freeze } = Object;
+  // Private purses - not leaked to test scope
+  const moola = moolaIssuer.makeEmptyPurse();
+  const stock = stockIssuer.makeEmptyPurse();
+
+  return freeze({
+    name,
+    // Sealed tokens for chart placement (no withdrawal authority)
+    sealedMoola: moolaSealer.seal(moola),
+    sealedStock: stockSealer.seal(stock),
+    // Deposit facets for receiving funds (safe to share)
+    moolaDeposit: moola.getDepositFacet(),
+    stockDeposit: stock.getDepositFacet(),
+    // Funding escrow: party withdraws internally, returns payment
+    fundMoola: (amount: NatAmount) => moola.withdraw(amount),
+    fundStock: (amount: NatAmount) => stock.withdraw(amount),
+    // Inspection (safe to share)
+    getBalances: () => ({
+      moola: moola.getCurrentAmount(),
+      stock: stock.getCurrentAmount(),
+    }),
+  });
+};
+
+/**
+ * Factory for escrow holder with encapsulated purses.
+ * Escrow owns its purses; parties interact via deposit facets.
+ * Returns sealed tokens for chart placement.
+ */
+const makeEscrowHolder = ({
+  moolaIssuer,
+  stockIssuer,
+  moolaSealer,
+  stockSealer,
+}: {
+  moolaIssuer: ReturnType<typeof createIssuerKit>['issuer'];
+  stockIssuer: ReturnType<typeof createIssuerKit>['issuer'];
+  moolaSealer: ReturnType<typeof createIssuerKit>['sealer'];
+  stockSealer: ReturnType<typeof createIssuerKit>['sealer'];
+}) => {
+  const { freeze } = Object;
+  const moola = moolaIssuer.makeEmptyPurse();
+  const stock = stockIssuer.makeEmptyPurse();
+
+  return freeze({
+    // Sealed tokens for chart placement
+    sealedMoola: moolaSealer.seal(moola),
+    sealedStock: stockSealer.seal(stock),
+    // Deposit facets for parties to fund escrow
+    moolaDeposit: moola.getDepositFacet(),
+    stockDeposit: stock.getDepositFacet(),
+    // Settlement: escrow withdraws and pays out
+    settleTo: (alice: ReturnType<typeof makeParty>, bob: ReturnType<typeof makeParty>, amounts: { stock: NatAmount; moola: NatAmount }) => {
+      const stockPayment = stock.withdraw(amounts.stock);
+      const moolaPayment = moola.withdraw(amounts.moola);
+      alice.stockDeposit.receive(stockPayment);
+      bob.moolaDeposit.receive(moolaPayment);
+    },
+  });
+};
+
 serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
   const { freeze } = Object;
-  const rawDb = new Database(':memory:');
-  const db = wrapBetterSqlite3Database(rawDb);
-  initGnuCashSchema(db);
+  const { db, close } = makeTestDb();
+  t.teardown(close);
 
   const makeGuid = mockMakeGuid();
   const now = makeTestClock(Date.UTC(2026, 0, 25, 0, 0), 1);
 
-  const moolaKit = createIssuerKit(
-    freeze({
+  const makeKit = (mnemonic: string) =>
+    createIssuerKit(freeze({
       db,
-      commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'Moola' }),
+      commodity: freeze({ namespace: 'COMMODITY', mnemonic }),
       makeGuid,
       nowMs: now,
-    }),
-  );
-  const stockKit = createIssuerKit(
-    freeze({
+    }));
+
+  const moola = makeKit('Moola');
+  const stock = makeKit('Stock');
+
+  const moolaAmt = (v: bigint) => freeze({ brand: moola.brand, value: v });
+  const stockAmt = (v: bigint) => freeze({ brand: stock.brand, value: v });
+
+  // Chart facets for naming accounts
+  const charts = {
+    moola: makeChartFacet({
       db,
-      commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'Stock' }),
-      makeGuid,
-      nowMs: now,
+      commodityGuid: moola.commodityGuid,
+      getGuidFromSealed: moola.purses.getGuidFromSealed,
     }),
-  );
-
-  const moola = (v: bigint) => freeze({ brand: moolaKit.brand, value: v });
-  const stock = (v: bigint) => freeze({ brand: stockKit.brand, value: v });
-
-  // Create purses for Alice and Bob with human-readable names
-  const chart = makeChartFacet({
-    db,
-    commodityGuid: moolaKit.commodityGuid,
-    getPurseGuid: moolaKit.purses.getGuid,
-  });
-  const stockChart = makeChartFacet({
-    db,
-    commodityGuid: stockKit.commodityGuid,
-    getPurseGuid: stockKit.purses.getGuid,
-  });
+    stock: makeChartFacet({
+      db,
+      commodityGuid: stock.commodityGuid,
+      getGuidFromSealed: stock.purses.getGuidFromSealed,
+    }),
+  };
   const root = db
     .prepare<[], { root_account_guid: string }>(
       'SELECT root_account_guid FROM books LIMIT 1',
@@ -595,45 +658,64 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
   const rootGuid = root?.root_account_guid as Guid;
 
   // Create placeholder parent accounts for hierarchy
-  const alicePlaceholder = moolaKit.issuer.makeEmptyPurse();
-  const bobPlaceholder = moolaKit.issuer.makeEmptyPurse();
-  const escrowPlaceholder = moolaKit.issuer.makeEmptyPurse();
+  const placeholders = {
+    alice: moola.issuer.makeEmptyPurse(),
+    bob: moola.issuer.makeEmptyPurse(),
+    escrow: moola.issuer.makeEmptyPurse(),
+  };
 
-  chart.placePurse({ purse: alicePlaceholder, name: 'Alice', parentGuid: rootGuid, accountType: 'ASSET', placeholder: true });
-  chart.placePurse({ purse: bobPlaceholder, name: 'Bob', parentGuid: rootGuid, accountType: 'ASSET', placeholder: true });
-  chart.placePurse({ purse: escrowPlaceholder, name: 'Escrow', parentGuid: rootGuid, accountType: 'ASSET', placeholder: true });
+  for (const [name, purse] of Object.entries(placeholders)) {
+    charts.moola.placePurse({
+      sealedPurse: moola.sealer.seal(purse),
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      parentGuid: rootGuid,
+      accountType: 'ASSET',
+      placeholder: true,
+    });
+  }
 
-  const aliceGuid = moolaKit.purses.getGuid(alicePlaceholder);
-  const bobGuid = moolaKit.purses.getGuid(bobPlaceholder);
-  const escrowGuid = moolaKit.purses.getGuid(escrowPlaceholder);
+  const parentGuids = {
+    alice: moola.purses.getGuid(placeholders.alice),
+    bob: moola.purses.getGuid(placeholders.bob),
+    escrow: moola.purses.getGuid(placeholders.escrow),
+  };
 
-  // Create leaf purses under the hierarchy
-  const aliceMoola = moolaKit.issuer.makeEmptyPurse();
-  const bobMoola = moolaKit.issuer.makeEmptyPurse();
-  const aliceStock = stockKit.issuer.makeEmptyPurse();
-  const bobStock = stockKit.issuer.makeEmptyPurse();
+  // Create encapsulated actors - purses are private to each
+  const partyConfig = {
+    moolaIssuer: moola.issuer,
+    stockIssuer: stock.issuer,
+    moolaSealer: moola.sealer,
+    stockSealer: stock.sealer,
+  };
+  const parties = {
+    alice: makeParty({ name: 'Alice', ...partyConfig }),
+    bob: makeParty({ name: 'Bob', ...partyConfig }),
+  };
 
-  chart.placePurse({ purse: aliceMoola, name: 'Moola', parentGuid: aliceGuid, accountType: 'ASSET' });
-  chart.placePurse({ purse: bobMoola, name: 'Moola', parentGuid: bobGuid, accountType: 'ASSET' });
-  stockChart.placePurse({ purse: aliceStock, name: 'Stock', parentGuid: aliceGuid, accountType: 'STOCK' });
-  stockChart.placePurse({ purse: bobStock, name: 'Stock', parentGuid: bobGuid, accountType: 'STOCK' });
+  // Place party purses in chart (parties return sealed tokens, don't need chart authority)
+  for (const [name, party] of Object.entries(parties)) {
+    const parentGuid = parentGuids[name as keyof typeof parentGuids];
+    charts.moola.placePurse({ sealedPurse: party.sealedMoola, name: 'Moola', parentGuid, accountType: 'ASSET' });
+    charts.stock.placePurse({ sealedPurse: party.sealedStock, name: 'Stock', parentGuid, accountType: 'STOCK' });
+  }
 
   // Track splits incrementally - only show new splits at each state
   const tracker = makeSplitTracker(db);
   tracker.getNewSplits(); // Clear any setup splits
 
   // === SETUP: Parties have assets in their purses ===
-  aliceMoola.deposit(moolaKit.mint.mintPayment(moola(10n)));
-  bobStock.deposit(stockKit.mint.mintPayment(stock(1n)));
+  parties.alice.moolaDeposit.receive(moola.mint.mintPayment(moolaAmt(10n)));
+  parties.bob.stockDeposit.receive(stock.mint.mintPayment(stockAmt(1n)));
   tracker.getNewSplits(); // Clear setup splits
 
   // === AMIX STATE: Agreement ===
   // Escrow is created. Parties will provide Promise<Payment>, not immediate payments.
   // This models async funding: Alice may fund before Bob, or vice versa.
-  const escrowMoola = moolaKit.issuer.makeEmptyPurse();
-  const escrowStock = stockKit.issuer.makeEmptyPurse();
-  chart.placePurse({ purse: escrowMoola, name: 'Moola', parentGuid: escrowGuid, accountType: 'ASSET' });
-  stockChart.placePurse({ purse: escrowStock, name: 'Stock', parentGuid: escrowGuid, accountType: 'STOCK' });
+  const escrow = makeEscrowHolder(partyConfig);
+
+  // Place escrow purses in chart
+  charts.moola.placePurse({ sealedPurse: escrow.sealedMoola, name: 'Moola', parentGuid: parentGuids.escrow, accountType: 'ASSET' });
+  charts.stock.placePurse({ sealedPurse: escrow.sealedStock, name: 'Stock', parentGuid: parentGuids.escrow, accountType: 'STOCK' });
 
   // Deferred resolvers - these simulate async funding decisions
   let resolveAliceFunding!: (payment: Payment<'nat'>) => void;
@@ -643,8 +725,8 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
 
   // Escrow starts waiting for both deposits (via promises)
   const escrowDepositPs = {
-    moola: aliceFundingP.then(p => escrowMoola.deposit(p)),
-    stock: bobFundingP.then(p => escrowStock.deposit(p)),
+    moola: aliceFundingP.then(p => escrow.moolaDeposit.receive(p)),
+    stock: bobFundingP.then(p => escrow.stockDeposit.receive(p)),
   };
 
   t.snapshot(
@@ -661,7 +743,7 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
   );
 
   // === AMIX STATE: Alice funds (first mover) ===
-  const alicePayment = aliceMoola.withdraw(moola(10n));
+  const alicePayment = parties.alice.fundMoola(moolaAmt(10n));
   resolveAliceFunding(alicePayment);
   await escrowDepositPs.moola; // Wait for Alice's deposit to complete
 
@@ -676,7 +758,7 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
   );
 
   // === AMIX STATE: Bob funds (second mover) ===
-  const bobPayment = bobStock.withdraw(stock(1n));
+  const bobPayment = parties.bob.fundStock(stockAmt(1n));
   resolveBobFunding(bobPayment);
   await escrowDepositPs.stock; // Wait for Bob's deposit to complete
 
@@ -691,12 +773,9 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
   );
 
   // === AMIX STATE: Settlement ===
-  // In real escrow2013, this happens automatically via Promise.all resolution.
+  // In real escrow, this happens automatically via Promise.all resolution.
   // Here we manually perform the settlement to show the ledger changes.
-  const stockForAlice = escrowStock.withdraw(stock(1n));
-  const moolaForBob = escrowMoola.withdraw(moola(10n));
-  aliceStock.deposit(stockForAlice);
-  bobMoola.deposit(moolaForBob);
+  escrow.settleTo(parties.alice, parties.bob, { stock: stockAmt(1n), moola: moolaAmt(10n) });
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
@@ -707,8 +786,6 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
       'Four new splits: escrow withdraws create holds, deposits finalize them.',
     ].join('\n'),
   );
-
-  rawDb.close();
 });
 
 test.todo('Multi-commodity swaps: show ledger rows for two brands');
