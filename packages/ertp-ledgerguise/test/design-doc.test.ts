@@ -396,12 +396,13 @@ serial('Withdraw creates a hold', t => {
     .all()
     .map(shortGuids())
     .map(shortDates());
-  const splitRows = db
+  const holdSplits = db
     .prepare<[], SplitEntry & { account_name: string }>(
       `
       SELECT splits.guid, splits.tx_guid, splits.account_guid, accounts.name AS account_name,
         splits.value_num, splits.value_denom, splits.reconcile_state
       FROM splits JOIN accounts ON splits.account_guid = accounts.guid
+      WHERE splits.reconcile_state = 'n'
       ORDER BY splits.guid
     `,
     )
@@ -410,12 +411,11 @@ serial('Withdraw creates a hold', t => {
   t.snapshot(
     toRowStrings(txRows, ['guid', 'num', 'post_date', 'enter_date']),
     `Withdraw removes value from the purse by creating a new hold transaction, in addition to the earlier mint/deposit transaction.
-The split table shows the line items for that new transaction.
 The hold keeps value in a dedicated holding account until deposit or cancel.`,
   );
   t.snapshot(
-    toRowStrings(splitRows, ['guid', 'tx_guid', 'account_guid', 'account_name', 'value_num', 'value_denom', 'reconcile_state']),
-    'Hold splits show the value leaving the purse and landing in the holding account.',
+    toRowStrings(holdSplits, ['guid', 'tx_guid', 'account_guid', 'account_name', 'value_num', 'value_denom', 'reconcile_state']),
+    `Hold splits (reconcile_state='n') show value leaving the purse and landing in the holding account.`,
   );
 });
 
