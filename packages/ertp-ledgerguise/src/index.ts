@@ -40,7 +40,6 @@ export type { Sealed, Sealer, Unsealer } from './sealer.js';
 
 export type {
   CommoditySpec,
-  EscrowFacet,
   IssuerKitForCommodity,
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
@@ -51,8 +50,6 @@ export { makeChartFacet } from './chart.js';
 export { makeErtpEscrow } from './escrow-ertp.js';
 export { makeSettlementFacet } from './settlement.js';
 export type { SettlementFacet, SettlementResult } from './settlement.js';
-/** @deprecated Use {@link makeErtpEscrow} instead */
-export { makeEscrow } from './escrow.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';
 export type { SqlDatabase, SqlStatement } from './sql-db.js';
 export type { Zone } from './jessie-tools.js';

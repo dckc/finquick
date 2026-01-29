@@ -19,9 +19,10 @@ import {
   createIssuerKit,
   initGnuCashSchema,
   makeChartFacet,
-  makeEscrow,
   wrapBetterSqlite3Database,
 } from '../src/index.js';
+// Direct import of deprecated escrow (pending migration to makeErtpEscrow)
+import { makeEscrow } from '../src/escrow.js';
 import { makeDeterministicGuid, mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
 
