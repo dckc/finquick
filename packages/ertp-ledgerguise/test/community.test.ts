@@ -61,13 +61,11 @@ const getTotalForAccountType = (
     ? ` AND accounts.guid NOT IN (${excludeGuids.map(() => '?').join(', ')})`
     : '';
   const row = db
-    .prepare(
-      [
-        'SELECT COALESCE(SUM(quantity_num), 0) AS total',
-        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
-        `WHERE accounts.account_type = ? AND accounts.commodity_guid = ?${filters}`,
-      ].join(' '),
-    )
+    .prepare(`
+      SELECT COALESCE(SUM(quantity_num), 0) AS total
+      FROM splits JOIN accounts ON splits.account_guid = accounts.guid
+      WHERE accounts.account_type = ? AND accounts.commodity_guid = ?${filters}
+    `)
     .get(
       ...([accountType, commodityGuid, ...excludeGuids] as string[]),
     ) as { total: string } | undefined;
@@ -330,12 +328,12 @@ serial('stage 4: run balance sheet and income statement', t => {
         placeholder: number;
       }
     >(
-      [
-        'SELECT guid, name, parent_guid, account_type, placeholder',
-        'FROM accounts',
-        'WHERE commodity_guid = ?',
-        'ORDER BY guid',
-      ].join(' '),
+`
+        SELECT guid, name, parent_guid, account_type, placeholder
+        FROM accounts
+        WHERE commodity_guid = ?
+        ORDER BY guid
+      `,
     )
     .all(kit.commodityGuid);
   const book = db
@@ -384,15 +382,13 @@ serial('stage 4: run balance sheet and income statement', t => {
           value_num: string;
           reconcile_state: string;
         }
-      >(
-        [
-          'SELECT splits.tx_guid, transactions.num, transactions.description,',
-          'splits.value_num, splits.reconcile_state',
-          'FROM splits JOIN transactions ON splits.tx_guid = transactions.guid',
-          'WHERE splits.account_guid = ?',
-          'ORDER BY splits.tx_guid, splits.guid',
-        ].join(' '),
-      )
+      >(`
+        SELECT splits.tx_guid, transactions.num, transactions.description,
+          splits.value_num, splits.reconcile_state
+        FROM splits JOIN transactions ON splits.tx_guid = transactions.guid
+        WHERE splits.account_guid = ?
+        ORDER BY splits.tx_guid, splits.guid
+      `)
       .all(account.guid);
     t.snapshot(
       toRowStrings(

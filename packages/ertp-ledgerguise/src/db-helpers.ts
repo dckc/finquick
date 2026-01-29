@@ -13,13 +13,11 @@ export const ensureCommodityRow = (
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
-  const insert = db.prepare(
-    [
-      'INSERT OR IGNORE INTO commodities(',
-      'guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz',
-      ') VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)',
-    ].join(' '),
-  );
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO commodities(
+      guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz
+    ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)
+  `);
   insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
 };
 
@@ -45,13 +43,11 @@ export const createCommodityRow = ({
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
-  const insert = db.prepare(
-    [
-      'INSERT INTO commodities(',
-      'guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz',
-      ') VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)',
-    ].join(' '),
-  );
+  const insert = db.prepare(`
+    INSERT INTO commodities(
+      guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz
+    ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)
+  `);
   insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
 };
 
@@ -70,13 +66,12 @@ export const ensureAccountRow = ({
   accountType?: string;
   parentGuid?: Guid | null;
 }): void => {
-  db.prepare(
-    [
-      'INSERT OR IGNORE INTO accounts(',
-      'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
-      ') VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)',
-    ].join(' '),
-  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  db.prepare(`
+    INSERT OR IGNORE INTO accounts(
+      guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
+      parent_guid, code, description, hidden, placeholder
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
+  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const createAccountRow = ({
@@ -100,13 +95,12 @@ export const createAccountRow = ({
   if (row) {
     throw new Error('account already exists');
   }
-  db.prepare(
-    [
-      'INSERT INTO accounts(',
-      'guid, name, account_type, commodity_guid, commodity_scu, non_std_scu, parent_guid, code, description, hidden, placeholder',
-      ') VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)',
-    ].join(' '),
-  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  db.prepare(`
+    INSERT INTO accounts(
+      guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
+      parent_guid, code, description, hidden, placeholder
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
+  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const requireAccountCommodity = ({
@@ -201,14 +195,12 @@ export const makeTransferRecorder = ({
     reconcileState = 'n',
   ) => {
     const splitGuid = makeGuid();
-    db.prepare(
-      [
-        'INSERT INTO splits(',
-        'guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,',
-        'value_num, value_denom, quantity_num, quantity_denom, lot_guid',
-        ') VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)',
-      ].join(' '),
-    ).run(
+    db.prepare(`
+      INSERT INTO splits(
+        guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,
+        value_num, value_denom, quantity_num, quantity_denom, lot_guid
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
+    `).run(
       splitGuid,
       txGuid,
       accountGuid,
@@ -230,13 +222,10 @@ export const makeTransferRecorder = ({
     nowMsValue: number,
   ) => {
     const seconds = Math.floor(nowMsValue / 1000);
-    db.prepare(
-      [
-        'INSERT INTO transactions(',
-        'guid, currency_guid, num, post_date, enter_date, description',
-        ") VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)",
-      ].join(' '),
-    ).run(
+    db.prepare(`
+      INSERT INTO transactions(guid, currency_guid, num, post_date, enter_date, description)
+      VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)
+    `).run(
       txGuid,
       commodityGuid,
       checkNumber,

@@ -259,13 +259,11 @@ const makeIssuerKitForCommodity = ({
         .prepare<
           [string, string],
           { guid: string; account_guid: string; quantity_num: string; reconcile_state: string }
-        >(
-          [
-            'SELECT guid, account_guid, quantity_num, reconcile_state',
-            'FROM splits',
-            'WHERE tx_guid = ? AND account_guid = ?',
-          ].join(' '),
-        )
+        >(`
+          SELECT guid, account_guid, quantity_num, reconcile_state
+          FROM splits
+          WHERE tx_guid = ? AND account_guid = ?
+        `)
         .get(txGuid, balanceAccountGuid);
       if (!holdingSplit) {
         throw new Error('payment not live');
@@ -277,13 +275,11 @@ const makeIssuerKitForCommodity = ({
         .prepare<
           [string, string],
           { account_guid: string }
-        >(
-          [
-            'SELECT account_guid',
-            'FROM splits',
-            'WHERE tx_guid = ? AND account_guid != ?',
-          ].join(' '),
-        )
+        >(`
+          SELECT account_guid
+          FROM splits
+          WHERE tx_guid = ? AND account_guid != ?
+        `)
         .get(txGuid, balanceAccountGuid);
       if (!sourceSplit) {
         throw new Error('payment missing source split');

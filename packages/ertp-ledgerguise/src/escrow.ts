@@ -57,14 +57,12 @@ export const makeEscrow = ({
     reconcileState = 'n',
   ) => {
     const splitGuid = makeGuid();
-    db.prepare(
-      [
-        'INSERT INTO splits(',
-        'guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,',
-        'value_num, value_denom, quantity_num, quantity_denom, lot_guid',
-        ') VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)',
-      ].join(' '),
-    ).run(
+    db.prepare(`
+      INSERT INTO splits(
+        guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,
+        value_num, value_denom, quantity_num, quantity_denom, lot_guid
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
+    `).run(
       splitGuid,
       txGuid,
       accountGuid,
@@ -114,13 +112,10 @@ export const makeEscrow = ({
       requireAccountCommodity({ db, accountGuid: rightToAccountGuid, commodityGuid });
       const txGuid = makeGuid();
       const seconds = Math.floor(nowMs() / 1000);
-      db.prepare(
-        [
-          'INSERT INTO transactions(',
-          'guid, currency_guid, num, post_date, enter_date, description',
-          ") VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)",
-        ].join(' '),
-      ).run(txGuid, commodityGuid, checkNumber, seconds, seconds, description);
+      db.prepare(`
+        INSERT INTO transactions(guid, currency_guid, num, post_date, enter_date, description)
+        VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)
+      `).run(txGuid, commodityGuid, checkNumber, seconds, seconds, description);
       const leftHoldingSplitGuid = recordSplit(txGuid, holdingAccountGuid, leftAmount, 'n');
       const rightHoldingSplitGuid = recordSplit(txGuid, holdingAccountGuid, rightAmount, 'n');
       recordSplit(txGuid, leftAccountGuid, -leftAmount, 'n');

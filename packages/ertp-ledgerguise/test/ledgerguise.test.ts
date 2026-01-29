@@ -216,13 +216,11 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
         value_denom: string;
         reconcile_state: string;
       }
-    >(
-      [
-        'SELECT account_guid, value_num, value_denom, reconcile_state',
-        'FROM splits',
-        'WHERE tx_guid = ?',
-      ].join(' '),
-    )
+    >(`
+      SELECT account_guid, value_num, value_denom, reconcile_state
+      FROM splits
+      WHERE tx_guid = ?
+    `)
     .all(actualTx.guid);
   const actualSplits = splitRows
     .map(row => ({
@@ -297,17 +295,15 @@ test('alice-to-bob transfer records a single transaction', t => {
     .prepare<
       [string, string],
       { tx_guid: string; alice_count: number; bob_count: number; split_count: number }
-    >(
-      [
-        'SELECT tx_guid,',
-        'SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS alice_count,',
-        'SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS bob_count,',
-        'COUNT(*) AS split_count',
-        'FROM splits',
-        'GROUP BY tx_guid',
-        'HAVING alice_count > 0 AND bob_count > 0',
-      ].join(' '),
-    )
+    >(`
+      SELECT tx_guid,
+        SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS alice_count,
+        SUM(CASE WHEN account_guid = ? THEN 1 ELSE 0 END) AS bob_count,
+        COUNT(*) AS split_count
+      FROM splits
+      GROUP BY tx_guid
+      HAVING alice_count > 0 AND bob_count > 0
+    `)
     .all(aliceGuid, bobGuid);
   t.is(txRows.length, 1);
   t.is(txRows[0].split_count, 2);

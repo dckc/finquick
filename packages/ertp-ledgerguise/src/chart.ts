@@ -47,12 +47,10 @@ export const makeChartFacet = ({
         throw new Error('parent account not found');
       }
     }
-    db.prepare(
-      [
-        'UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?, code = ?',
-        'WHERE guid = ?',
-      ].join(' '),
-    ).run(name, accountType, parentGuid, placeholder ? 1 : 0, code, accountGuid);
+    db.prepare(`
+      UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?, code = ?
+      WHERE guid = ?
+    `).run(name, accountType, parentGuid, placeholder ? 1 : 0, code, accountGuid);
   };
 
   return exo('ChartFacet', {

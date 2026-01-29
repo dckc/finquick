@@ -76,13 +76,11 @@ serial('Mint and deposit (minimal DB impact)', t => {
         post_date: string | null;
         enter_date: string | null;
       }
-    >(
-      [
-        'SELECT guid, num, post_date, enter_date',
-        'FROM transactions',
-        'ORDER BY guid',
-      ].join(' '),
-    )
+    >(`
+      SELECT guid, num, post_date, enter_date
+      FROM transactions
+      ORDER BY guid
+    `)
     .all()
     .map(row => ({
       guid: shortGuid(row.guid),
@@ -101,13 +99,11 @@ serial('Mint and deposit (minimal DB impact)', t => {
         value_denom: string;
         reconcile_state: string;
       }
-    >(
-      [
-        'SELECT guid, tx_guid, account_guid, value_num, value_denom, reconcile_state',
-        'FROM splits',
-        'ORDER BY guid',
-      ].join(' '),
-    )
+    >(`
+      SELECT guid, tx_guid, account_guid, value_num, value_denom, reconcile_state
+      FROM splits
+      ORDER BY guid
+    `)
     .all()
     .map(row => ({
       guid: shortGuid(row.guid),
@@ -126,14 +122,12 @@ serial('Mint and deposit (minimal DB impact)', t => {
       'enter_date',
       'description',
     ]),
-    [
-      'GnuCash is an accounting program; a bit like Quicken but based more on traditional double-entry accounting.',
-      'ERTP is a flexible Electronic Rights protocol.',
-      'ERTP is flexible enough that we can implement it on top of a GnuCash database.',
-      '',
-      'We start with the smallest ERTP action that writes to the database: mint 5 BUCKS and deposit them into a purse.',
-      'This creates one transaction and two splits, moving value from the mint holding account into the purse.',
-    ].join('\n'),
+`GnuCash is an accounting program; a bit like Quicken but based more on traditional double-entry accounting.
+ERTP is a flexible Electronic Rights protocol.
+ERTP is flexible enough that we can implement it on top of a GnuCash database.
+
+We start with the smallest ERTP action that writes to the database: mint 5 BUCKS and deposit them into a purse.
+This creates one transaction and two splits, moving value from the mint holding account into the purse.`,
   );
   t.snapshot(
     toRowStrings(splitRows, [
@@ -144,17 +138,15 @@ serial('Mint and deposit (minimal DB impact)', t => {
       'value_denom',
       'reconcile_state',
     ]),
-    [
-      'Splits show the value move: one positive into the purse account and one negative out of the mint holding account.',
-      '',
-      'Context: before the deposit we already created issuer and purse records:',
-      '  const { issuer } = makeIssuerKit("BUCKS");',
-      '  const purse = issuer.makeEmptyPurse();',
-      '',
-      'Those actions touch other tables too:',
-      '- createIssuerKit inserts a commodity row (BUCKS) and creates mint recovery/holding accounts.',
-      '- makeEmptyPurse inserts an account row for the new purse (later named via ChartFacet).',
-    ].join('\n'),
+`Splits show the value move: one positive into the purse account and one negative out of the mint holding account.
+
+Context: before the deposit we already created issuer and purse records:
+  const { issuer } = makeIssuerKit("BUCKS");
+  const purse = issuer.makeEmptyPurse();
+
+Those actions touch other tables too:
+- createIssuerKit inserts a commodity row (BUCKS) and creates mint recovery/holding accounts.
+- makeEmptyPurse inserts an account row for the new purse (later named via ChartFacet).`,
   );
 });
 
@@ -171,12 +163,12 @@ serial('ERTP is separate from naming', t => {
         placeholder: number;
       }
     >(
-      [
-        'SELECT guid, name, parent_guid, account_type, placeholder',
-        'FROM accounts',
-        'WHERE commodity_guid = ?',
-        'ORDER BY guid',
-      ].join(' '),
+`
+        SELECT guid, name, parent_guid, account_type, placeholder
+        FROM accounts
+        WHERE commodity_guid = ?
+        ORDER BY guid
+      `,
     )
     .all(kit.commodityGuid);
   const accountsView = accounts
@@ -196,11 +188,9 @@ serial('ERTP is separate from naming', t => {
       'account_type',
       'placeholder',
     ]),
-    [
-      'ERTP mints are separate from human-facing names.',
-      'Anyone can create an ERTP `Mint`; if someone called it USD when it was not, that would be trouble.',
-      'Until a chart names accounts, the ledger is correct but opaque to humans.',
-    ].join('\n'),
+`ERTP mints are separate from human-facing names.
+Anyone can create an ERTP \`Mint\`; if someone called it USD when it was not, that would be trouble.
+Until a chart names accounts, the ledger is correct but opaque to humans.`,
   );
 });
 
@@ -233,12 +223,12 @@ serial('Giving names in the chart of accounts', t => {
         placeholder: number;
       }
     >(
-      [
-        'SELECT guid, name, parent_guid, account_type, placeholder',
-        'FROM accounts',
-        'WHERE commodity_guid = ?',
-        'ORDER BY guid',
-      ].join(' '),
+`
+        SELECT guid, name, parent_guid, account_type, placeholder
+        FROM accounts
+        WHERE commodity_guid = ?
+        ORDER BY guid
+      `,
     )
     .all(kit.commodityGuid)
     .map(row => ({
@@ -256,16 +246,14 @@ serial('Giving names in the chart of accounts', t => {
       'account_type',
       'placeholder',
     ]),
-    [
-      'makeIssuerKit("BUCKS") was a simplification.',
-      'The actual setup wires a chart facet so we can name accounts:',
-      '  const kit = createIssuerKit({ db, ... });',
-      '  const chart = makeChartFacet({ db, getGuidFromSealed: kit.purses.getGuidFromSealed, ... });',
-      '  chart.placePurse({ sealedPurse: kit.sealer.seal(purse), name: "Alice", ... });',
-      '',
-      'Placing the purse under a parent account gives it a human name and a path (e.g., Org1:Alice).',
-      'The sealed token identifies the purse without leaking withdrawal authority.',
-    ].join('\n'),
+`makeIssuerKit("BUCKS") was a simplification.
+The actual setup wires a chart facet so we can name accounts:
+  const kit = createIssuerKit({ db, ... });
+  const chart = makeChartFacet({ db, getGuidFromSealed: kit.purses.getGuidFromSealed, ... });
+  chart.placePurse({ sealedPurse: kit.sealer.seal(purse), name: "Alice", ... });
+
+Placing the purse under a parent account gives it a human name and a path (e.g., Org1:Alice).
+The sealed token identifies the purse without leaking withdrawal authority.`,
   );
 });
 
@@ -345,19 +333,17 @@ serial('Building account hierarchies with placeholder parents', t => {
 
   t.snapshot(
     toRowStrings(accounts, ['guid', 'code', 'name', 'parent_guid', 'placeholder']),
-    [
-      'The accounts table forms a tree via guid and parent_guid columns.',
-      'Account codes (1000, 1100, etc.) enable cross-system integration.',
-      'Placeholder accounts (Y) group children; leaf accounts hold balances.',
-      '',
-      'Tree structure:',
-      '  1000 Assets (placeholder)',
-      '    1100 Bank (placeholder)',
-      '      1110 Checking',
-      '      1120 Savings',
-      '  6000 Expenses (placeholder)',
-      '    6100 Food',
-    ].join('\n'),
+`The accounts table forms a tree via guid and parent_guid columns.
+Account codes (1000, 1100, etc.) enable cross-system integration.
+Placeholder accounts (Y) group children; leaf accounts hold balances.
+
+Tree structure:
+  1000 Assets (placeholder)
+    1100 Bank (placeholder)
+      1110 Checking
+      1120 Savings
+  6000 Expenses (placeholder)
+    6100 Food`,
   );
 });
 
@@ -380,12 +366,11 @@ serial('Withdraw creates a hold', t => {
         enter_date: string | null;
         description: string;
       }
-    >(
-      [
-        'SELECT guid, currency_guid, num, post_date, enter_date, description',
-        'FROM transactions',
-        'ORDER BY guid',
-      ].join(' '),
+    >(`
+      SELECT guid, currency_guid, num, post_date, enter_date, description
+      FROM transactions
+      ORDER BY guid
+    `,
     )
     .all()
     .map(row => ({
@@ -409,12 +394,12 @@ serial('Withdraw creates a hold', t => {
         reconcile_state: string;
       }
     >(
-      [
-        'SELECT splits.guid, splits.tx_guid, splits.account_guid, accounts.name AS account_name,',
-        'splits.value_num, splits.value_denom, splits.reconcile_state',
-        'FROM splits JOIN accounts ON splits.account_guid = accounts.guid',
-        'ORDER BY splits.guid',
-      ].join(' '),
+`
+        SELECT splits.guid, splits.tx_guid, splits.account_guid, accounts.name AS account_name,
+          splits.value_num, splits.value_denom, splits.reconcile_state
+        FROM splits JOIN accounts ON splits.account_guid = accounts.guid
+        ORDER BY splits.guid
+      `,
     )
     .all()
     .map(row => ({
@@ -433,11 +418,9 @@ serial('Withdraw creates a hold', t => {
       'post_date',
       'enter_date',
     ]),
-    [
-      'Withdraw removes value from the purse by creating a new hold transaction, in addition to the earlier mint/deposit transaction.',
-      'The split table shows the line items for that new transaction.',
-      'The hold keeps value in a dedicated holding account until deposit or cancel.',
-    ].join('\n'),
+`Withdraw removes value from the purse by creating a new hold transaction, in addition to the earlier mint/deposit transaction.
+The split table shows the line items for that new transaction.
+The hold keeps value in a dedicated holding account until deposit or cancel.`,
   );
   t.snapshot(
     toRowStrings(splitRows, [
@@ -731,15 +714,13 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
-    [
-      'Escrow follows the AMIX state machine (American Information Exchange, 1984).',
-      'AMIX models exchange as: Agreement → Funding → Settlement (or Cancellation).',
-      '',
-      'STATE: Agreement',
-      'Escrow purses exist but are empty. Both parties hold Promise<Payment>.',
-      'Funding happens asynchronously - Alice may fund before Bob, or vice versa.',
-      'No ledger changes yet.',
-    ].join('\n'),
+`Escrow follows the AMIX state machine (American Information Exchange, 1984).
+AMIX models exchange as: Agreement → Funding → Settlement (or Cancellation).
+
+STATE: Agreement
+Escrow purses exist but are empty. Both parties hold Promise<Payment>.
+Funding happens asynchronously - Alice may fund before Bob, or vice versa.
+No ledger changes yet.`,
   );
 
   // === AMIX STATE: Alice funds (first mover) ===
@@ -749,12 +730,10 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
-    [
-      'STATE: Alice Funds (first mover)',
-      'Alice withdraws from her purse and deposits to escrow.',
-      'Her payment creates a hold, then deposit retargets it to escrow.',
-      'Escrow now holds 10 Moola; still waiting for Bob.',
-    ].join('\n'),
+`STATE: Alice Funds (first mover)
+Alice withdraws from her purse and deposits to escrow.
+Her payment creates a hold, then deposit retargets it to escrow.
+Escrow now holds 10 Moola; still waiting for Bob.`,
   );
 
   // === AMIX STATE: Bob funds (second mover) ===
@@ -764,12 +743,10 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
-    [
-      'STATE: Bob Funds (second mover)',
-      'Bob withdraws from his purse and deposits to escrow.',
-      'His payment creates a hold, then deposit retargets it to escrow.',
-      'Both parties funded - escrow can now settle.',
-    ].join('\n'),
+`STATE: Bob Funds (second mover)
+Bob withdraws from his purse and deposits to escrow.
+His payment creates a hold, then deposit retargets it to escrow.
+Both parties funded - escrow can now settle.`,
   );
 
   // === AMIX STATE: Settlement ===
@@ -779,12 +756,10 @@ serial('Escrow exchange: async funding (AMIX-style state machine)', async t => {
 
   t.snapshot(
     toRowStrings(tracker.getNewSplits(), splitColumns),
-    [
-      'STATE: Settlement',
-      'Escrow pays out to counterparties.',
-      'Alice gets Stock (what she wanted); Bob gets Moola (what he wanted).',
-      'Four new splits: escrow withdraws create holds, deposits finalize them.',
-    ].join('\n'),
+`STATE: Settlement
+Escrow pays out to counterparties.
+Alice gets Stock (what she wanted); Bob gets Moola (what he wanted).
+Four new splits: escrow withdraws create holds, deposits finalize them.`,
   );
 });
 
