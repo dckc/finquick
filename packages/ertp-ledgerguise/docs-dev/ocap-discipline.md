@@ -93,6 +93,32 @@ An **actor** is an object with encapsulated state that communicates only by mess
 
 This follows the Principle of Least Authority (POLA): give each object only the capabilities it needs. See `test/escrow-db.test.ts` for an example of actor encapsulation in tests.
 
+### Closely Held vs Widely Shared
+
+Capabilities fall into two categories based on how they're distributed:
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Closely held** | Kept private within an actor; not shared | Purses, private keys, unsealer |
+| **Widely shared** | Freely given to counterparties | Deposit facets, sealed tokens, brand |
+
+A purse is closely held—only its owner can withdraw from it. But the purse's deposit facet is widely shared—anyone can deposit into it. This asymmetry enables safe cooperation: you can receive payments without risking your balance.
+
+```js
+const makeParty = ({ issuer, sealer }) => {
+  // Closely held by the party
+  const purse = issuer.makeEmptyPurse();
+
+  return freeze({
+    // Widely shared - safe to give to counterparties
+    getDepositFacet: () => purse.getDepositFacet(),
+    getSealedPurse: () => sealer.seal(purse),
+    // Closely held - requires party's cooperation
+    fund: (amount) => purse.withdraw(amount),
+  });
+};
+```
+
 ## Increased Cooperation with Limited Vulnerability
 
 > Capability-based security enables the concise composition of powerful patterns of cooperation without vulnerability.
