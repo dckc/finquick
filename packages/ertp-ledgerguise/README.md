@@ -14,9 +14,21 @@ ERTP-compatible facade over a GnuCash SQLite database.
 - A new UI or a full GnuCash replacement.
 - Automated bank/card syncing (handled elsewhere in finquick).
 
+## Documentation
+
+The primary documentation is `test/snapshots/design-doc.test.ts.md` — a narrative snapshot-based design doc showing how ERTP concepts map to GnuCash:
+
+- Mint and deposit → transactions/splits
+- Chart of accounts → ChartFacet for naming purses
+- Withdraw creates hold → reconcile_state tracking
+- Escrow exchange → AMIX-style state machine
+- Settlement → SettlementFacet for GnuCash stock-trade format
+
+See also `docs-dev/` for background on escrow accounting, ocap discipline, and integration patterns.
+
 ## Status
 
-Early sketch; API surface and mappings are expected to evolve. Contributions welcome—see `CONTRIBUTING.md` for what's done and what remains.
+Core ERTP→GnuCash mapping is stable. Contributions welcome—see `CONTRIBUTING.md` for guidelines.
 
 ## Name
 

@@ -5,8 +5,13 @@ import type { SqlDatabase } from './sql-db.js';
 import { requireAccountCommodity } from './db-helpers.js';
 
 /**
- * @file This implementation is "all over the floor" and is not production ready.
- *       See escrow-ertp.ts for a more solid, ERTP-only escrow exchange.
+ * @file DEPRECATED: Use escrow-ertp.ts instead.
+ *
+ * This implementation is "all over the floor" and is not production ready.
+ * It mixes ERTP concepts with raw DB access in ways that violate layering.
+ *
+ * @deprecated Use {@link makeErtpEscrow} from escrow-ertp.ts
+ * @see escrow-ertp.ts for the production-ready ERTP-only escrow exchange
  */
 
 type EscrowRecord = {
@@ -22,6 +27,7 @@ type EscrowRecord = {
 
 /**
  * Create a two-party escrow with a single holding account for the brand.
+ * @deprecated Use {@link makeErtpEscrow} from escrow-ertp.ts instead.
  */
 export const makeEscrow = ({
   db,

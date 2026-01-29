@@ -84,13 +84,14 @@ These guidelines help AI agents contribute effectively:
 **Done:**
 
 - [x] ERTP-like API (issuer/brand/purse/payment) mapped to GnuCash
-- [x] Escrow prototype with async funding via `Promise<Payment>`
-- [x] Account hierarchy with placeholder parents and codes
+- [x] Escrow exchange with async funding via `Promise<Payment>` (escrow-ertp.ts)
+- [x] Account hierarchy with placeholder parents and codes (ChartFacet)
 - [x] Ocap discipline: injected clock/db, frozen API surfaces
+- [x] Multi-commodity escrow with proper GnuCash stock-trade format (SettlementFacet)
+- [x] Design doc as executable snapshot tests (test/snapshots/design-doc.test.ts.md)
 
 **To do:**
 
-- [ ] Solidify escrow API
 - [ ] Persist escrow state at each transition (crash recovery)
 - [ ] Read-only issuer facade (brand/displayInfo only)
-- [ ] Multi-commodity escrow
+- [ ] Community rewards/budget voting (separate from escrow)

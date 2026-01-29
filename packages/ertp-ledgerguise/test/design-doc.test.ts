@@ -9,140 +9,29 @@ import { makeErtpEscrow, type EscrowParty } from '../src/escrow-ertp.js';
 import {
   createIssuerKit,
   makeChartFacet,
+  makeSettlementFacet,
   type Sealer,
   wrapBetterSqlite3Database,
 } from '../src/index.js';
 import type { Guid } from '../src/types.js';
 import { makeTestClock, makeTestDb, mockMakeGuid } from './mock-io.js';
+import {
+  type AccountRow,
+  type AccountView,
+  type AccountWithCode,
+  type BooksRow,
+  type SplitEntry,
+  type SplitRow,
+  type TransactionRow,
+  accountViewCols,
+  shortDates,
+  shortGuid,
+  shortGuids,
+  splitEntryCols,
+  toRowStrings,
+} from './gnucash-tools.js';
 
-// #region DB query helpers
-
-// GnuCash table row types for typed queries
-type TransactionRow = {
-  guid: string;
-  currency_guid: string;
-  num: string;
-  post_date: string | null;
-  enter_date: string | null;
-  description: string;
-};
-
-type SplitRow = {
-  guid: string;
-  tx_guid: string;
-  account_guid: string;
-  memo: string;
-  action: string;
-  reconcile_state: string;
-  reconcile_date: string | null;
-  value_num: string;
-  value_denom: string;
-  quantity_num: string;
-  quantity_denom: string;
-};
-
-type AccountRow = {
-  guid: string;
-  name: string;
-  account_type: string;
-  commodity_guid: string;
-  parent_guid: string | null;
-  code: string | null;
-  description: string | null;
-  placeholder: number;
-  hidden: number;
-};
-
-type BooksRow = {
-  root_account_guid: string;
-};
-
-// Named subsets for common query patterns
 type AccountPath = Pick<AccountRow, 'guid' | 'name' | 'parent_guid'>;
-type AccountView = Pick<
-  AccountRow,
-  'guid' | 'name' | 'parent_guid' | 'account_type' | 'placeholder'
->;
-type AccountWithCode = Pick<
-  AccountRow,
-  'guid' | 'name' | 'parent_guid' | 'placeholder' | 'code'
->;
-type SplitEntry = Pick<
-  SplitRow,
-  | 'guid'
-  | 'tx_guid'
-  | 'account_guid'
-  | 'value_num'
-  | 'value_denom'
-  | 'reconcile_state'
->;
-
-// Column lists for snapshots
-const accountViewCols = ['guid', 'name', 'parent_guid', 'account_type', 'placeholder'];
-const splitEntryCols = ['guid', 'tx_guid', 'account_guid', 'value_num', 'value_denom', 'reconcile_state'];
-
-// Row mappers with sensible defaults
-const GUID_KEYS = [
-  'guid',
-  'tx_guid',
-  'account_guid',
-  'currency_guid',
-  'parent_guid',
-  'commodity_guid',
-];
-const DATE_KEYS = ['post_date', 'enter_date', 'reconcile_date'];
-
-const shortGuid = (guid: string) => guid.slice(-12);
-
-const shortGuids =
-  <T extends object>(keys: string[] = GUID_KEYS) =>
-  (row: T): T => {
-    const r = { ...row } as Record<string, unknown>;
-    for (const k of keys) {
-      if (k in r && typeof r[k] === 'string')
-        r[k] = shortGuid(r[k] as string);
-    }
-    return r as T;
-  };
-
-const shortDates =
-  <T extends object>(keys: string[] = DATE_KEYS) =>
-  (row: T): T => {
-    const r = { ...row } as Record<string, unknown>;
-    for (const k of keys) {
-      if (k in r && typeof r[k] === 'string')
-        r[k] = (r[k] as string).split(' ')[0];
-    }
-    return r as T;
-  };
-
-const toRowStrings = (
-  rows: Record<string, unknown>[],
-  columns: string[],
-): string[] => {
-  if (rows.length === 0) return [columns.join(' | ')];
-  const widths = columns.map(column =>
-    Math.max(
-      column.length,
-      ...rows.map(row => String(row[column] ?? '').length),
-    ),
-  );
-  // Right-justify columns where all values are numeric
-  const isNumeric = columns.map(column =>
-    rows.every(row => /^-?\d+$/.test(String(row[column] ?? ''))),
-  );
-  const format = (row: Record<string, unknown>, isHeader = false) =>
-    columns
-      .map((column, index) => {
-        const val = String(row[column] ?? '');
-        return isNumeric[index] && !isHeader
-          ? val.padStart(widths[index])
-          : val.padEnd(widths[index]);
-      })
-      .join(' | ');
-  const header = Object.fromEntries(columns.map(column => [column, column]));
-  return [format(header, true), ...rows.map(row => format(row))];
-};
 
 // #endregion
 
@@ -752,129 +641,6 @@ Both parties funded - escrow settles.`,
 Alice gets Stock (what she wanted); Bob gets Moola (what he wanted).`,
   );
 });
-
-/**
- * SettlementFacet consolidates multi-transaction settlements into one.
- * Like ChartFacet names accounts, SettlementFacet creates proper GnuCash
- * stock-trade transactions from ERTP settlements.
- */
-const makeSettlementFacet = ({
-  db,
-  currencyGuid,
-  makeSettlementRef,
-}: {
-  db: ReturnType<typeof wrapBetterSqlite3Database>;
-  currencyGuid: Guid;
-  makeSettlementRef: () => string;
-}) => {
-  const { freeze } = Object;
-
-  const getMaxTxGuid = () => {
-    const row = db
-      .prepare<[], { max_guid: string | null }>(
-        'SELECT MAX(guid) as max_guid FROM transactions',
-      )
-      .get();
-    return row?.max_guid ?? '';
-  };
-
-  return freeze({
-    /**
-     * Execute an async operation and consolidate created transactions.
-     * Folds commodity transactions into the currency transaction.
-     */
-    settle: async <T>(
-      operation: () => Promise<T>,
-      description?: string,
-    ) => {
-      const settlementRef = makeSettlementRef();
-      const beforeGuid = getMaxTxGuid();
-      const result = await operation();
-
-      // Find transactions created during operation
-      const newTxs = db
-        .prepare<[string], { guid: string; currency_guid: string }>(
-          'SELECT guid, currency_guid FROM transactions WHERE guid > ?',
-        )
-        .all(beforeGuid);
-
-      if (newTxs.length < 2) {
-        // Nothing to consolidate
-        return freeze({ result, settlementRef, txGuid: newTxs[0]?.guid });
-      }
-
-      // Currency transaction is the survivor
-      const currencyTx = newTxs.find(tx => tx.currency_guid === currencyGuid);
-      const otherTxs = newTxs.filter(tx => tx.guid !== currencyTx?.guid);
-
-      if (!currencyTx) {
-        throw new Error('No currency transaction found to consolidate into');
-      }
-
-      // Get the exchange rate from the currency transaction
-      // (sum of positive values = total currency amount in the trade)
-      const currencyTotal = db
-        .prepare<[string], { total: string }>(
-          `SELECT SUM(value_num) as total FROM splits
-           WHERE tx_guid = ? AND value_num > 0`,
-        )
-        .get(currencyTx.guid);
-      const currencyAmount = BigInt(currencyTotal?.total ?? '0');
-
-      // Sanity check: only consolidate cleared transactions (no live payments)
-      const pendingSplits = db
-        .prepare<[string], { count: number }>(
-          `SELECT COUNT(*) as count FROM splits
-           WHERE tx_guid IN (${newTxs.map(() => '?').join(',')})
-           AND reconcile_state != 'c'`,
-        )
-        .get(...newTxs.map(tx => tx.guid));
-      if (pendingSplits && pendingSplits.count > 0) {
-        throw new Error('Cannot consolidate: found pending (non-cleared) splits');
-      }
-
-      // Move splits from other transactions, updating value to currency terms
-      for (const tx of otherTxs) {
-        // Get the commodity amount (sum of positive quantities)
-        const commodityTotal = db
-          .prepare<[string], { total: string }>(
-            `SELECT SUM(quantity_num) as total FROM splits
-             WHERE tx_guid = ? AND quantity_num > 0`,
-          )
-          .get(tx.guid);
-        const commodityAmount = BigInt(commodityTotal?.total ?? '1');
-
-        // Exchange rate: how much currency per commodity unit
-        const rate = currencyAmount / commodityAmount;
-
-        // Update splits: value = quantity * rate (in currency terms)
-        db.prepare(
-          `UPDATE splits SET
-             tx_guid = ?,
-             value_num = quantity_num * ?,
-             value_denom = quantity_denom
-           WHERE tx_guid = ?`,
-        ).run(currencyTx.guid, rate.toString(), tx.guid);
-
-        db.prepare('DELETE FROM transactions WHERE guid = ?').run(tx.guid);
-      }
-
-      // Mark the consolidated transaction
-      if (description) {
-        db.prepare(
-          'UPDATE transactions SET num = ?, description = ? WHERE guid = ?',
-        ).run(settlementRef, description, currencyTx.guid);
-      } else {
-        db.prepare('UPDATE transactions SET num = ? WHERE guid = ?').run(
-          settlementRef,
-          currencyTx.guid,
-        );
-      }
-
-      return freeze({ result, settlementRef, txGuid: currencyTx.guid });
-    },
-  });
-};
 
 serial('Settlement links transactions (SettlementFacet)', async t => {
   const { freeze } = Object;
