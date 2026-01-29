@@ -5,10 +5,12 @@
 import test from 'ava';
 import type { ExecutionContext } from 'ava';
 import type { TestFn } from 'ava';
-import type { Brand, NatAmount, Payment } from '../src/ertp-types.js';
+import type { Brand, Issuer, NatAmount, Payment, Purse } from '../src/ertp-types.js';
 import { createIssuerKit, makeChartFacet, wrapBetterSqlite3Database } from '../src/index.js';
 import type { Guid } from '../src/types.js';
 import { makeTestClock, mockMakeGuid, makeTestDb } from './mock-io.js';
+
+type SealFn = { seal: (obj: unknown) => unknown };
 
 const toRowStrings = (
   rows: Record<string, string>[],
@@ -34,9 +36,7 @@ const shortGuid = (value: string) => value.slice(-12);
 type DesignContext = {
   db: ReturnType<typeof wrapBetterSqlite3Database>;
   kit: ReturnType<typeof createIssuerKit>;
-  purse: ReturnType<
-    ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']
-  >;
+  purse: Purse<'nat'>;
 };
 
 let closeDb: (() => void) | undefined;
@@ -549,10 +549,10 @@ const makeParty = ({
   stockSealer,
 }: {
   name: string;
-  moolaIssuer: ReturnType<typeof createIssuerKit>['issuer'];
-  stockIssuer: ReturnType<typeof createIssuerKit>['issuer'];
-  moolaSealer: ReturnType<typeof createIssuerKit>['sealer'];
-  stockSealer: ReturnType<typeof createIssuerKit>['sealer'];
+  moolaIssuer: Issuer<'nat'>;
+  stockIssuer: Issuer<'nat'>;
+  moolaSealer: SealFn;
+  stockSealer: SealFn;
 }) => {
   const { freeze } = Object;
   // Private purses - not leaked to test scope
@@ -589,10 +589,10 @@ const makeEscrowHolder = ({
   moolaSealer,
   stockSealer,
 }: {
-  moolaIssuer: ReturnType<typeof createIssuerKit>['issuer'];
-  stockIssuer: ReturnType<typeof createIssuerKit>['issuer'];
-  moolaSealer: ReturnType<typeof createIssuerKit>['sealer'];
-  stockSealer: ReturnType<typeof createIssuerKit>['sealer'];
+  moolaIssuer: Issuer<'nat'>;
+  stockIssuer: Issuer<'nat'>;
+  moolaSealer: SealFn;
+  stockSealer: SealFn;
 }) => {
   const { freeze } = Object;
   const moola = moolaIssuer.makeEmptyPurse();

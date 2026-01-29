@@ -13,7 +13,7 @@ import test from 'ava';
 import type { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import type { SqlDatabase } from '../src/sql-db.js';
-import type { Brand, NatAmount } from '../src/ertp-types.js';
+import type { Brand, NatAmount, Purse } from '../src/ertp-types.js';
 import type { Guid } from '../src/types.js';
 import {
   createIssuerKit,
@@ -24,8 +24,6 @@ import {
 } from '../src/index.js';
 import { makeDeterministicGuid, mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
-
-type PurseLike = ReturnType<ReturnType<typeof createIssuerKit>['issuer']['makeEmptyPurse']>;
 
 type CommunityContext = {
   db: SqlDatabase;
@@ -38,14 +36,14 @@ type CommunityContext = {
 };
 
 const sharedState: {
-  rootPurse?: PurseLike;
+  rootPurse?: Purse<'nat'>;
   rootGuid?: Guid;
-  treasuryPurse?: PurseLike;
-  workPurse?: PurseLike;
+  treasuryPurse?: Purse<'nat'>;
+  workPurse?: Purse<'nat'>;
   inParentGuid?: Guid;
   outParentGuid?: Guid;
-  inPurses: Map<string, PurseLike>;
-  outPurses: Map<string, PurseLike>;
+  inPurses: Map<string, Purse<'nat'>>;
+  outPurses: Map<string, Purse<'nat'>>;
 } = {
   inPurses: new Map(),
   outPurses: new Map(),
