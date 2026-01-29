@@ -4,8 +4,15 @@ import type { SqlDatabase } from './sql-db.js';
 import type { Guid } from './guids.js';
 import type { Zone } from './jessie-tools.js';
 
+/**
+ * GnuCash commodity namespace.
+ * - 'CURRENCY': Used as transaction valuation currency (works with non-ISO mnemonics)
+ * - 'COMMODITY': Generic commodity, requires a currency for valuation
+ */
+export type CommodityNamespace = 'CURRENCY' | 'COMMODITY';
+
 export type CommoditySpec = {
-  namespace?: string;
+  namespace?: CommodityNamespace;
   mnemonic: string;
   fullname?: string;
   fraction?: number;

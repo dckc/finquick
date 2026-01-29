@@ -92,13 +92,15 @@ const GUID_KEYS = [
 ];
 const DATE_KEYS = ['post_date', 'enter_date', 'reconcile_date'];
 
+const shortGuid = (guid: string) => guid.slice(-12);
+
 const shortGuids =
   <T extends object>(keys: string[] = GUID_KEYS) =>
   (row: T): T => {
     const r = { ...row } as Record<string, unknown>;
     for (const k of keys) {
       if (k in r && typeof r[k] === 'string')
-        r[k] = (r[k] as string).slice(-12);
+        r[k] = shortGuid(r[k] as string);
     }
     return r as T;
   };
@@ -580,18 +582,20 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   const makeGuid = mockMakeGuid();
   const now = makeTestClock(Date.UTC(2026, 0, 25, 0, 0), 1);
 
-  const makeKit = (mnemonic: string) =>
+  const makeKit = (mnemonic: string, namespace: 'CURRENCY' | 'COMMODITY') =>
     createIssuerKit(
       freeze({
         db,
-        commodity: freeze({ namespace: 'COMMODITY', mnemonic }),
+        commodity: freeze({ namespace, mnemonic }),
         makeGuid,
         nowMs: now,
       }),
     );
 
-  const moola = makeKit('Moola');
-  const stock = makeKit('Stock');
+  // Moola is CURRENCY (can be transaction valuation currency)
+  // Stock is COMMODITY (valued in terms of a currency)
+  const moola = makeKit('Moola', 'CURRENCY');
+  const stock = makeKit('Stock', 'COMMODITY');
 
   const moolaAmt = (v: bigint) => freeze({ brand: moola.brand, value: v });
   const stockAmt = (v: bigint) => freeze({ brand: stock.brand, value: v });
@@ -747,6 +751,237 @@ Both parties funded - escrow settles.`,
     `STATE: Settlement
 Alice gets Stock (what she wanted); Bob gets Moola (what he wanted).`,
   );
+});
+
+/**
+ * SettlementFacet consolidates multi-transaction settlements into one.
+ * Like ChartFacet names accounts, SettlementFacet creates proper GnuCash
+ * stock-trade transactions from ERTP settlements.
+ */
+const makeSettlementFacet = ({
+  db,
+  currencyGuid,
+  makeSettlementRef,
+}: {
+  db: ReturnType<typeof wrapBetterSqlite3Database>;
+  currencyGuid: Guid;
+  makeSettlementRef: () => string;
+}) => {
+  const { freeze } = Object;
+
+  const getMaxTxGuid = () => {
+    const row = db
+      .prepare<[], { max_guid: string | null }>(
+        'SELECT MAX(guid) as max_guid FROM transactions',
+      )
+      .get();
+    return row?.max_guid ?? '';
+  };
+
+  return freeze({
+    /**
+     * Execute an async operation and consolidate created transactions.
+     * Folds commodity transactions into the currency transaction.
+     */
+    settle: async <T>(
+      operation: () => Promise<T>,
+      description?: string,
+    ) => {
+      const settlementRef = makeSettlementRef();
+      const beforeGuid = getMaxTxGuid();
+      const result = await operation();
+
+      // Find transactions created during operation
+      const newTxs = db
+        .prepare<[string], { guid: string; currency_guid: string }>(
+          'SELECT guid, currency_guid FROM transactions WHERE guid > ?',
+        )
+        .all(beforeGuid);
+
+      if (newTxs.length < 2) {
+        // Nothing to consolidate
+        return freeze({ result, settlementRef, txGuid: newTxs[0]?.guid });
+      }
+
+      // Currency transaction is the survivor
+      const currencyTx = newTxs.find(tx => tx.currency_guid === currencyGuid);
+      const otherTxs = newTxs.filter(tx => tx.guid !== currencyTx?.guid);
+
+      if (!currencyTx) {
+        throw new Error('No currency transaction found to consolidate into');
+      }
+
+      // Get the exchange rate from the currency transaction
+      // (sum of positive values = total currency amount in the trade)
+      const currencyTotal = db
+        .prepare<[string], { total: string }>(
+          `SELECT SUM(value_num) as total FROM splits
+           WHERE tx_guid = ? AND value_num > 0`,
+        )
+        .get(currencyTx.guid);
+      const currencyAmount = BigInt(currencyTotal?.total ?? '0');
+
+      // Sanity check: only consolidate cleared transactions (no live payments)
+      const pendingSplits = db
+        .prepare<[string], { count: number }>(
+          `SELECT COUNT(*) as count FROM splits
+           WHERE tx_guid IN (${newTxs.map(() => '?').join(',')})
+           AND reconcile_state != 'c'`,
+        )
+        .get(...newTxs.map(tx => tx.guid));
+      if (pendingSplits && pendingSplits.count > 0) {
+        throw new Error('Cannot consolidate: found pending (non-cleared) splits');
+      }
+
+      // Move splits from other transactions, updating value to currency terms
+      for (const tx of otherTxs) {
+        // Get the commodity amount (sum of positive quantities)
+        const commodityTotal = db
+          .prepare<[string], { total: string }>(
+            `SELECT SUM(quantity_num) as total FROM splits
+             WHERE tx_guid = ? AND quantity_num > 0`,
+          )
+          .get(tx.guid);
+        const commodityAmount = BigInt(commodityTotal?.total ?? '1');
+
+        // Exchange rate: how much currency per commodity unit
+        const rate = currencyAmount / commodityAmount;
+
+        // Update splits: value = quantity * rate (in currency terms)
+        db.prepare(
+          `UPDATE splits SET
+             tx_guid = ?,
+             value_num = quantity_num * ?,
+             value_denom = quantity_denom
+           WHERE tx_guid = ?`,
+        ).run(currencyTx.guid, rate.toString(), tx.guid);
+
+        db.prepare('DELETE FROM transactions WHERE guid = ?').run(tx.guid);
+      }
+
+      // Mark the consolidated transaction
+      if (description) {
+        db.prepare(
+          'UPDATE transactions SET num = ?, description = ? WHERE guid = ?',
+        ).run(settlementRef, description, currencyTx.guid);
+      } else {
+        db.prepare('UPDATE transactions SET num = ? WHERE guid = ?').run(
+          settlementRef,
+          currencyTx.guid,
+        );
+      }
+
+      return freeze({ result, settlementRef, txGuid: currencyTx.guid });
+    },
+  });
+};
+
+serial('Settlement links transactions (SettlementFacet)', async t => {
+  const { freeze } = Object;
+  const { db, close } = makeTestDb();
+  t.teardown(close);
+
+  const makeGuid = mockMakeGuid();
+  const now = makeTestClock(Date.UTC(2026, 0, 26, 0, 0), 1);
+
+  const makeKit = (mnemonic: string, namespace: 'CURRENCY' | 'COMMODITY') =>
+    createIssuerKit(
+      freeze({
+        db,
+        commodity: freeze({ namespace, mnemonic }),
+        makeGuid,
+        nowMs: now,
+      }),
+    );
+
+  const moola = makeKit('Moola', 'CURRENCY');
+  const stock = makeKit('Stock', 'COMMODITY');
+
+  const moolaAmt = (v: bigint) => freeze({ brand: moola.brand, value: v });
+  const stockAmt = (v: bigint) => freeze({ brand: stock.brand, value: v });
+
+  // Create parties with purses
+  const parties = {
+    alice: makeParty(moola.issuer, stock.issuer, moola.sealer, stock.sealer),
+    bob: makeParty(moola.issuer, stock.issuer, moola.sealer, stock.sealer),
+  };
+
+  // Create escrow
+  const escrow = makeErtpEscrow({
+    issuers: { A: moola.issuer, B: stock.issuer },
+    sealers: { A: moola.sealer, B: stock.sealer },
+  });
+
+  // Fund parties
+  parties.alice.getMoolaDeposit().receive(moola.mint.mintPayment(moolaAmt(10n)));
+  parties.bob.getStockDeposit().receive(stock.mint.mintPayment(stockAmt(1n)));
+
+  // Build offers
+  const offers = freeze({
+    A: parties.alice.offer(
+      moolaAmt(10n),
+      stockAmt(1n),
+      parties.alice.getStockDeposit(),
+    ),
+    B: parties.bob.offer(
+      stockAmt(1n),
+      moolaAmt(10n),
+      parties.bob.getMoolaDeposit(),
+    ),
+  });
+
+  // SettlementFacet consolidates settlement into one GnuCash transaction
+  let refCounter = 0;
+  const settlement = makeSettlementFacet({
+    db,
+    currencyGuid: moola.commodityGuid,
+    makeSettlementRef: () => `SETTLE-${String(++refCounter).padStart(4, '0')}`,
+  });
+
+  // Start exchange - parties fund
+  const exchangeP = escrow.escrowExchange(offers.A.party, offers.B.party);
+  await offers.A.run();
+  await offers.B.run();
+
+  // SettlementFacet consolidates the ERTP deposits into one GnuCash transaction
+  const { settlementRef, txGuid } = await settlement.settle(
+    () => exchangeP,
+    'Alice buys 1 Stock from Bob for 10 Moola',
+  );
+
+  // Query the consolidated transaction and its splits
+  const tx = db
+    .prepare<[string], { guid: string; num: string; description: string }>(
+      'SELECT guid, num, description FROM transactions WHERE guid = ?',
+    )
+    .get(txGuid!)!;
+
+  const splits = db
+    .prepare<
+      [string],
+      { account_guid: string; value_num: string; quantity_num: string }
+    >(
+      `SELECT s.account_guid, s.value_num, s.quantity_num
+       FROM splits s WHERE s.tx_guid = ? ORDER BY s.value_num DESC`,
+    )
+    .all(txGuid!)
+    .map(shortGuids(['account_guid']));
+
+  t.snapshot(
+    {
+      transaction: `${shortGuid(tx.guid)} | ${tx.num} | ${tx.description}`,
+      splits: toRowStrings(splits, ['account_guid', 'value_num', 'quantity_num']),
+    },
+    `SettlementFacet consolidates ERTP settlements into one GnuCash transaction.
+Like ChartFacet names accounts, SettlementFacet handles GnuCash stock-trade format.
+
+ERTP escrow creates separate transactions per commodity. SettlementFacet folds
+them into one transaction with 4 splits - proper GnuCash stock-trade format.
+Value is in currency (Moola); quantity is in account commodity.`,
+  );
+
+  t.is(settlementRef, 'SETTLE-0001');
+  t.is(splits.length, 4, 'Consolidated transaction has 4 splits');
 });
 
 test.todo('Multi-commodity swaps: show ledger rows for two brands');
