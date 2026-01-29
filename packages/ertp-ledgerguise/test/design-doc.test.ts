@@ -125,12 +125,21 @@ const toRowStrings = (
       ...rows.map(row => String(row[column] ?? '').length),
     ),
   );
-  const format = (row: Record<string, unknown>) =>
+  // Right-justify columns where all values are numeric
+  const isNumeric = columns.map(column =>
+    rows.every(row => /^-?\d+$/.test(String(row[column] ?? ''))),
+  );
+  const format = (row: Record<string, unknown>, isHeader = false) =>
     columns
-      .map((column, index) => String(row[column] ?? '').padEnd(widths[index]))
+      .map((column, index) => {
+        const val = String(row[column] ?? '');
+        return isNumeric[index] && !isHeader
+          ? val.padStart(widths[index])
+          : val.padEnd(widths[index]);
+      })
       .join(' | ');
   const header = Object.fromEntries(columns.map(column => [column, column]));
-  return [format(header), ...rows.map(format)];
+  return [format(header, true), ...rows.map(row => format(row))];
 };
 
 // #endregion
