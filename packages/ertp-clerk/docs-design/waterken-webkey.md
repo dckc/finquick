@@ -2,7 +2,7 @@
 
 ## Context
 
-ERTP for Cloudflare Workers needs a robust remote capability protocol that preserves object identity across the network boundary, supports passing capabilities back to the service, and can be implemented in a Worker + Durable Objects environment. Cap'n Web (capnweb) currently requires an identity-preservation patch in `ertp-clerk` to keep `WeakMap`-based identity checks working. That makes Cap'n Web one possible strategy, not the only one.
+ERTP for Cloudflare Workers needs a robust remote capability protocol that preserves object identity across the network boundary, supports passing capabilities back to the service, and can be implemented in a Worker + Durable Objects environment. Cap'n Web was an initial implementation strategy; this document focuses on Waterken web-keys for the current design.
 
 This note summarizes the Waterken web-key protocol and evaluates it for ERTP, based on:
 
@@ -64,7 +64,7 @@ Waterken web-keys, as concretely implemented by Capper, appear *adequate* as a r
 2. **Define a canonicalization rule** for webkeys to preserve identity semantics (one object == one canonical webkey).
 3. **Document failure behaviors for ERTP methods**, given errors are sealed and any caller-visible signals should be returned as non-error values.
 
-Under these constraints, the Waterken web-key approach provides a simpler, Worker-friendly alternative to Cap'n Web while preserving the remote object identity ERTP needs.
+Under these constraints, the Waterken web-key approach provides a simpler, Worker-friendly protocol while preserving the remote object identity ERTP needs.
 
 ## Suggested next steps
 
@@ -150,6 +150,10 @@ Note: these slot rows are not attached to an object GUID via `obj_guid`, so any
 tooling that expects `slots.obj_guid` to always be a real object GUID will ignore
 them. If you need an object → token lookup, return the token at mint time (no
 reverse lookup), or add a *second* non-indexed slot keyed by the object GUID.
+
+Mapping detail: for purse tokens, store the account GUID in `guid_val` and the
+commodity GUID in `string_val`; for payment tokens, store the commodity GUID in
+`guid_val` and the check number in `string_val`.
 
 Additional clarifications:
 
