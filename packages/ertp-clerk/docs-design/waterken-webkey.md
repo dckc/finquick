@@ -72,6 +72,101 @@ Under these constraints, the Waterken web-key approach provides a simpler, Worke
 - Decide on a canonical webkey scheme for Workers (path + fragment policy, or path + query-only if avoiding fragments on non-browser clients).
 - Define how payments become durable (DO-backed, DB-backed, or explicitly minted to stable IDs).
 
+## Using GnuCash GUIDs as Webkey Material (IBIS)
+
+**Issue**
+
+Should GnuCash GUIDs be used as Waterken webkey credentials in the ERTP
+Cloudflare Workers design?
+
+**Context / Observations**
+
+- `makeDeterministicGuid(seed)` hashes a seed string to a 32-hex GUID.
+- `makeGuid()` is injected; in the Worker integration it is built from `crypto.randomUUID()`.
+- Deterministic GUID seeds in `ertp-ledgerguise` include
+  `ledgerguise-balance:${commodityGuid}` and `ledgerguise:recovery:${commodityGuid}`.
+- `purses.getGuid(purse)` and `purses.getGuidFromSealed(token)` intentionally reveal
+  account GUIDs to callers who hold those privileged facets.
+
+**Positions**
+
+1. **Use GnuCash GUIDs directly as webkey credentials.**
+2. **Use deterministic GUIDs (hash of seed) as credentials.**
+3. **Use random GUIDs as credentials.**
+4. **Split identity (GUID) from capability (token).**
+5. **GUID + MAC (stateless credential).**
+
+**Arguments**
+
+- Against (1): In this design, GUID disclosure is used for *identification* and
+  accounting (via privileged facets) without intending to grant purse access.
+  If GUIDs were credentials, those identification channels would become access
+  channels, collapsing the POLA separation between “identify” and “act.”
+Comment (existence proof): `purses.getGuidFromSealed(token)` is intentionally
+*identifying*; if “account GUID == webkey credential,” then a holder of the `purses`
+facet plus a sealed token could construct a webkey that grants purse authority.
+That turns identification-only authority into access authority.
+- Against (2): Seeds include `commodityGuid`. Any party that learns `commodityGuid`
+  can derive the balance/recovery GUIDs exactly, which would confer authority to
+  anyone with that knowledge.
+- Against (3): Random GUIDs are only safe if never exposed. In this codebase GUIDs
+  are exposed via privileged facets, so a random GUID should be treated as identity,
+  not as a capability secret, unless explicitly isolated.
+- For (4): Preserves POLA and matches current code: GUIDs remain object IDs while
+  capability tokens are minted and handed out intentionally.
+- For (5): Avoids per-token storage and keeps GUIDs as IDs, but pushes revocation
+  to MAC key rotation and requires careful key handling.
+
+**Decision**
+
+Do **not** use GnuCash GUIDs (deterministic or random) as webkey credentials in this
+codebase. Treat GUIDs as object IDs only. Use a separate capability token for webkeys.
+
+**Parsimonious design**
+
+- **Split ID from capability**: map a separate random token (webkey credential) to a
+  GUID in server state. This is the simplest design that preserves POLA and matches
+  the current facet split.
+
+Constraint: do not add new tables; stay within the GnuCash schema.
+
+Within that constraint, the least invasive approach that preserves lookup
+performance is to store the token → GUID mapping in the existing `slots` table
+using the *indexed* `obj_guid` column for the token:
+
+- Store the **token** in `slots.obj_guid` (indexed).
+- Store the **object GUID** in `slots.guid_val`.
+- Use a dedicated `name` (e.g., `ledgerguise.webkey`) to disambiguate.
+
+Lookup flow:
+
+1. Incoming webkey token → lookup `slots` by `obj_guid` + `name`.
+2. Resolve the owning object GUID from `guid_val`.
+3. Route the request to the corresponding object/facet.
+
+Revocation is a slot delete. Rotation is a new slot with a new `obj_guid` token.
+
+Note: these slot rows are not attached to an object GUID via `obj_guid`, so any
+tooling that expects `slots.obj_guid` to always be a real object GUID will ignore
+them. If you need an object → token lookup, return the token at mint time (no
+reverse lookup), or add a *second* non-indexed slot keyed by the object GUID.
+
+Additional clarifications:
+
+- This design **diverges from Capper**: Capper treats the credential as the object
+  identity (cred == id). Here the credential is a separate token that points to
+  the object GUID.
+- Token → object mapping must be **persistent** to provide sturdy refs across
+  restarts; an in-memory map would make webkeys ephemeral.
+- Object GUIDs are **not** part of the webkey protocol itself, but they are
+  exposed via privileged facets and admin flows. Split-ID preserves POLA by
+  letting those identifiers be shared without granting capability access.
+
+**Optional variant**
+
+- **GUID + MAC**: include the GUID plus an authenticator (e.g., HMAC) in the webkey to
+  avoid per-token storage, at the cost of key-rotation based revocation.
+
 ## References
 
 1. Close, Tyler. 2008. *Web-key: Mashing with Permission.* Web 2.0 Security & Privacy (W2SP 2008). https://waterken.sourceforge.net/web-key/web-key-w2sp08.pdf
