@@ -16,13 +16,9 @@ import {
 import type { Guid } from '../src/types.js';
 import { makeTestClock, makeTestDb, mockMakeGuid } from './mock-io.js';
 import {
-  type AccountRow,
   type AccountView,
   type AccountWithCode,
-  type BooksRow,
   type SplitEntry,
-  type SplitRow,
-  type TransactionRow,
   accountViewCols,
   shortDates,
   shortGuid,
@@ -30,6 +26,12 @@ import {
   splitEntryCols,
   toRowStrings,
 } from './gnucash-tools.js';
+import type {
+  AccountRow,
+  BooksRow,
+  SplitRow,
+  TransactionRow,
+} from '../src/gnucash-schema.js';
 
 type AccountPath = Pick<AccountRow, 'guid' | 'name' | 'parent_guid'>;
 
@@ -83,11 +85,11 @@ ERTP is a flexible Electronic Rights protocol.
 ERTP is flexible enough that we can implement it on top of a GnuCash database.
 
 Let's mint 5 BUCKS and deposit them into a purse, then see how that's reflected in the GnuCash DB.
-This creates one transaction and two splits, moving value from the mint holding account into the purse.`,
+This creates one transaction and two splits, moving value from the mint recovery account into the purse.`,
   );
   t.snapshot(
     toRowStrings(splitRows, splitEntryCols),
-    `Splits show the value move: one positive into the purse account and one negative out of the mint holding account.
+    `Splits show the value move: one positive into the purse account and one negative out of the mint recovery account.
 
 Context: before the deposit we already created issuer and purse records:
   const { issuer } = makeIssuerKit("BUCKS");

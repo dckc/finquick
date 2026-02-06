@@ -312,8 +312,15 @@ serial('stage 3: award contributions to members', t => {
 serial('stage 4: run balance sheet and income statement', t => {
   const { db, kit } = t.context as CommunityContext;
   const holdingGuid = makeDeterministicGuid(`ledgerguise-balance:${kit.commodityGuid}`);
-  // Exclude the holding account from statement totals; it acts as equity-like backing.
-  t.is(getTotalForAccountType(db, kit.commodityGuid, 'STOCK', [holdingGuid]), 10_000n);
+  const recoveryGuid = makeDeterministicGuid(`ledgerguise:recovery:${kit.commodityGuid}`);
+  // Exclude holding/recovery from statement totals; they act as equity-like backing.
+  t.is(
+    getTotalForAccountType(db, kit.commodityGuid, 'STOCK', [
+      holdingGuid,
+      recoveryGuid,
+    ]),
+    10_000n,
+  );
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'EQUITY'), 0n);
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'EXPENSE'), 0n);
   t.is(getTotalForAccountType(db, kit.commodityGuid, 'INCOME'), 0n);
@@ -408,7 +415,10 @@ serial('stage 4: run balance sheet and income statement', t => {
 
   const balanceSheetRows = ['STOCK', 'EQUITY'].map(accountType => ({
     account_type: accountType,
-    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [holdingGuid]).toString(),
+    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [
+      holdingGuid,
+      recoveryGuid,
+    ]).toString(),
   }));
   t.snapshot(
     toRowStrings(balanceSheetRows, ['account_type', 'total']),
@@ -417,7 +427,10 @@ serial('stage 4: run balance sheet and income statement', t => {
 
   const incomeStatementRows = ['INCOME', 'EXPENSE'].map(accountType => ({
     account_type: accountType,
-    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [holdingGuid]).toString(),
+    total: getTotalForAccountType(db, kit.commodityGuid, accountType, [
+      holdingGuid,
+      recoveryGuid,
+    ]).toString(),
   }));
   t.snapshot(
     toRowStrings(incomeStatementRows, ['account_type', 'total']),

@@ -8,7 +8,7 @@ values for key rows.
 
 - GUIDs are illustrative placeholders (not real UUIDs).
 - `comm-USD` is a placeholder for the commodity GUID used in tests.
-- `acct-source` is the payment source account (holding/balance).
+- `acct-source` is the payment source account (mint recovery).
 - `acct-dest` is the destination purse account.
 - `value_num` / `value_denom` use GnuCash numeric representation.
 - `reconcile_state` uses `n` (not reconciled) and `c` (cleared/reconciled).

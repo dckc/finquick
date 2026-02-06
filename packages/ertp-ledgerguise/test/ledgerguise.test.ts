@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type { Brand, NatAmount } from '../src/ertp-types.js';
+import type { Guid } from '../src/types.js';
 import {
   createIssuerKit,
   initGnuCashSchema,
@@ -152,7 +153,7 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
   const payment = issuedKit.mint.mintPayment(bucks(5000n));
   purse.deposit(payment);
 
-  const { holdingAccountGuid } = issuedKit.mintInfo.getMintInfo();
+  const { recoveryPurseGuid } = issuedKit.mintInfo.getMintInfo();
   const destAccountGuid = issuedKit.purses.getGuid(purse);
   const expectedTx = parseCsv(
     await asset('./fixtures/withdraw-deposit-transactions.csv'),
@@ -166,7 +167,7 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
       resolved.currency_guid = issuedKit.commodityGuid;
     }
     if (resolved.account_guid === 'acct-source') {
-      resolved.account_guid = holdingAccountGuid;
+      resolved.account_guid = recoveryPurseGuid;
     }
     if (resolved.account_guid === 'acct-dest') {
       resolved.account_guid = destAccountGuid;
