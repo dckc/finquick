@@ -2,46 +2,7 @@
  * @file GnuCash table types and test helpers for snapshot formatting.
  */
 
-// #region GnuCash table row types
-
-export type TransactionRow = {
-  guid: string;
-  currency_guid: string;
-  num: string;
-  post_date: string | null;
-  enter_date: string | null;
-  description: string;
-};
-
-export type SplitRow = {
-  guid: string;
-  tx_guid: string;
-  account_guid: string;
-  memo: string;
-  action: string;
-  reconcile_state: string;
-  reconcile_date: string | null;
-  value_num: string;
-  value_denom: string;
-  quantity_num: string;
-  quantity_denom: string;
-};
-
-export type AccountRow = {
-  guid: string;
-  name: string;
-  account_type: string;
-  commodity_guid: string;
-  parent_guid: string | null;
-  code: string | null;
-  description: string | null;
-  placeholder: number;
-  hidden: number;
-};
-
-export type BooksRow = {
-  root_account_guid: string;
-};
+import type { AccountRow, SplitRow } from '../src/gnucash-schema.js';
 
 // Named subsets for common query patterns
 export type AccountPath = Pick<AccountRow, 'guid' | 'name' | 'parent_guid'>;
@@ -62,8 +23,6 @@ export type SplitEntry = Pick<
   | 'value_denom'
   | 'reconcile_state'
 >;
-
-// #endregion
 
 // #region Column lists for snapshots
 
@@ -111,8 +70,7 @@ export const shortGuids =
   (row: T): T => {
     const r = { ...row } as Record<string, unknown>;
     for (const k of keys) {
-      if (k in r && typeof r[k] === 'string')
-        r[k] = shortGuid(r[k] as string);
+      if (k in r && typeof r[k] === 'string') r[k] = shortGuid(r[k] as string);
     }
     return r as T;
   };
