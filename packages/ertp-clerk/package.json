@@ -8,18 +8,32 @@
     "dev": "wrangler dev",
     "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
     "smoke": "node scripts/smoke.js",
-    "postinstall": "patch-package",
-    "test": "npm run smoke",
+    "test": "ava",
     "check": "npm run lint:types && npm run test"
   },
   "dependencies": {
-    "capnweb": "^0.4.0",
     "drizzle-orm": "^0.44.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "patch-package": "^8.0.1",
+    "@types/better-sqlite3": "^7.6.1",
+    "ava": "^5.3.1",
+    "ts-blank-space": "^0.6.2",
     "typescript": "~5.9.3",
     "wrangler": "^4.59.2"
+  },
+  "ava": {
+    "extensions": {
+      "js": true,
+      "ts": "module"
+    },
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=ts-blank-space/register",
+      "--no-warnings"
+    ],
+    "require": []
   }
 }
