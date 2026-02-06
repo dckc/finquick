@@ -53,6 +53,8 @@ export type { SettlementFacet, SettlementResult } from './settlement.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';
 export type { SqlDatabase, SqlStatement } from './sql-db.js';
 export type { Zone } from './jessie-tools.js';
+export type { SlotRow } from './gnucash-schema.js';
+export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.js';
 
 /**
  * Initialize an empty sqlite database with the GnuCash schema.
