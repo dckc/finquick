@@ -7,5 +7,5 @@ protocol is WIP; see CONTRIBUTING.
 
 - Visit `/` to load a small page that exposes `globalThis.bootstrap` in the browser console.
 - Call `await bootstrap.makeIssuerKit("BUCKS")` to obtain issuer facets backed by the durable ledger.
-- `/api` is the RPC endpoint. The concrete protocol is under active evaluation
-  (see `docs-design/waterken-webkey.md`).
+- `/api` is the RPC endpoint using a Waterken-style webkey protocol (see
+  `docs-design/waterken-webkey.md`).

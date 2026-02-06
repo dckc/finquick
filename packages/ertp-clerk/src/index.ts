@@ -31,13 +31,6 @@ const html = `<!doctype html>
 </html>
 `;
 
-const bootstrapModule = `const { newWebSocketRpcSession } = await import('https://esm.sh/capnweb@0.4.0');
-const url = new URL('/api', globalThis.location.href);
-url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-const bootstrap = newWebSocketRpcSession(url.toString());
-export { bootstrap };
-`;
-
 const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -46,15 +39,10 @@ const handler = {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
     }
-    if (url.pathname === '/bootstrap') {
-      return new Response(bootstrapModule, {
-        headers: { 'content-type': 'application/javascript; charset=utf-8' },
-      });
-    }
     if (url.pathname === '/favicon.ico') {
       return new Response(null, { status: 204 });
     }
-    if (url.pathname === '/api') {
+    if (url.pathname === '/api' || url.pathname === '/bootstrap') {
       const stub = env.LEDGER.get(env.LEDGER.idFromName('default'));
       return stub.fetch(request);
     }
