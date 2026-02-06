@@ -207,17 +207,6 @@ const makeIssuerKitForCommodity = ({
       return makeAmount(record.amount);
     },
   });
-  const mint = exo(`${commodityLabel} Mint`, {
-    getIssuer: () => issuer,
-    mintPayment: (amount: AmountLike) => {
-      const amountValue = assertAmount(amount);
-      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
-        fromAccountGuid: balanceAccountGuid,
-        amount: amountValue,
-      });
-      return makePayment(amount, balanceAccountGuid, txGuid, holdingSplitGuid, checkNumber);
-    },
-  });
   const mintRecoveryGuid = makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`);
   ensureAccountRow({
     db,
@@ -225,6 +214,17 @@ const makeIssuerKitForCommodity = ({
     name: `${commodityLabel} Mint Recovery`,
     commodityGuid,
     accountType: 'STOCK',
+  });
+  const mint = exo(`${commodityLabel} Mint`, {
+    getIssuer: () => issuer,
+    mintPayment: (amount: AmountLike) => {
+      const amountValue = assertAmount(amount);
+      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
+        fromAccountGuid: mintRecoveryGuid,
+        amount: amountValue,
+      });
+      return makePayment(amount, mintRecoveryGuid, txGuid, holdingSplitGuid, checkNumber);
+    },
   });
   const mintRecoveryPurse = openPurse(mintRecoveryGuid, `${commodityLabel} Mint Recovery`);
   const kit = freeze({

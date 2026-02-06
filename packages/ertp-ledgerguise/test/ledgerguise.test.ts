@@ -354,6 +354,41 @@ test('payments can be reified by check number', t => {
   t.is(reopenedBob.getCurrentAmount().value, 10n);
 });
 
+test('mint payments can be reified after reopen', async t => {
+  const { freeze } = Object;
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3Database(rawDb);
+  t.teardown(() => rawDb.close());
+  initGnuCashSchema(db);
+
+  const makeGuid = mockMakeGuid();
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+  });
+  const infoP = Promise.withResolvers<{ commodityGuid: Guid; checkNumber: string }>();
+
+  {
+    const nowMs = makeTestClock();
+    const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+    const brand = created.brand as Brand<'nat'>;
+    const bucks = (value: bigint): NatAmount => freeze({ brand, value });
+    const payment = created.mint.mintPayment(bucks(10n));
+    const checkNumber = created.payments.getCheckNumber(payment);
+    infoP.resolve({ commodityGuid: created.commodityGuid, checkNumber });
+  }
+
+  {
+    const { commodityGuid, checkNumber } = await infoP.promise;
+    const reopened = openIssuerKit(
+      freeze({ db, commodityGuid, makeGuid, nowMs: makeTestClock() }),
+    );
+    const reified = reopened.payments.openPayment(checkNumber);
+    const live = await reopened.kit.issuer.isLive(reified as never);
+    t.true(live);
+  }
+});
+
 test('check numbers increment on collisions', t => {
   const { freeze } = Object;
   const rawDb = new Database(':memory:');
