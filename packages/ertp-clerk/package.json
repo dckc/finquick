@@ -6,8 +6,11 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
+    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
     "smoke": "node scripts/smoke.js",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test": "npm run smoke",
+    "check": "npm run lint:types && npm run test"
   },
   "dependencies": {
     "capnweb": "^0.4.0",
@@ -16,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "patch-package": "^8.0.1",
+    "typescript": "~5.9.3",
     "wrangler": "^4.59.2"
   }
 }
