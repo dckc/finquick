@@ -1,17 +1,15 @@
 import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
 import { drizzle, type DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlite';
 import { DurableObject } from 'cloudflare:workers';
-import type { DurableObjectState } from 'cloudflare:workers';
-import type { Env } from '../worker-configuration';
 import {
   createIssuerKit,
   initGnuCashSchema,
   asGuid,
   type SqlDatabase,
-  type Guid,
   type Zone,
 } from '../../ertp-ledgerguise/src/index.js';
-import { makeSqlDatabaseFromStorage } from './sql-adapter';
+import type { Guid } from '../../ertp-ledgerguise/src/types.js';
+import { makeSqlDatabaseFromStorage } from './sql-adapter.js';
 
 const { freeze } = Object;
 
@@ -65,7 +63,7 @@ const normalizeArgForTarget = (arg: unknown, target: object): unknown => {
 };
 
 const makeRpcZone = (): Zone => ({
-  exo: (_interfaceName, methods) => {
+  exo: <T extends Record<PropertyKey, unknown>>(_interfaceName: string, methods: T): Readonly<T> => {
     class ExoTarget extends RpcTarget {}
     for (const key of Reflect.ownKeys(methods)) {
       const value = (methods as Record<PropertyKey, unknown>)[key];
@@ -87,7 +85,7 @@ const makeRpcZone = (): Zone => ({
       });
     }
     freeze(ExoTarget.prototype);
-    return freeze(new ExoTarget());
+    return freeze(new ExoTarget()) as unknown as Readonly<T>;
   },
 });
 

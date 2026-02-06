@@ -1,10 +1,7 @@
 import type { SqlDatabase } from '../../ertp-ledgerguise/src/index.js';
 
 type SqlCursor<T = Record<string, unknown>> = {
-  next: () => IteratorResult<T>;
   toArray: () => T[];
-  one: () => T;
-  raw: () => SqlCursor<unknown[]>;
 };
 
 type SqlStorage = {
@@ -15,10 +12,10 @@ const runExec = (sql: SqlStorage, statement: string, params: unknown[]) => {
   sql.exec(statement, ...params);
 };
 
-const toArray = <T>(sql: SqlStorage, statement: string, params: unknown[]) =>
+const toArray = <T>(sql: SqlStorage, statement: string, params: unknown[]): T[] =>
   sql.exec(statement, ...params).toArray() as T[];
 
-const one = <T>(sql: SqlStorage, statement: string, params: unknown[]) => {
+const one = <T>(sql: SqlStorage, statement: string, params: unknown[]): T | undefined => {
   const rows = toArray<T>(sql, statement, params);
   return rows[0];
 };
