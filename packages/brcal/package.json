@@ -18,7 +18,7 @@
     "lint:eslint": "eslint '**/*.js'"
   },
   "dependencies": {
-    "better-sqlite3": "^7.6.2",
+    "better-sqlite3": "^12.6.2",
     "chokidar": "^3.5.3",
     "csv-parse": "^5.3.0",
     "esm": "^3.2.25",
@@ -30,8 +30,8 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@agoric/eslint-config": "^0.3.3",
-    "@agoric/eslint-plugin": "^0.2.3",
+    "@agoric/eslint-config": "0.4.1-dev-dc67c18.0.dc67c18",
+    "@agoric/eslint-plugin": "0.1.1-dev-dc67c18.0.dc67c18",
     "@types/better-sqlite3": "^7.6.1",
     "@types/follow-redirects": "^1.13.0",
     "@types/mysql": "^2.15.15",

@@ -6,14 +6,14 @@
   },
   "type": "module",
   "dependencies": {
-    "better-sqlite3": "^11.6.0",
+    "better-sqlite3": "^12.6.2",
     "body-parser": "^1.20.1",
     "express": "^4.18.2",
     "google-spreadsheet": "^3.3.0"
   },
   "devDependencies": {
-    "@agoric/eslint-config": "^0.3.3",
-    "@agoric/eslint-plugin": "^0.2.3",
+    "@agoric/eslint-config": "0.4.1-dev-dc67c18.0.dc67c18",
+    "@agoric/eslint-plugin": "0.1.1-dev-dc67c18.0.dc67c18",
     "@endo/eslint-config": "^0.5.1",
     "@types/better-sqlite3": "^7.6.1",
     "@types/node": "^14.14.7",
