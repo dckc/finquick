@@ -8,4 +8,12 @@ const extractToken = (webkey) => {
 
 const makeWebkey = (origin, token) => `${origin}/ocaps/#s=${token}`;
 
-export { extractToken, makeWebkey };
+const makeWebkeyPayload = (origin, depiction) => {
+  if (depiction && typeof depiction === 'object' && '@' in depiction) {
+    const ref = String(depiction['@']);
+    return { '@': makeWebkey(origin, extractToken(ref)) };
+  }
+  return { '=': depiction };
+};
+
+export { extractToken, makeWebkey, makeWebkeyPayload };

@@ -1,7 +1,10 @@
-export type SqlStatement<TParams extends unknown[] = unknown[], TRow = unknown> = {
-  run: (...params: any[]) => any;
-  get: (...params: any[]) => TRow | undefined;
-  all: (...params: any[]) => TRow[];
+export type SqlStatement<
+  TParams extends unknown[] = unknown[],
+  TRow = unknown,
+> = {
+  run: (...params: TParams) => any;
+  get: (...params: TParams) => TRow | undefined;
+  all: (...params: TParams) => TRow[];
 };
 
 export type SqlDatabase = {

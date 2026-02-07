@@ -1,7 +1,7 @@
 import { encodeClientValue, decodeClientValue } from './webkey-codec.js';
 import { extractToken } from './webkey-protocol.js';
 
-const makeClient = (apiUrl) => {
+const makeKeyToProxy = (apiUrl, { fetch }) => {
   const keyToProxy = (webkey, allegedInterface = 'Remotable') => {
     const post = async (method, ...args) => {
       const url = new URL(apiUrl);
@@ -34,7 +34,15 @@ const makeClient = (apiUrl) => {
       },
     });
   };
+  return keyToProxy;
+};
+
+const makeBootstrap = (baseHref, webkey, allegedInterface, { fetch }) =>
+  makeKeyToProxy(new URL('/api', baseHref), { fetch })(webkey, allegedInterface);
+
+const makeClient = (apiUrl, { fetch }) => {
+  const keyToProxy = makeKeyToProxy(apiUrl, { fetch });
   return { keyToProxy };
 };
 
-export { makeClient };
+export { makeClient, makeKeyToProxy, makeBootstrap };

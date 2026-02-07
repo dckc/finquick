@@ -75,6 +75,20 @@ export const initGnuCashSchema = (
   db.exec(sanitized);
 };
 
+export const ensureGnuCashSchema = (
+  db: SqlDatabase,
+  options: { allowTransactionStatements?: boolean } = {},
+): void => {
+  const row = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    )
+    .get('accounts');
+  if (!row) {
+    initGnuCashSchema(db, options);
+  }
+};
+
 const makeIssuerKitForCommodity = ({
   db,
   commodityGuid,

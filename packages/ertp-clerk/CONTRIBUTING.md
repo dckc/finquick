@@ -15,12 +15,15 @@ Thanks for your interest in contributing! This package will host the worker/serv
 
 - Keep changes limited to this package unless requested.
 - Prefer minimal, explicit interfaces for the worker API.
+- Use real private fields (`#`) for internal state; keep public API explicit.
 
 ## Context
 
 - This worker depends on `@finquick/ertp-ledgerguise` behavior and types. Treat this package as a service layer, not the source of ledger semantics.
 - End-to-end validation depends on ledgerguise tests passing and the DB backend choices for Workers (Durable Object SQLite vs D1).
 - Design notes live in `docs-design/` (start with `docs-design/waterken-webkey.md`).
+- Capability discipline for this package is in `docs-design/ocap-discipline.md`.
+- Keep ambient authority at the entrypoint only; inject it into pure logic.
 
 ## Development
 

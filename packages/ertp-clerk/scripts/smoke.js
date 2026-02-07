@@ -6,7 +6,7 @@ const bootstrapUrl = new URL('/bootstrap', baseUrl);
 bootstrapUrl.searchParams.set('format', 'json');
 
 const { webkey } = await fetch(bootstrapUrl).then((res) => res.json());
-const client = makeClient(apiUrl);
+const client = makeClient(apiUrl, { fetch });
 const bootstrap = client.keyToProxy(webkey);
 const { issuer, brand, payment: pmt1 } = await (async () => {
   const kit = await bootstrap.makeIssuerKit('BUCKS');

@@ -97,13 +97,15 @@ export const makeSettlementFacet = ({
       const currencyAmount = BigInt(currencyTotal?.total ?? '0');
 
       // Sanity check: only consolidate cleared transactions (no live payments)
+      const txGuids = newTxs.map(tx => tx.guid);
+      const [firstTxGuid, ...restTxGuids] = txGuids;
       const pendingSplits = db
-        .prepare<[string], { count: number }>(
+        .prepare<[string, ...string[]], { count: number }>(
           `SELECT COUNT(*) as count FROM splits
            WHERE tx_guid IN (${newTxs.map(() => '?').join(',')})
            AND reconcile_state != 'c'`,
         )
-        .get(...newTxs.map(tx => tx.guid));
+        .get(firstTxGuid, ...restTxGuids);
       if (pendingSplits && pendingSplits.count > 0) {
         throw new Error('Cannot consolidate: found pending (non-cleared) splits');
       }
