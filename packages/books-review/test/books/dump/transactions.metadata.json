@@ -1,0 +1,12 @@
+{
+  "name": "transactions",
+  "columns": [
+    "guid",
+    "currency_guid",
+    "num",
+    "post_date",
+    "enter_date",
+    "description"
+  ],
+  "schema": "CREATE TABLE transactions(guid text(32) PRIMARY KEY NOT NULL, currency_guid text(32) NOT NULL, num text(2048) NOT NULL, post_date text(19), enter_date text(19), description text(2048))"
+}

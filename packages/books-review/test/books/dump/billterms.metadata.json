@@ -1,0 +1,18 @@
+{
+  "name": "billterms",
+  "columns": [
+    "guid",
+    "name",
+    "description",
+    "refcount",
+    "invisible",
+    "parent",
+    "type",
+    "duedays",
+    "discountdays",
+    "discount_num",
+    "discount_denom",
+    "cutoff"
+  ],
+  "schema": "CREATE TABLE billterms(guid text(32) PRIMARY KEY NOT NULL, name text(2048) NOT NULL, description text(2048) NOT NULL, refcount integer NOT NULL, invisible integer NOT NULL, parent text(32), type text(2048) NOT NULL, duedays integer, discountdays integer, discount_num bigint, discount_denom bigint, cutoff integer)"
+}

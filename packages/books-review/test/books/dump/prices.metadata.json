@@ -1,0 +1,14 @@
+{
+  "name": "prices",
+  "columns": [
+    "guid",
+    "commodity_guid",
+    "currency_guid",
+    "date",
+    "source",
+    "type",
+    "value_num",
+    "value_denom"
+  ],
+  "schema": "CREATE TABLE prices(guid text(32) PRIMARY KEY NOT NULL, commodity_guid text(32) NOT NULL, currency_guid text(32) NOT NULL, date text(19) NOT NULL, source text(2048), type text(2048), value_num bigint NOT NULL, value_denom bigint NOT NULL)"
+}

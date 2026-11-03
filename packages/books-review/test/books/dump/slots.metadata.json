@@ -1,0 +1,18 @@
+{
+  "name": "slots",
+  "columns": [
+    "id",
+    "obj_guid",
+    "name",
+    "slot_type",
+    "int64_val",
+    "string_val",
+    "double_val",
+    "timespec_val",
+    "guid_val",
+    "numeric_val_num",
+    "numeric_val_denom",
+    "gdate_val"
+  ],
+  "schema": "CREATE TABLE slots(id integer PRIMARY KEY AUTOINCREMENT NOT NULL, obj_guid text(32) NOT NULL, name text(4096) NOT NULL, slot_type integer NOT NULL, int64_val bigint, string_val text(4096), double_val float8, timespec_val text(19), guid_val text(32), numeric_val_num bigint, numeric_val_denom bigint, gdate_val text(8))"
+}
