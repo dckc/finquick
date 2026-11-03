@@ -15,10 +15,11 @@ yarn service ~/qtrx
 
 That runs the books as a systemd user service, `books-review`, reading snapshots of the book from the git worktree `~/qtrx` (give your own), and prints a link to open. On that page:
 
-1. Load a snapshot: stage the book's sqlite-diffable dump in a temporary index and paste what `git ls-tree -r` lists for it:
+1. Load a snapshot: paste what `git ls-tree -r` lists for the commit's dump directory. For example, to put it on the clipboard:
    ```sh
-   cd ~/qtrx && export GIT_INDEX_FILE=$(mktemp -u) && git add dm93finance/*.ndjson dm93finance/*.metadata.json && git ls-tree -r $(git write-tree)
+   git -C ~/qtrx ls-tree -r HEAD dm93finance | xclip -selection clipboard
    ```
+   The files are read from the worktree and must match what's listed, so list a commit whose dump you haven't edited since.
 2. Set up the model: an OpenAI-style API's base URL (its `/v1/`), the model's name, and its key.
 3. Open the book's review page, ask the model for proposals, and accept, correct, or reject each.
 4. Download the changelog, close GnuCash, and replay it on the book:
