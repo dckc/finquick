@@ -431,6 +431,8 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
     const { proposed, refused } = await me('categorize', { limit: 3 });
     assert.equal(asked.length, 1);
     assert.equal(asked[0].headers.authorization, 'Bearer sekrit');
+    // an OpenAI-style server refuses a body it isn't told is JSON (422)
+    assert.equal(asked[0].headers['content-type'], 'application/json');
     assert.equal(asked[0].body.model, 'fake-model');
     assert.equal(asked[0].body.tools[0].function.name, 'propose');
     assert.equal(Object.keys(ids).length, 3);

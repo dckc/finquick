@@ -204,9 +204,9 @@ export const buildRootObject = (
     const { url, name } = boot.get('model');
     const webApps = await shared('webApps', { egress: lan });
     // awaited: the kernel carries references, not promises
-    const webApp = await E(E(webApps).makeWebApp(url)).withHeaderMap(
-      modelHeaders.readOnly(),
-    );
+    const webApp = await E(
+      E(webApps).makeWebApp(url, { 'content-type': 'application/json' }),
+    ).withHeaderMap(modelHeaders.readOnly());
     return { webApp, name };
   };
 
