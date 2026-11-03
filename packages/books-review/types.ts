@@ -47,6 +47,8 @@ export type Proposal = {
   account: string;
   /** the proposer's */
   reason: string;
+  /** how sure the proposer says it is, 0 to 1, if it said */
+  confidence?: number;
   status: Status;
   final?: string;
   /** the reviewer's reason for the verdict, if they gave one */
@@ -58,6 +60,9 @@ export type Report = Split & {
   n: number;
   account: string;
   reason: string;
+  confidence?: number;
+  /** how often splits with this description went to the proposed account: `count` of the `of` that went to a category */
+  support?: { count: number; of: number };
   status: Status;
   final?: string;
   note?: string;

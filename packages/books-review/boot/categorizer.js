@@ -17,8 +17,8 @@ const CONTEXT = 5;
 
 const SYSTEM = `You categorize transactions in a GnuCash book. For each split
 you are given, call propose once with the split's id, the full name of the
-income or expense account it belongs in (from the accounts listed), and a
-short reason. Precedents say where transactions with the same description
+income or expense account it belongs in (from the accounts listed), a
+short reason, and how confident you are, from 0 to 1. Precedents say where transactions with the same description
 went before; lessons say what a person decided about such proposals. Skip a
 split if you have no good guess.`;
 
@@ -38,6 +38,12 @@ const PROPOSE = harden({
           description: 'the full name of an account from the list',
         },
         reason: { type: 'string' },
+        confidence: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          description: 'how sure you are, from 0 to 1',
+        },
       },
       required: ['split', 'account', 'reason'],
     },
@@ -157,8 +163,14 @@ export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
      * @param {number} [limit]
      */
     uncategorized: limit => uncategorized(limit),
-    /** @param {string} split @param {string} account @param {string} reason */
-    propose: (split, account, reason) => E(box).propose(split, account, reason),
+    /** @param {string} split @param {string} account @param {string} reason @param {number} [confidence] */
+    propose: (split, account, reason, confidence) =>
+      E(box).propose(
+        split,
+        account,
+        reason,
+        ...(confidence === undefined ? [] : [confidence]),
+      ),
     /** @param {string} description */
     precedents: description => E(view).precedents(description),
     /** What reviewers decided, newest first; about `description` only, if given. @param {string} [description] */
@@ -202,12 +214,17 @@ export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
           refused.push({ error: error ?? `no tool ${tool}` });
           continue;
         }
-        const { split, account, reason } = args;
+        const { split, account, reason, confidence } = args;
         try {
           if (typeof split !== 'string' || typeof account !== 'string')
             throw Error('split and account are strings');
           const guid = byName.get(account) ?? account;
-          const n = await E(box).propose(split, guid, String(reason ?? ''));
+          const n = await E(box).propose(
+            split,
+            guid,
+            String(reason ?? ''),
+            ...(typeof confidence === 'number' ? [confidence] : []),
+          );
           proposed.push({ split, n });
         } catch (e) {
           refused.push({ split, error: /** @type {Error} */ (e).message });

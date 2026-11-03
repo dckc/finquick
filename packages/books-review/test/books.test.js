@@ -276,14 +276,18 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
 
   assert.deepEqual(
     (await me('pending')).map(
-      (/** @type {{ n: number, account: string }} */ { n, account }) => [
-        n,
-        account,
-      ],
+      (
+        /** @type {{ n: number, account: string, support: unknown }} */ {
+          n,
+          account,
+          support,
+        },
+      ) => [n, account, support],
     ),
     [
-      [p1, 'Expenses:Groceries'],
-      [p2, 'Expenses:Groceries'],
+      // CORNER GROCERY went to Groceries the one time it came up before
+      [p1, 'Expenses:Groceries', { count: 1, of: 1 }],
+      [p2, 'Expenses:Groceries', { count: 0, of: 0 }],
     ],
   );
   await me('review', { n: p1, verdict: 'accept' });
@@ -412,7 +416,7 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
         s.id,
       ]),
     );
-    /** @param {Record<string, string>} args */
+    /** @param {Record<string, string | number>} args */
     const call = args => ({
       type: 'function',
       function: { name: 'propose', arguments: JSON.stringify(args) },
@@ -429,6 +433,7 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
                   split: ids['CITY WATER'],
                   account: 'Expenses:Utilities',
                   reason: 'water is a utility',
+                  confidence: 0.9,
                 }),
                 call({
                   split: ids['VISA PAYMENT'],
@@ -493,6 +498,11 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
         ) => [p.description, p.account, p.reason],
       ),
       [['CITY WATER', 'Expenses:Utilities', 'water is a utility']],
+    );
+    assert.equal((await me('pending'))[0].confidence, 0.9);
+    assert.equal(
+      asked[0].body.tools[0].function.parameters.properties.confidence.type,
+      'number',
     );
   } finally {
     model.close();

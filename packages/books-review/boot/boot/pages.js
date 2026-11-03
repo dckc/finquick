@@ -15,6 +15,11 @@ td.amount { text-align: right; font-variant-numeric: tabular-nums; }
 td.date { white-space: nowrap; }
 td.pick select, td.verdict input { width: 100%; box-sizing: border-box; }
 .why { font-size: .85em; color: #555; margin-top: .2rem; }
+.bar { height: 4px; margin-top: 2px; background: #eee; }
+.bar > span { display: block; height: 100%; }
+.bar.model > span { background: #4a7bd0; }
+.bar.precedent > span { background: #3a9a5a; }
+.bar.against > span { background: #c33; }
 td.verdict button { margin-top: .2rem; }
 </style>`;
 
@@ -123,6 +128,21 @@ const show = async () => {
   say(pending.length + ' proposals to review; ' + count + ' splits uncategorized' +
     (count ? ', ' + first + ' to ' + last : '') +
     (summary.rejected ? '; ' + summary.rejected + ' rejected here, which the model skips' : ''));
+  /** How much to trust a proposal: the model's say-so and the book's precedents, averaged; unknown counts as a half. */
+  const share = p => (p.support && p.support.of ? p.support.count / p.support.of : 0.5);
+  const score = p => ((p.confidence ?? 0.5) + share(p)) / 2;
+  /** A thin bar, filled to fraction, with a tooltip. */
+  const bar = (kind, fraction, title) => {
+    const b = el('div');
+    b.className = 'bar ' + kind;
+    b.title = title;
+    const fill = el('span');
+    fill.style.width = Math.round(fraction * 100) + '%';
+    b.append(fill);
+    return b;
+  };
+  // most trusted first
+  pending.sort((a, b) => score(b) - score(a));
   $('pending').replaceChildren(...pending.map(p => {
     const tr = el('tr');
     const amount = el('td', p.amount.toFixed(2));
@@ -152,6 +172,15 @@ const show = async () => {
     const why = el('div', p.reason);
     why.className = 'why';
     pick.append(select, why);
+    if (p.confidence !== undefined)
+      pick.append(bar('model', p.confidence, 'the model says ' + Math.round(p.confidence * 100) + '% sure'));
+    if (p.support && p.support.of) {
+      const { count, of } = p.support;
+      // the book's precedents went elsewhere: a red sliver
+      pick.append(count
+        ? bar('precedent', count / of, count + ' of ' + of + ' with this description went here')
+        : bar('against', 0.15, 'none of ' + of + ' with this description went here'));
+    }
     const actions = el('td');
     actions.className = 'verdict';
     actions.append(note, el('br'), decide, ' ', reject);

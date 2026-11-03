@@ -8,7 +8,7 @@
  */
 /**
  * @import { BuildRootObject, MapStore, Remote } from '@vattr/toybox/types.ts';
- * @import { Account, Proposal, Report, Split, Status, Verdict } from '../types.ts';
+ * @import { Account, Precedent, Proposal, Report, Split, Status, Verdict } from '../types.ts';
  */
 
 /**
@@ -81,7 +81,9 @@ export const buildRootObject = (
   const makeProposalBox = zone.exoClass(
     'ProposalBox',
     M.interface('ProposalBox', {
-      propose: M.call(M.string(), M.string(), M.string()).returns(M.promise()),
+      propose: M.call(M.string(), M.string(), M.string())
+        .optional(M.number())
+        .returns(M.promise()),
       proposed: M.call().returns(M.arrayOf(M.string())),
       rejected: M.call().returns(M.arrayOf(M.string())),
     }),
@@ -94,8 +96,11 @@ export const buildRootObject = (
        * @param {string} split
        * @param {string} account
        * @param {string} reason
+       * @param {number} [confidence] how sure the proposer is, 0 to 1
        */
-      async propose(split, account, reason) {
+      async propose(split, account, reason, confidence = undefined) {
+        if (confidence !== undefined && !(confidence >= 0 && confidence <= 1))
+          throw Error('confidence is from 0 to 1');
         if (!(await E(view).split(split)).uncategorized)
           throw Error(`${JSON.stringify(split)} is not an uncategorized split`);
         const found = (await accounts()).find(a => a.guid === account);
@@ -110,7 +115,13 @@ export const buildRootObject = (
         else counters.init('proposal', n);
         proposals.init(
           n,
-          harden({ split, account, reason, status: 'proposed' }),
+          harden({
+            split,
+            account,
+            reason,
+            ...(confidence === undefined ? {} : { confidence }),
+            status: 'proposed',
+          }),
         );
         open.init(split, n);
         return n;
@@ -145,8 +156,25 @@ export const buildRootObject = (
         uncategorized: await E(view).summary(),
       });
     },
-    /** The proposals awaiting review, oldest first. */
-    pending: () => report(status => status === 'proposed'),
+    /**
+     * The proposals awaiting review, oldest first, each with its support:
+     * how often splits with its description went to the proposed account.
+     */
+    async pending() {
+      const reports = await report(status => status === 'proposed');
+      return harden(
+        await Promise.all(
+          reports.map(async r => {
+            /** @type {Precedent[]} */
+            const precedents = await E(view).precedents(r.description);
+            const of = precedents.reduce((sum, p) => sum + p.count, 0);
+            const count =
+              precedents.find(p => p.account === r.account)?.count ?? 0;
+            return { ...r, support: { count, of } };
+          }),
+        ),
+      );
+    },
     /**
      * Decide proposal `n`: `"accept"`, `"reject"`, or `{ account }` to put
      * the split in another income or expense account instead. Accepting
