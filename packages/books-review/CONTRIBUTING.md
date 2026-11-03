@@ -38,4 +38,5 @@ The boot page's key opens loading snapshots and setting up the model; each book'
 - refusals sent back to the model as tool results, for another try;
 - batches sized to the model's context;
 - a run's progress kept durable, so a restart resumes it;
-- retries and back-off on errors.
+- retries and back-off on errors;
+- a "retry rejected" toggle on the review page's Ask: today a split rejected in a snapshot isn't asked about again until the next snapshot.

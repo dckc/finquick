@@ -13,6 +13,9 @@ table { border-collapse: collapse; width: 100%; }
 td, th { padding: .25rem .5rem; border-bottom: 1px solid #ccc; text-align: left; vertical-align: top; }
 td.amount { text-align: right; font-variant-numeric: tabular-nums; }
 td.date { white-space: nowrap; }
+td.pick select, td.verdict input { width: 100%; box-sizing: border-box; }
+.why { font-size: .85em; color: #555; margin-top: .2rem; }
+td.verdict button { margin-top: .2rem; }
 </style>`;
 
 export const BOOT_PAGE = `<!doctype html><title>Books</title>${STYLE}
@@ -105,7 +108,7 @@ export const REVIEW_PAGE = `<!doctype html><title>Review</title>${STYLE}
 <p id="status" role="status"></p>
 <p><button id="ask">Ask the model</button> for up to <input id="limit" type="number" value="10" min="1" size="4"> proposals</p>
 <table>
-<thead><tr><th>Date</th><th>Description</th><th>From</th><th>Amount</th><th>Proposed, and why</th><th>Account</th><th></th></tr></thead>
+<thead><tr><th>Date</th><th>Description</th><th>From</th><th>Amount</th><th>Proposed account</th><th>Your verdict</th></tr></thead>
 <tbody id="pending"></tbody>
 </table>
 <p><button id="changelog">Download changelog</button></p>
@@ -124,7 +127,6 @@ const show = async () => {
     const tr = el('tr');
     const amount = el('td', p.amount.toFixed(2));
     amount.className = 'amount';
-    const why = el('td', p.account + ': ' + p.reason);
     const select = el('select');
     select.setAttribute('aria-label', 'account for ' + p.description);
     for (const a of accounts) select.append(Object.assign(el('option', a.name), { value: a.guid, selected: a.name === p.account }));
@@ -144,13 +146,18 @@ const show = async () => {
     };
     decide.addEventListener('click', () => review(select.selectedOptions[0].text === p.account ? 'accept' : { account: select.value }));
     reject.addEventListener('click', () => review('reject'));
-    const actions = el('td');
-    actions.append(note, ' ', decide, ' ', reject);
+    // the dropdown starts at the proposed account; the proposer's reason sits under it
     const pick = el('td');
-    pick.append(select);
+    pick.className = 'pick';
+    const why = el('div', p.reason);
+    why.className = 'why';
+    pick.append(select, why);
+    const actions = el('td');
+    actions.className = 'verdict';
+    actions.append(note, el('br'), decide, ' ', reject);
     const date = el('td', p.date);
     date.className = 'date';
-    tr.append(date, el('td', p.description), el('td', p.against.map(a => a.name).join(', ')), amount, why, pick, actions);
+    tr.append(date, el('td', p.description), el('td', p.against.map(a => a.name).join(', ')), amount, pick, actions);
     return tr;
   }));
 };
