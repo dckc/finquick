@@ -14,7 +14,7 @@
   "dependencies": {
     "@endo/far": "^1.1.14",
     "@endo/init": "^1.1.13",
-    "@vattr/toybox": "git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=3dbba93ce6921a6db6d82c35a2d8484f2da20fcd"
+    "@vattr/toybox": "git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=8b1ef3da62a7db8f9fcaf10bf6a0ca81ed861592"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261006.1",

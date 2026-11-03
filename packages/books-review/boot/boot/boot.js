@@ -286,7 +286,12 @@ export const buildRootObject = (
         );
       return json(403, { error: 'that key opens nothing here' });
     } catch (e) {
-      return json(400, { error: /** @type {Error} */ (e).message });
+      const error = /** @type {Error} */ (e).message;
+      // to workerd's stderr, so the journal says why; never the key or args
+      console.warn(
+        JSON.stringify({ event: 'books-api-failed', op: request.op, error }),
+      );
+      return json(400, { error });
     }
   };
 

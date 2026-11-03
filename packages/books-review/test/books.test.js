@@ -27,6 +27,8 @@ import { CHANGELOG } from './books/changelog.js';
 
 // this test is the edge: it holds Node's I/O, and gives each helper what it uses
 const run = promisify(execFile);
+/** What workerd wrote to stderr: console.warn from the vats among it. */
+const logged = [''];
 const { freePort, startWorkerd } = makeWorkerd({
   workerd: workerdPackage.default,
   spawn,
@@ -34,7 +36,11 @@ const { freePort, startWorkerd } = makeWorkerd({
   connect,
   createServer,
   sleep,
-  log: process.env.WORKERD_LOG ? c => void process.stderr.write(c) : undefined,
+  log: chunk => {
+    logged[0] += chunk;
+    // WORKERD_LOG=1 echoes it, for debugging
+    if (process.env.WORKERD_LOG) process.stderr.write(chunk);
+  },
 });
 const { startToybox } = makeToyboxes({ startWorkerd, freePort, mkdir });
 const { makeRepo } = makeGit({
@@ -418,6 +424,13 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
     const made = await owner('makeBooks', { listing, dir: 'dm93finance' });
     const me = apiWith(made.reviewerKey);
     await assert.rejects(me('categorize', { limit: 2 }), /no model is set up/);
+    // and the journal says so too
+    for (let i = 0; i < 50 && !logged[0].includes('books-api-failed'); i += 1)
+      await sleep(20);
+    assert.match(
+      logged[0],
+      /"event":"books-api-failed","op":"categorize","error":"no model is set up yet"/,
+    );
     await owner('setModel', {
       url: `http://127.0.0.1:${port}/v1/`,
       name: 'fake-model',

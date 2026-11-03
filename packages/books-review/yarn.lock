@@ -231,7 +231,7 @@ __metadata:
     "@endo/init": "npm:^1.1.13"
     "@types/node": "npm:22"
     "@types/ws": "npm:8"
-    "@vattr/toybox": "git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=3dbba93ce6921a6db6d82c35a2d8484f2da20fcd"
+    "@vattr/toybox": "git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=8b1ef3da62a7db8f9fcaf10bf6a0ca81ed861592"
     prettier: "npm:^3.3.3"
     typescript: "npm:^5.5.0"
   languageName: unknown
@@ -264,9 +264,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vattr/toybox@git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=3dbba93ce6921a6db6d82c35a2d8484f2da20fcd":
+"@vattr/toybox@git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=8b1ef3da62a7db8f9fcaf10bf6a0ca81ed861592":
   version: 0.0.0
-  resolution: "@vattr/toybox@https://github.com/dckc/vattr97.git#workspace=%40vattr%2Ftoybox&commit=3dbba93ce6921a6db6d82c35a2d8484f2da20fcd"
+  resolution: "@vattr/toybox@https://github.com/dckc/vattr97.git#workspace=%40vattr%2Ftoybox&commit=8b1ef3da62a7db8f9fcaf10bf6a0ca81ed861592"
   dependencies:
     "@endo/eventual-send": "npm:1.5.0"
     "@endo/exo": "npm:^1.7.0"
@@ -278,7 +278,7 @@ __metadata:
     capnweb: "npm:0.12.0"
     workerd: "npm:1.20261006.1"
     ws: "npm:8.22.0"
-  checksum: 10c0/fde45e0ff2c7c3fabffb47411ae61b884673fcaa566aa7f339a1993bfd3d94eb56e8a0ce5363d8c3b5891e101b034e491e337f1cbe6208e0716122012614fd09
+  checksum: 10c0/04575f8b6b57e99ca50b17c498d0a6789e62e0b88fbd5e67314d07dd19932d50b7544214932a71a921133c7cdc547d22d83238de9bd9481dc52a00a087545213
   languageName: node
   linkType: hard
 

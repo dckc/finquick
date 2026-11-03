@@ -37,6 +37,11 @@ const PRELUDE = `'use strict';
 const $ = id => document.getElementById(id);
 const el = (tag, text) => Object.assign(document.createElement(tag), text === undefined ? {} : { textContent: text });
 const say = text => ($('status').textContent = text);
+/** A failure: on the page, and in the console, where its stack is. */
+const fail = err => {
+  console.error(err);
+  say(err.message);
+};
 /** The key in localStorage under name, after taking any from the fragment. */
 const keyFor = name => {
   const fragment = location.hash.slice(1);
@@ -78,7 +83,7 @@ $('make').addEventListener('submit', async e => {
     say('loaded tree ' + i.tree);
     await show();
   } catch (err) {
-    say(err.message);
+    fail(err);
   }
 });
 $('model').addEventListener('submit', async e => {
@@ -89,10 +94,10 @@ $('model').addEventListener('submit', async e => {
     f.key.value = '';
     say('model saved');
   } catch (err) {
-    say(err.message);
+    fail(err);
   }
 });
-show().catch(err => say(err.message));
+show().catch(fail);
 `;
 
 export const REVIEW_PAGE = `<!doctype html><title>Review</title>${STYLE}
@@ -128,7 +133,7 @@ const show = async () => {
         await api('review', { n: p.n, verdict });
         await show();
       } catch (err) {
-        say(err.message);
+        fail(err);
       }
     };
     decide.addEventListener('click', () => review(select.selectedOptions[0].text === p.account ? 'accept' : { account: select.value }));
@@ -148,9 +153,12 @@ $('ask').addEventListener('click', async () => {
   try {
     const { proposed, refused } = await api('categorize', { limit: Number($('limit').value) });
     await show();
-    say(proposed.length + ' proposed, ' + refused.length + ' refused');
+    // each refusal says why: the model named no such split or account, say
+    for (const r of refused) console.warn('refused', r);
+    say(proposed.length + ' proposed, ' + refused.length + ' refused' +
+      (refused.length ? ': ' + refused.map(r => r.error).join('; ') : ''));
   } catch (err) {
-    say(err.message);
+    fail(err);
   }
 });
 $('changelog').addEventListener('click', async () => {
@@ -160,5 +168,5 @@ $('changelog').addEventListener('click', async () => {
   a.download = 'changelog.json';
   a.click();
 });
-show().catch(err => say(err.message));
+show().catch(fail);
 `;
