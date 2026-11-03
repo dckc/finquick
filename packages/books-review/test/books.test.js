@@ -301,6 +301,18 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
     verdict: 'reject',
     note: 'a card payment: confirm from the statement first',
   });
+  assert.deepEqual(await me('summary'), {
+    pending: 0,
+    rejected: 1,
+    uncategorized: { count: 2, first: '2026-09-15', last: '2026-09-16' },
+  });
+  // the rejected split waits for a person: the model isn't asked about it again
+  assert.deepEqual(
+    (await E(ai).uncategorized()).map(
+      (/** @type {{ split: string }} */ t) => t.split,
+    ),
+    [visaPayment],
+  );
   assert.deepEqual(await E(instance.vats.books.root).balances(), {
     ...BALANCES,
     Groceries: 8412 + 6130,

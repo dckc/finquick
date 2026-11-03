@@ -251,6 +251,8 @@ export const buildRootObject = (
         return E(reviewer).accounts();
       case 'pending':
         return E(reviewer).pending();
+      case 'summary':
+        return E(reviewer).summary();
       case 'review':
         return E(reviewer).review(
           request.n,

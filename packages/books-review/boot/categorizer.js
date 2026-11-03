@@ -102,17 +102,29 @@ export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
   const categories = async () =>
     /** @type {Account[]} */ (await E(view).accounts()).filter(a => a.category);
 
-  /** @returns {Promise<Todo[]>} */
-  const uncategorized = async () => {
-    /** @type {[Split[], string[]]} */
-    const [splits, proposed] = await Promise.all([
+  /**
+   * The first `limit` uncategorized splits no proposal awaits and none was
+   * rejected for in this book, with their context. A rejected split waits
+   * for a person: it isn't proposed again until someone categorizes it or
+   * takes it up in a later snapshot, where its lesson comes along.
+   *
+   * @param {number} [limit]
+   * @returns {Promise<Todo[]>}
+   */
+  const uncategorized = async (limit = Infinity) => {
+    /** @type {[Split[], string[], string[]]} */
+    const [splits, proposed, rejected] = await Promise.all([
       E(view).uncategorized(),
       E(box).proposed(),
+      E(box).rejected(),
     ]);
+    const skip = new Set([...proposed, ...rejected]);
     return harden(
       await Promise.all(
+        // context only for those asked for: precedents cost a query each
         splits
-          .filter(s => !proposed.includes(s.split))
+          .filter(s => !skip.has(s.split))
+          .slice(0, limit)
           .map(async s => {
             /** @type {[Precedent[], Lesson[]]} */
             const [precedents, taught] = await Promise.all([
@@ -137,12 +149,14 @@ export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
       );
     },
     /**
-     * The uncategorized splits no proposal awaits review for, oldest
-     * first, each with context: `precedents`, where splits with the same
-     * description went before in this book, and `lessons`, what reviewers
-     * decided about that description.
+     * The uncategorized splits no proposal awaits review for, and none was
+     * rejected for, oldest first, each with context: `precedents`, where
+     * splits with the same description went before in this book, and
+     * `lessons`, what reviewers decided about that description.
+     *
+     * @param {number} [limit]
      */
-    uncategorized,
+    uncategorized: limit => uncategorized(limit),
     /** @param {string} split @param {string} account @param {string} reason */
     propose: (split, account, reason) => E(box).propose(split, account, reason),
     /** @param {string} description */
@@ -165,7 +179,7 @@ export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
      * @param {string} name the model's name, as the API knows it
      */
     async categorize(limit, model, name) {
-      const todo = (await uncategorized()).slice(0, limit);
+      const todo = await uncategorized(limit);
       if (!todo.length) return harden({ proposed: [], refused: [] });
       const accounts = await categories();
       const reply = await E(E(model).pathjoin('chat/completions')).post(

@@ -34,6 +34,17 @@ export const buildRootObject = (
   /** @returns {Promise<Account[]>} */
   const accounts = () => E(view).accounts();
 
+  /** The splits whose last proposal was rejected, and none awaits review. */
+  const rejectedSplits = () => {
+    /** @type {Map<string, Proposal>} */
+    const last = new Map();
+    for (const [, p] of proposals.entries().sort(([a], [b]) => a - b))
+      last.set(p.split, p);
+    return [...last.values()]
+      .filter(p => p.status === 'rejected' && !open.has(p.split))
+      .map(p => p.split);
+  };
+
   /**
    * Proposals whose status is `wanted` (just number `only`, if given), with
    * account names and what the split is.
@@ -72,6 +83,7 @@ export const buildRootObject = (
     M.interface('ProposalBox', {
       propose: M.call(M.string(), M.string(), M.string()).returns(M.promise()),
       proposed: M.call().returns(M.arrayOf(M.string())),
+      rejected: M.call().returns(M.arrayOf(M.string())),
     }),
     () => ({}),
     {
@@ -107,6 +119,10 @@ export const buildRootObject = (
       proposed() {
         return harden(open.keys());
       },
+      /** The splits whose last proposal in this book was rejected, and none awaits review. */
+      rejected() {
+        return harden(rejectedSplits());
+      },
     },
   );
   const box = zone.makeOnce('box', () => makeProposalBox());
@@ -120,6 +136,14 @@ export const buildRootObject = (
           .filter(a => a.category)
           .map(({ guid, name }) => ({ guid, name })),
       );
+    },
+    /** Where the review stands: proposals awaiting review, splits rejected here, and the book's uncategorized splits. */
+    async summary() {
+      return harden({
+        pending: open.getSize(),
+        rejected: rejectedSplits().length,
+        uncategorized: await E(view).summary(),
+      });
     },
     /** The proposals awaiting review, oldest first. */
     pending: () => report(status => status === 'proposed'),

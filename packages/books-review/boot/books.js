@@ -166,6 +166,21 @@ export const buildRootObject = (
     );
     return q.all(...from).map(r => r.guid);
   };
+  /** How many splits are uncategorized, and the dates of the first and last. @param {Map<string, AccountRow>} byGuid */
+  const uncategorizedSummary = byGuid => {
+    const from = uncategorizedAccounts(byGuid);
+    /** @type {import('@vattr/toybox/types.ts').SqlStatement<string[], { count: number, first: string | null, last: string | null }>} */
+    const q = db.prepare(
+      `SELECT count(*) AS count, min(substr(t.post_date, 1, 10)) AS first, max(substr(t.post_date, 1, 10)) AS last
+       FROM splits s JOIN transactions t ON t.guid = s.tx_guid WHERE s.account_guid IN (${from.map(() => '?').join(', ')})`,
+    );
+    const row = q.get(...from);
+    return harden({
+      count: row?.count ?? 0,
+      first: row?.first ?? null,
+      last: row?.last ?? null,
+    });
+  };
   /** @param {string} guid */
   const mustGetSplit = guid => {
     const row = splitRow.get(guid);
@@ -180,6 +195,7 @@ export const buildRootObject = (
       uncategorized: M.call().returns(M.array()),
       precedents: M.call(M.string()).returns(M.array()),
       split: M.call(M.string()).returns(M.record()),
+      summary: M.call().returns(M.record()),
     }),
     () => ({}),
     {
@@ -230,6 +246,11 @@ export const buildRootObject = (
               last: r.last,
             })),
         );
+      },
+      /** How many splits are uncategorized, and the dates of the first and last. */
+      summary() {
+        loaded();
+        return uncategorizedSummary(accounts());
       },
       /** The split `guid`, and whether it is uncategorized. @param {string} guid */
       split(guid) {

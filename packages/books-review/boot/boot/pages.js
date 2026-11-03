@@ -115,8 +115,11 @@ export const REVIEW_SCRIPT = `${PRELUDE}
 const tree = new URLSearchParams(location.search).get('tree');
 const api = apiWith(keyFor('books:review:' + tree));
 const show = async () => {
-  const [accounts, pending] = await Promise.all([api('accounts'), api('pending')]);
-  say(pending.length + ' to review');
+  const [accounts, pending, summary] = await Promise.all([api('accounts'), api('pending'), api('summary')]);
+  const { count, first, last } = summary.uncategorized;
+  say(pending.length + ' proposals to review; ' + count + ' splits uncategorized' +
+    (count ? ', ' + first + ' to ' + last : '') +
+    (summary.rejected ? '; ' + summary.rejected + ' rejected here, which the model skips' : ''));
   $('pending').replaceChildren(...pending.map(p => {
     const tr = el('tr');
     const amount = el('td', p.amount.toFixed(2));
