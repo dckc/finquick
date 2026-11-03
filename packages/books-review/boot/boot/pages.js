@@ -128,9 +128,12 @@ const show = async () => {
     const decide = el('button', 'Accept');
     select.addEventListener('change', () => (decide.textContent = select.selectedOptions[0].text === p.account ? 'Accept' : 'Correct'));
     const reject = el('button', 'Reject');
+    const note = el('input');
+    note.placeholder = 'why (optional)';
+    note.setAttribute('aria-label', 'why, for ' + p.description);
     const review = async verdict => {
       try {
-        await api('review', { n: p.n, verdict });
+        await api('review', { n: p.n, verdict, note: note.value });
         await show();
       } catch (err) {
         fail(err);
@@ -139,7 +142,7 @@ const show = async () => {
     decide.addEventListener('click', () => review(select.selectedOptions[0].text === p.account ? 'accept' : { account: select.value }));
     reject.addEventListener('click', () => review('reject'));
     const actions = el('td');
-    actions.append(decide, ' ', reject);
+    actions.append(note, ' ', decide, ' ', reject);
     const pick = el('td');
     pick.append(select);
     const date = el('td', p.date);

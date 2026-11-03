@@ -252,7 +252,11 @@ export const buildRootObject = (
       case 'pending':
         return E(reviewer).pending();
       case 'review':
-        return E(reviewer).review(request.n, request.verdict);
+        return E(reviewer).review(
+          request.n,
+          request.verdict,
+          typeof request.note === 'string' ? request.note : undefined,
+        );
       case 'changelog':
         return E(reviewer).changelog();
       case 'categorize': {

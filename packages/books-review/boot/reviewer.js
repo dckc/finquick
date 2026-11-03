@@ -126,12 +126,17 @@ export const buildRootObject = (
     /**
      * Decide proposal `n`: `"accept"`, `"reject"`, or `{ account }` to put
      * the split in another income or expense account instead. Accepting
-     * or correcting asks the book's mover to move the split.
+     * or correcting asks the book's mover to move the split. `note` says
+     * why; it's kept with the lesson, for later categorizers.
      *
      * @param {number} n
      * @param {Verdict} verdict
+     * @param {string} [note]
      */
-    async review(n, verdict) {
+    async review(n, verdict, note = undefined) {
+      if (note !== undefined && typeof note !== 'string')
+        throw Error('a note is a string');
+      const why = note?.trim() ? { note: note.trim() } : {};
       if (!proposals.has(n)) throw Error(`no proposal ${n}`);
       const p = proposals.get(n);
       if (p.status !== 'proposed')
@@ -145,13 +150,14 @@ export const buildRootObject = (
       /** @type {Proposal} */
       let decided;
       if (verdict === 'reject') {
-        decided = harden({ ...p, status: 'rejected' });
+        decided = harden({ ...p, ...why, status: 'rejected' });
       } else {
         const to = typeof verdict === 'object' ? verdict.account : p.account;
         // the mover checks the split and account again; a refusal leaves the proposal open
         await E(mover).move(p.split, to);
         decided = harden({
           ...p,
+          ...why,
           status: corrected ? 'corrected' : 'accepted',
           final: to,
         });

@@ -45,9 +45,12 @@ export type Status = 'proposed' | 'accepted' | 'corrected' | 'rejected';
 export type Proposal = {
   split: string;
   account: string;
+  /** the proposer's */
   reason: string;
   status: Status;
   final?: string;
+  /** the reviewer's reason for the verdict, if they gave one */
+  note?: string;
 };
 
 /** A proposal as a reviewer reads it: the split, with account names. */
@@ -57,6 +60,7 @@ export type Report = Split & {
   reason: string;
   status: Status;
   final?: string;
+  note?: string;
 };
 
 /** A verdict on a proposal: accept it, reject it, or put the split elsewhere. */
@@ -68,6 +72,8 @@ export type Lesson = Split & {
   final?: string;
   status: Exclude<Status, 'proposed'>;
   reason: string;
+  /** why the reviewer decided as they did, if they said */
+  note?: string;
   /** the tree id of the book snapshot it was decided in */
   book: string;
 };

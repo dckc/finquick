@@ -21,7 +21,7 @@ That runs the books as a systemd user service, `books-review`, reading snapshots
    ```
    The files are read from the worktree and must match what's listed, so list a commit whose dump you haven't edited since.
 2. Set up the model: an OpenAI-style API's base URL (its `/v1/`), the model's name, and its key.
-3. Open the book's review page, ask the model for proposals, and accept, correct, or reject each.
+3. Open the book's review page, ask the model for proposals, and accept, correct, or reject each, saying why if you like. Your reasons go into the lessons, which the model sees next time.
 4. Download the changelog, close GnuCash, and replay it on the book:
    ```sh
    yarn apply BOOK.gnucash changelog.json

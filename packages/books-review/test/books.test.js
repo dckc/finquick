@@ -285,6 +285,7 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
   await me('review', {
     n: p2,
     verdict: { account: guid['Expenses:Utilities'] },
+    note: 'the water bill is a utility',
   });
   await assert.rejects(
     me('review', { n: p1, verdict: 'reject' }),
@@ -295,7 +296,11 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
     guid['Income:Salary'],
     'money came in',
   );
-  await me('review', { n: p3, verdict: 'reject' });
+  await me('review', {
+    n: p3,
+    verdict: 'reject',
+    note: 'a card payment: confirm from the statement first',
+  });
   assert.deepEqual(await E(instance.vats.books.root).balances(), {
     ...BALANCES,
     Groceries: 8412 + 6130,
@@ -320,16 +325,25 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
         l.proposed,
         l.final,
         l.reason,
+        l.note,
         l.book,
       ],
     ),
     [
-      ['rejected', 'Income:Salary', undefined, 'money came in', tree],
+      [
+        'rejected',
+        'Income:Salary',
+        undefined,
+        'money came in',
+        'a card payment: confirm from the statement first',
+        tree,
+      ],
       [
         'corrected',
         'Expenses:Groceries',
         'Expenses:Utilities',
         'a guess',
+        'the water bill is a utility',
         tree,
       ],
       [
@@ -337,6 +351,7 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
         'Expenses:Groceries',
         'Expenses:Groceries',
         'CORNER GROCERY went to Groceries on 2026-09-03',
+        undefined,
         tree,
       ],
     ],
@@ -357,8 +372,8 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
     await E(nextInstance.vats.categorizer.root).uncategorized()
   ).filter(t => t.description === 'CITY WATER');
   assert.deepEqual(
-    water2.lessons.map(({ status, final }) => [status, final]),
-    [['corrected', 'Expenses:Utilities']],
+    water2.lessons.map(({ status, final, note }) => [status, final, note]),
+    [['corrected', 'Expenses:Utilities', 'the water bill is a utility']],
   );
   assert.equal((await owner('instances')).length, 2);
 });

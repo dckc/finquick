@@ -84,6 +84,7 @@ export const prompt = (categories, todo) =>
         proposed: l.proposed,
         final: l.final,
         status: l.status,
+        ...(l.note ? { why: l.note } : {}),
       })),
     })),
   });
