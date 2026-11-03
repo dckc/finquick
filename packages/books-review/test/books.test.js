@@ -168,7 +168,7 @@ test("a books vat loads a sqlite-diffable dump from a git tree once, refusing ta
   const rows = await E(root).tables();
   assert.deepEqual(
     [rows.accounts, rows.transactions, rows.splits, rows.slots, rows.vendors],
-    [12, 6, 12, 3, 0],
+    [13, 6, 12, 3, 0],
   );
   assert.deepEqual(await E(root).balances(), BALANCES);
 
@@ -258,6 +258,11 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
       'a0000000000000000000000000000004',
       'a transfer',
     ),
+    /not an income or expense account/,
+  );
+  // a hidden account isn't a category, though it's an expense account
+  await assert.rejects(
+    E(ai).propose(water, 'a000000000000000000000000000000b', 'my old hobby'),
     /not an income or expense account/,
   );
   await assert.rejects(

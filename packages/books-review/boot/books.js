@@ -45,13 +45,13 @@ const isCell = v =>
   typeof v === 'string' ||
   (typeof v === 'number' && (!Number.isInteger(v) || Number.isSafeInteger(v)));
 
-/** @typedef {{ guid: string, name: string, type: string, code: string, placeholder: number }} AccountRow */
+/** @typedef {{ guid: string, name: string, type: string, code: string, placeholder: number, hidden: number }} AccountRow */
 /** @typedef {{ split: string, tx_guid: string, account_guid: string, date: string, description: string, amount: number }} SplitRow */
 /** @typedef {{ name: string, columns: string[], schema: string, data: string | undefined }} DumpTable */
 
-/** Whether a split may be moved to the account `a`: income or expense, and not a placeholder. @param {AccountRow | undefined} a */
+/** Whether a split may be moved to the account `a`: income or expense, neither a placeholder nor hidden. @param {AccountRow | undefined} a */
 const isCategory = a =>
-  !!a && ['INCOME', 'EXPENSE'].includes(a.type) && !a.placeholder;
+  !!a && ['INCOME', 'EXPENSE'].includes(a.type) && !a.placeholder && !a.hidden;
 
 /**
  * A table's metadata from a dump, checked: a name a dump may use, columns,
@@ -104,10 +104,10 @@ export const buildRootObject = (
 
   /** @type {import('@vattr/toybox/types.ts').SqlStatement<[], AccountRow>} */
   const accountRows = db.prepare(
-    `WITH RECURSIVE path(guid, name, type, code, placeholder) AS (
-       SELECT a.guid, a.name, a.account_type, a.code, a.placeholder FROM accounts a JOIN books b ON a.parent_guid = b.root_account_guid
+    `WITH RECURSIVE path(guid, name, type, code, placeholder, hidden) AS (
+       SELECT a.guid, a.name, a.account_type, a.code, a.placeholder, a.hidden FROM accounts a JOIN books b ON a.parent_guid = b.root_account_guid
        UNION ALL
-       SELECT a.guid, path.name || ':' || a.name, a.account_type, a.code, a.placeholder FROM accounts a JOIN path ON a.parent_guid = path.guid
+       SELECT a.guid, path.name || ':' || a.name, a.account_type, a.code, a.placeholder, path.hidden OR a.hidden FROM accounts a JOIN path ON a.parent_guid = path.guid
      ) SELECT * FROM path`,
   );
   /** Each account, with its full name, by guid; template accounts excluded. */
