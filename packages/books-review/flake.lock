@@ -1,0 +1,50 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1791734076,
+        "narHash": "sha256-i5qk1kLiit98rRbh1AXmWBNT9QXC/y4l5Wk/u5EdpDQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "7fd4004d0511991fff3a0524856a9be09e28c5f0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": [
+          "vattr97",
+          "nixpkgs"
+        ],
+        "vattr97": "vattr97"
+      }
+    },
+    "vattr97": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1793670299,
+        "narHash": "sha256-ZgUgp7jH8BIbJnrt4sP4eflIZ7tSe0vzhtRoP5hETzw=",
+        "owner": "dckc",
+        "repo": "vattr97",
+        "rev": "3dbba93ce6921a6db6d82c35a2d8484f2da20fcd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "dckc",
+        "ref": "toybox-wallet",
+        "repo": "vattr97",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

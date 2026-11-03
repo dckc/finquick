@@ -1,0 +1,5 @@
+{
+  "name": "gnclock",
+  "columns": ["Hostname", "PID"],
+  "schema": "CREATE TABLE gnclock ( Hostname varchar(255), PID int )"
+}

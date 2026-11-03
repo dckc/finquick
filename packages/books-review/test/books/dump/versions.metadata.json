@@ -1,0 +1,5 @@
+{
+  "name": "versions",
+  "columns": ["table_name", "table_version"],
+  "schema": "CREATE TABLE versions(table_name text(50) PRIMARY KEY NOT NULL, table_version integer NOT NULL)"
+}

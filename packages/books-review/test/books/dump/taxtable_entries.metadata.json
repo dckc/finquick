@@ -1,0 +1,12 @@
+{
+  "name": "taxtable_entries",
+  "columns": [
+    "id",
+    "taxtable",
+    "account",
+    "amount_num",
+    "amount_denom",
+    "type"
+  ],
+  "schema": "CREATE TABLE taxtable_entries(id integer PRIMARY KEY AUTOINCREMENT NOT NULL, taxtable text(32) NOT NULL, account text(32) NOT NULL, amount_num bigint NOT NULL, amount_denom bigint NOT NULL, type integer NOT NULL)"
+}

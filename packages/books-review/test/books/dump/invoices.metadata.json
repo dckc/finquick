@@ -1,0 +1,24 @@
+{
+  "name": "invoices",
+  "columns": [
+    "guid",
+    "id",
+    "date_opened",
+    "date_posted",
+    "notes",
+    "active",
+    "currency",
+    "owner_type",
+    "owner_guid",
+    "terms",
+    "billing_id",
+    "post_txn",
+    "post_lot",
+    "post_acc",
+    "billto_type",
+    "billto_guid",
+    "charge_amt_num",
+    "charge_amt_denom"
+  ],
+  "schema": "CREATE TABLE invoices(guid text(32) PRIMARY KEY NOT NULL, id text(2048) NOT NULL, date_opened text(19), date_posted text(19), notes text(2048) NOT NULL, active integer NOT NULL, currency text(32) NOT NULL, owner_type integer, owner_guid text(32), terms text(32), billing_id text(2048), post_txn text(32), post_lot text(32), post_acc text(32), billto_type integer, billto_guid text(32), charge_amt_num bigint, charge_amt_denom bigint)"
+}

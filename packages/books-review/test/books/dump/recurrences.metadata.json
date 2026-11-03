@@ -1,0 +1,12 @@
+{
+  "name": "recurrences",
+  "columns": [
+    "id",
+    "obj_guid",
+    "recurrence_mult",
+    "recurrence_period_type",
+    "recurrence_period_start",
+    "recurrence_weekend_adjust"
+  ],
+  "schema": "CREATE TABLE recurrences(id integer PRIMARY KEY AUTOINCREMENT NOT NULL, obj_guid text(32) NOT NULL, recurrence_mult integer NOT NULL, recurrence_period_type text(2048) NOT NULL, recurrence_period_start text(8) NOT NULL, recurrence_weekend_adjust text(2048) NOT NULL)"
+}
