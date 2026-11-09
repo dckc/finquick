@@ -12,7 +12,7 @@ The tests need `git` and `sqldiff` on the PATH.
 
 ## Layout
 
-- [boot/](boot/): the boot directory a toybox runs, after SwingSet's bootstrap vat. The bundle `boot/` is the boot vat: [boot.js](boot/boot/boot.js) wires the vats together and serves the pages in [site/](boot/boot/site/) on the app socket. The browser's scripts there are `.js.txt`, since a bundle's `.js` files are its own modules. The files beside the bundle are the vats it makes: the books, a reviewer and a categorizer per snapshot, and the shared lessons.
+- [boot/](boot/): the boot directory a toybox runs, after SwingSet's bootstrap vat. The bundle `boot/` is the boot vat: [boot.js](boot/boot/boot.js) wires the vats together and serves the pages in [site/](boot/boot/site/) on the app socket. The browser's scripts there are `.js.txt`, since a bundle's `.js` files are its own modules. The files beside the bundle are the vats it makes: the books, a reviewer and a categorizer per snapshot, and the shared lessons and whereabouts.
 - [scripts/](scripts/): assembling the boot directory (with the toybox vats it uses), running it as a user service, and replaying a changelog on a `.gnucash` file.
 - `*.ts`: types for the JavaScript, which `tsc --checkJs` checks: what the vats pass around, and what they call of the toybox.
 
@@ -24,7 +24,7 @@ The boot vat starts on the first request to the app socket. On each start, it up
 
 ## Webkeys
 
-A webkey designates an object, whose interface guard is all it opens; the registry maps each key to its object, after E's SwissTable and [Waterken's web-keys](https://waterken.sourceforge.net/web-key/), so `/api` is `deref(key)` and a method call. The boot page's key designates the owner: loading snapshots and setting up the model. Each reviewer key designates a review page: the reviewer's queries and verdicts, and `categorize`, but not the proposal box. A page reads its key from the link's fragment once, keeps it in localStorage, and takes it out of the address bar. The app socket's origin is the boot vat's own, so no other vat's page can read them.
+A webkey designates an object, whose interface guard is all it opens; the registry maps each key to its object, after E's SwissTable and [Waterken's web-keys](https://waterken.sourceforge.net/web-key/), so `/api` is `deref(key)` and a method call. The boot page's key designates the owner: loading snapshots and setting up the model. Each reviewer key designates a review page: the reviewer's queries and verdicts, and `categorize`, but not the proposal box. The timeline key designates the whereabouts vat's uploader, which can `put` visits and count them but not ask where you were. A page reads its key from the link's fragment once, keeps it in localStorage, and takes it out of the address bar. The app socket's origin is the boot vat's own, so no other vat's page can read them.
 
 ## The model loop
 

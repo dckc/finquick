@@ -1,0 +1,17 @@
+'use strict';
+/** The timeline page's service worker, so a phone can install it: network first, the page's files cached for when it's offline. */
+const FILES = [
+  '/timeline/',
+  '/timeline/app.js',
+  '/prelude.js',
+  '/style.css',
+  '/timeline/manifest.webmanifest',
+  '/timeline/icon.svg',
+];
+self.addEventListener('install', e =>
+  e.waitUntil(caches.open('timeline-v1').then(c => c.addAll(FILES))),
+);
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});

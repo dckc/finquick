@@ -15,3 +15,11 @@ declare module '*.css' {
   const bytes: ArrayBuffer;
   export default bytes;
 }
+declare module '*.svg' {
+  const bytes: ArrayBuffer;
+  export default bytes;
+}
+declare module '*.webmanifest' {
+  const bytes: ArrayBuffer;
+  export default bytes;
+}

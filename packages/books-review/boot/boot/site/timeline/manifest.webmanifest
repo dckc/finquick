@@ -1,0 +1,16 @@
+{
+  "name": "Books: Timeline",
+  "short_name": "Timeline",
+  "start_url": "/timeline/",
+  "scope": "/timeline/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a7bd0",
+  "icons": [
+    {
+      "src": "/timeline/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

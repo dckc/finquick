@@ -9,6 +9,10 @@
 export const ok = (type, body) =>
   harden({ status: 200, headers: { 'content-type': type }, body });
 
+/** @param {string} location @returns {HttpResponse} */
+export const redirect = location =>
+  harden({ status: 308, headers: { location } });
+
 /** @param {number} status @param {unknown} value @returns {HttpResponse} */
 export const json = (status, value) =>
   harden({

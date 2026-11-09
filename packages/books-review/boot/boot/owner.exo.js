@@ -29,6 +29,7 @@ export const makeOwnerShapes = M => {
     setModel: M.call(M.string(), M.string())
       .optional(M.string())
       .returns(M.promise()),
+    timeline: M.call().returns(M.any()),
   });
   const ModelI = M.interface('Model', {
     get: M.call().returns(M.record()),
@@ -46,8 +47,9 @@ export const makeOwnerShapes = M => {
 
 /**
  * The owner, a durable kind of kit, made once: `owner` loads book
- * snapshots, each a review, lists the reviews with their keys, and sets up
- * the model; `model` answers the model, once set up, for the review pages.
+ * snapshots, each a review, lists the reviews with their keys, sets up the
+ * model, and links to the timeline page; `model` answers the model, once
+ * set up, for the review pages.
  *
  * The model is reached through a WebApp of the WebApp vat's, whose egress
  * is the LAN device, narrowed to the model's API URL, and sending the API
@@ -61,9 +63,13 @@ export const makeOwnerShapes = M => {
  * @param {Powers['M']} powers.M
  * @param {() => Promise<Listed[]>} powers.reviews
  * @param {(listing: string, dir: string) => Promise<Listed>} powers.load
+ * @param {() => Promise<{ key: string, count: number }>} powers.timeline
  * @param {() => Promise<Remote<WebApps>>} powers.webApps the WebApp vat's root
  */
-export const prepareOwner = (zone, { E, M, reviews, load, webApps }) => {
+export const prepareOwner = (
+  zone,
+  { E, M, reviews, load, timeline, webApps },
+) => {
   const { OwnerI, ModelI } = makeOwnerShapes(M);
   const makeOwner = zone.exoClassKit(
     'Owner',
@@ -116,6 +122,10 @@ export const prepareOwner = (zone, { E, M, reviews, load, webApps }) => {
           this.state.model = harden({ url, name, webApp });
           if (apiKey !== undefined)
             put(headers, 'authorization', `Bearer ${apiKey}`);
+        },
+        /** The timeline page's key, and how many visits it has uploaded. */
+        timeline() {
+          return timeline();
         },
       },
       model: {

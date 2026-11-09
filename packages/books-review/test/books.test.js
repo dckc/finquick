@@ -1,7 +1,8 @@
 /**
  * @file The books vats on a toybox: a books vat loads a dump once; the boot
  * directory makes a books, reviewer, and categorizer per snapshot and serves
- * pages on the app socket; and the categorizer asks a model for proposals.
+ * pages on the app socket; the categorizer asks a model for proposals; and
+ * the timeline page uploads visits to the whereabouts vat.
  */
 import { execFile, spawn } from 'node:child_process';
 import { createServer as createHttpServer } from 'node:http';
@@ -555,4 +556,69 @@ test('visits are checked, kept in time order, and found by the days before a pos
     () => checkVisits([{ ...VISITS[0], startTime: 'noon' }]),
     /isn't one/,
   );
+});
+
+test('the timeline page uploads visits to the whereabouts vat, with a key that opens nothing else', async () => {
+  const owner = apiWith((await E(await bootRoot()).ownerLink()).slice(1));
+  for (const path of [
+    '/timeline/',
+    '/timeline/app.js',
+    '/timeline/sw.js',
+    '/timeline/manifest.webmanifest',
+    '/timeline/icon.svg',
+  ]) {
+    const resp = await fetch(`http://127.0.0.1:${box.appPort}${path}`);
+    assert.equal(resp.status, 200, path);
+  }
+  const manifest = await (
+    await fetch(`http://127.0.0.1:${box.appPort}/timeline/manifest.webmanifest`)
+  ).json();
+  assert.equal(manifest.scope, '/timeline/');
+  const bare = await fetch(`http://127.0.0.1:${box.appPort}/timeline`, {
+    redirect: 'manual',
+  });
+  assert.equal(bare.headers.get('location'), '/timeline/');
+
+  const { key, count } = await owner('timeline');
+  assert.equal(count, 0);
+  const phone = apiWith(key);
+  assert.deepEqual(await phone('put', VISITS), {
+    count: 3,
+    first: '2026-05-09T12:24:00.000-05:00',
+    last: '2026-05-14T10:19:00.000-05:00',
+  });
+  assert.equal((await owner('timeline')).count, 3);
+  // the whereabouts vat's interface guard: these fields, no more, no fewer
+  await assert.rejects(
+    phone('put', [{ ...VISITS[0], raw: [] }]),
+    /Must not have unexpected properties: \["raw"\]/,
+  );
+  const { latLng: _, ...noWhere } = VISITS[0];
+  await assert.rejects(
+    phone('put', [noWhere]),
+    /Must have missing properties \["latLng"\]/,
+  );
+  assert.equal(
+    (await phone('summary')).count,
+    3,
+    'a refused upload keeps what was there',
+  );
+  await assert.rejects(phone('reviews'), /reviews/);
+  // the phone uploads; it can't ask where you were
+  await assert.rejects(phone('around', '2026-05-10'), /around/);
+
+  // TODO(storage) in whereabouts.js: a restart forgets them
+  k.close();
+  await box.server.stop();
+  box = await startToybox(dir, {
+    config: 'test/config-local.capnp',
+    boot: join(dir, 'bootdir'),
+  });
+  k = await connectKernel(new WebSocket(`ws+unix:${box.sock}:/kernel/main`));
+  await bootRoot();
+  assert.deepEqual(await phone('summary'), {
+    count: 0,
+    first: null,
+    last: null,
+  });
 });

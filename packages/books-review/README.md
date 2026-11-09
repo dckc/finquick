@@ -29,6 +29,20 @@ That runs the books as a systemd user service, `books-review`, reading snapshots
 
 `systemctl --user stop books-review` stops it; its state stays in `~/.local/state/books-review`.
 
+## Where you were, from your phone
+
+Some purchases only make sense once you know where you were: whose errand it was, or whether that "market" was a restaurant. The boot page links to a timeline page to open on your phone, and install as an app if you like:
+
+1. Let your phone reach the app socket over HTTPS, which installing needs. On a [tailnet](https://tailscale.com/kb/1312/serve), for example:
+   ```sh
+   tailscale serve --bg --https=8443 http://127.0.0.1:2578
+   ```
+   Then open the boot page at `https://HOST.TAILNET.ts.net:8443/` with its key, and send the Timeline link from there to your phone.
+2. On the phone, export your timeline (Settings → Location → Timeline → Export timeline data).
+3. On the timeline page, pick a start date and the export (from Downloads, say), and send.
+
+The phone reads the export itself and sends only when, which place, and where for each visit since that date, none at home or work. The visits are kept until the service restarts; send them again after that. They aren't shown beside the splits yet.
+
 ## Who can do what
 
 Each snapshot gets three vats, and each holds only its part:
@@ -37,6 +51,6 @@ Each snapshot gets three vats, and each holds only its part:
 - **reviewer** holds proposals and your verdicts. Only it holds the mover.
 - **categorizer** is the AI's: it reads the book, and proposes through the reviewer's proposal box. It reaches the model only through a WebApp narrowed to the model's URL, handed to it for each run.
 
-A **lessons** vat keeps your verdicts across snapshots, so what you taught about a description carries over to the next one.
+A **lessons** vat keeps your verdicts across snapshots, so what you taught about a description carries over to the next one. A **whereabouts** vat keeps the visits your phone sends: when, which place, and where, nothing more.
 
 Design, layout, and tests: [CONTRIBUTING.md](CONTRIBUTING.md).

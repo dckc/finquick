@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- The timeline page: an app to install on a phone, which uploads visits from its Google Maps Timeline export. -->
+<title>Timeline</title><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<link rel="stylesheet" href="/style.css" />
+<link rel="manifest" href="/timeline/manifest.webmanifest" />
+<link rel="icon" href="/timeline/icon.svg" />
+<meta name="theme-color" content="#4a7bd0" />
+<style>
+  body {
+    max-width: 40rem;
+  }
+  .note {
+    color: #555;
+    font-size: 0.9em;
+  }
+  td {
+    font-size: 0.8em;
+    word-break: break-all;
+  }
+  #send {
+    font-size: 1.1em;
+    padding: 0.5em 1.2em;
+  }
+  #result.ok {
+    color: #2a7a3a;
+  }
+  #result.failed {
+    color: #c33;
+  }
+</style>
+<h1>Timeline</h1>
+<p id="status" role="status"></p>
+<p id="stored"></p>
+<p>
+  <label>Visits since <input id="since" type="date" /></label>
+</p>
+<p>
+  <label
+    >Timeline export
+    <input id="file" type="file" accept=".json,application/json"
+  /></label>
+</p>
+<p class="note">
+  Export it from Settings → Location → Timeline on your phone. It's read here;
+  for each visit since that date, only when, which place, and where are sent,
+  and none at home or work.
+</p>
+<table id="preview" hidden>
+  <thead>
+    <tr>
+      <th>startTime</th>
+      <th>placeId</th>
+      <th>latLng</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<p><button id="send" disabled>Send</button></p>
+<p id="result" role="status"></p>
+<script src="/prelude.js"></script>
+<script src="/timeline/app.js"></script>

@@ -1,0 +1,109 @@
+'use strict';
+/**
+ * The timeline page. It reads the export on the phone and sends the
+ * whereabouts vat only `{ startTime, placeId, latLng }` for each visit since
+ * the date picked, none at home or work; the raw tracks never leave the phone.
+ */
+const api = apiWith(keyFor('books:timeline'));
+/** Places the export names for you: no purchase there needs explaining. */
+const SKIP = ['HOME', 'INFERRED_WORK', 'ALIASED_LOCATION'];
+/** Visits since start, as the whereabouts vat takes them: when, which place, where. */
+const visitsOf = (data, start) => {
+  const from = Date.parse(start + 'T00:00');
+  return (data.semanticSegments || [])
+    .map(s => [s.startTime, s.visit && s.visit.topCandidate])
+    .filter(
+      ([time, top]) =>
+        top &&
+        top.placeId &&
+        !SKIP.includes(top.semanticType) &&
+        Date.parse(time) >= from,
+    )
+    .map(([startTime, top]) => ({
+      startTime,
+      placeId: top.placeId,
+      latLng: (top.placeLocation || {}).latLng || '',
+    }));
+};
+const since = $('since');
+since.value =
+  localStorage.getItem('books:timeline:since') ||
+  new Date().getFullYear() + '-01-01';
+let exported = null;
+let picked = [];
+const pick = () => {
+  if (!exported) return;
+  picked = visitsOf(exported, since.value);
+  say(
+    picked.length + ' visits since ' + since.value + ' to send; the last few:',
+  );
+  $('preview')
+    .querySelector('tbody')
+    .replaceChildren(
+      ...picked.slice(-5).map(v => {
+        const tr = el('tr');
+        tr.append(
+          el('td', v.startTime),
+          el('td', v.placeId),
+          el('td', v.latLng),
+        );
+        return tr;
+      }),
+    );
+  $('preview').hidden = !picked.length;
+  $('send').disabled = !picked.length;
+  $('send').textContent = 'Send ' + picked.length + ' visits';
+  result('', '');
+};
+const stored = s =>
+  s.count
+    ? s.count +
+      ' visits stored, ' +
+      s.first.slice(0, 10) +
+      ' to ' +
+      s.last.slice(0, 10)
+    : 'No visits stored yet';
+const show = s => ($('stored').textContent = stored(s) + '.');
+/** What became of a send, by the button: it's where you're looking. */
+const result = (kind, text) => {
+  $('result').className = kind;
+  $('result').textContent = text;
+};
+$('file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  say('reading ' + file.name + '…');
+  try {
+    exported = JSON.parse(await file.text());
+    pick();
+  } catch (err) {
+    fail(err);
+  }
+});
+since.addEventListener('change', () => {
+  localStorage.setItem('books:timeline:since', since.value);
+  pick();
+});
+$('send').addEventListener('click', async () => {
+  const label = $('send').textContent;
+  $('send').disabled = true;
+  $('send').textContent = 'Sending…';
+  result('', '');
+  try {
+    const s = await api('put', picked);
+    show(s);
+    result(
+      'ok',
+      '✓ ' + stored(s) + ', at ' + new Date().toLocaleTimeString() + '.',
+    );
+  } catch (err) {
+    console.error(err);
+    result('failed', '✗ Not stored: ' + err.message);
+  } finally {
+    $('send').textContent = label;
+    $('send').disabled = !picked.length;
+  }
+});
+api('summary').then(show, fail);
+if ('serviceWorker' in navigator)
+  navigator.serviceWorker.register('/timeline/sw.js').catch(fail);

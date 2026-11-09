@@ -1,5 +1,5 @@
 'use strict';
-/** The boot page: load a snapshot, and set up the model. */
+/** The boot page: load a snapshot, set up the model, find the timeline page. */
 const api = apiWith(keyFor('books:key'));
 const show = async () => {
   const reviews = await api('reviews');
@@ -16,6 +16,16 @@ const show = async () => {
   const model = await api('model');
   $('model').url.value = model.url ?? '';
   $('model').name.value = model.name ?? '';
+  const timeline = await api('timeline');
+  $('timeline').href = '/timeline/#' + timeline.key;
+  $('visits').textContent = timeline.count
+    ? timeline.count +
+      ' visits, ' +
+      timeline.first.slice(0, 10) +
+      ' to ' +
+      timeline.last.slice(0, 10) +
+      '.'
+    : 'No visits yet.';
 };
 $('load').addEventListener('submit', async e => {
   e.preventDefault();

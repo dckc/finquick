@@ -24,6 +24,7 @@ import { prepareWeb } from './web.exo.js';
  * @property {typeof import('../categorizer.js').buildRootObject} categorizer
  * @property {typeof import('../lessons.js').buildRootObject} lessons
  * @property {(powers: Powers, params: { egress: Remote<FetchDevice> }) => WebApps} webApps the toybox's, which types its root only as `object`
+ * @property {typeof import('../whereabouts.js').buildRootObject} whereabouts
  */
 
 /** Each vat's code, by role: a file in the boot directory, and what it builds. */
@@ -34,10 +35,11 @@ const CODE = /** @type {{ [R in keyof Builders]: Code<Builders[R]> }} */ (
     categorizer: 'categorizer.js',
     lessons: 'lessons.js',
     webApps: 'webapp.js',
+    whereabouts: 'whereabouts.js',
   })
 );
 
-/** @typedef {'lessons' | 'webApps'} SharedRole */
+/** @typedef {'lessons' | 'whereabouts' | 'webApps'} SharedRole */
 /** @typedef {{ [R in SharedRole]: Kept<RootOf<(typeof CODE)[R]>> | null }} SharedVats `null` until first asked for */
 /** @typedef {Partial<{ [R in 'books' | 'reviewer' | 'categorizer']: Kept<RootOf<(typeof CODE)[R]>> }>} KeptReview one review's vats, filled in as they're made */
 /** @template {keyof typeof CODE} R @typedef {ParamsOf<(typeof CODE)[R]>} ParamsFor */
@@ -73,7 +75,8 @@ const CODE = /** @type {{ [R in keyof Builders]: Code<Builders[R]> }} */ (
  *
  * The reviews share one lessons vat, so what a reviewer teaches carries
  * over to the next snapshot, and one WebApp maker, through which the agent
- * is reached, and which reaches only the LAN.
+ * is reached, and which reaches only the LAN. The whereabouts vat is kept
+ * here too, though no review reaches it yet.
  *
  * It holds what can upgrade or restart a vat, the upgrader and each vat's
  * admin node, and hands out only roots. A shared vat is made the first
@@ -119,6 +122,7 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
     'ReviewVats',
     M.interface('ReviewVats', {
       lessons: M.call().returns(M.promise()),
+      whereabouts: M.call().returns(M.promise()),
       webApps: M.call().returns(M.promise()),
       createBooks: M.call(M.string(), M.record()).returns(M.promise()),
       createReviewer: M.call(M.string(), M.record()).returns(M.promise()),
@@ -129,12 +133,16 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
     /** @returns {SharedVats & { reviews: MapStore<TreeId, KeptReview> }} */
     () => ({
       lessons: null,
+      whereabouts: null,
       webApps: null,
       reviews: zone.detached().mapStore('review vats'),
     }),
     {
       lessons() {
         return provideShared(this.state, 'lessons');
+      },
+      whereabouts() {
+        return provideShared(this.state, 'whereabouts');
       },
       webApps() {
         return provideShared(this.state, 'webApps');
@@ -176,6 +184,11 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
         const { state } = this;
         if (state.lessons)
           state.lessons = await upgrader.upgrade('lessons', state.lessons);
+        if (state.whereabouts)
+          state.whereabouts = await upgrader.upgrade(
+            'whereabouts',
+            state.whereabouts,
+          );
         if (state.webApps)
           state.webApps = await upgrader.upgrade('webApps', state.webApps);
         for (const [tree, kept] of state.reviews.entries())
@@ -201,9 +214,11 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
  *   the tests, see each review's vats);
  * - the owner, by the boot key: load a snapshot of the book, set up the
  *   agent (its chat API's URL, the model's name there, and the key), and
- *   get each review's key; not read the API key back;
+ *   get each review's key and the timeline key; not read the API key back;
  * - a reviewer, by one review's key: read its proposals, decide them, and
- *   ask the agent for more; not propose, nor reach another review.
+ *   ask the agent for more; not propose, nor reach another review;
+ * - a phone, by the timeline key: upload visits, and count them; not ask
+ *   where you were.
  *
  * @see prepareReviewPage for what a review is
  * @see prepareReviewVats for the vats a review is made of
@@ -221,16 +236,22 @@ export const buildRootObject = (
   /** @type {{ [R in SharedRole]: ParamsFor<R> }} */
   const SHARED = harden({
     lessons: {},
+    whereabouts: {},
     webApps: { egress: lan },
   });
   const makeVats = prepareReviewVats(zone, { M, upgrader, shared: SHARED });
   const vats = zone.makeOnce('vats', () => makeVats());
+  const whereabouts = () => vats.whereabouts();
 
   const makeOwner = prepareOwner(zone, {
     E,
     M,
     reviews: () => Promise.all(reviews.values().map(listed)),
     load: async (listing, dir) => listed(await provideReview(listing, dir)),
+    timeline: async () => ({
+      key: await registry.register(await E(await whereabouts()).getUploader()),
+      ...(await E(await whereabouts()).summary()),
+    }),
     webApps: () => vats.webApps(),
   });
   const { owner, model } = zone.makeOnce('owner', () => makeOwner());
@@ -316,6 +337,7 @@ export const buildRootObject = (
     /** On each start of the kernel: the vats upgraded to the code in the boot directory. */
     async start() {
       await vats.lessons();
+      await vats.whereabouts();
       await vats.upgrade();
     },
     /** Each review: its tree, its dump's directory, and its vats. */
