@@ -5,9 +5,12 @@
 
   "typescript.preferences.importModuleSpecifierEnding": "js",
 
+  // A bundle's browser scripts (packages/books-review/boot/boot/site/)
+  "files.associations": { "*.js.txt": "javascript" },
+
   // ESLint config
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   "eslint.rules.customizations": [
     // Leave this to Prettier itself
@@ -16,7 +19,7 @@
     { "rule": "no-unused-vars", "severity": "warn" },
     // Imports are auto-fixed on save
     { "rule": "import/newline-after-import", "severity": "off" },
-    { "rule": "import/order", "severity": "off" },
+    { "rule": "import/order", "severity": "off" }
   ],
   "eslint.useESLintClass": true,
   "eslint.packageManager": "yarn"
