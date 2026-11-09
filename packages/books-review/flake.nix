@@ -17,10 +17,14 @@
       pkgs = nixpkgs.legacyPackages.${system};
       toybox = vattr97.packages.${system}.toybox;
 
-      # the boot directory: this package's vats, as copies (a boot
-      # directory refuses symlinks), as scripts/boot-dir.js assembles it
+      # the boot directory: this package's vats, and the toybox vats they
+      # use, vendored from the vattr97 input as copies (a boot directory
+      # refuses symlinks); scripts/boot-dir.js does the same from
+      # node_modules
       boot = pkgs.runCommand "books-review-boot" { } ''
         cp -r ${./boot} $out
+        chmod -R u+w $out
+        cp ${vattr97}/packages/toybox/examples/webapp.js $out/webapp.js
       '';
 
       # toybox-serve on the books' boot directory; the caller hands in the
@@ -41,7 +45,7 @@
         # the kernel boots from boot/, and finds every vat it makes beside it
         boot =
           pkgs.runCommand "books-review-boot-check" { } ''
-            for f in boot/boot.js boot/worker.json books.js; do
+            for f in boot/boot.js boot/worker.json books.js reviewer.js categorizer.js webapp.js; do
               test -f ${boot}/$f || { echo "no $f in the boot directory" >&2; exit 1; }
             done
             touch $out

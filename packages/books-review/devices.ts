@@ -1,6 +1,7 @@
 /**
  * @file What the boot vat calls of the toybox: its devices, typed after
- * their interface guards (src/devices/), which don't export types.
+ * their interface guards (src/devices/), and its WebApp vat
+ * (examples/webapp.js), none of which export types.
  *
  * TODO(toybox types): import these from the toybox instead, once it
  * exports them, inferred from the guards that check the calls
@@ -17,7 +18,12 @@
  * `@ts-expect-error` would fail.
  */
 import type {
+  FetchAnswer,
+  FetchInit,
+} from '@vattr/toybox/src/devices/types.ts';
+import type {
   BuildRootObject,
+  ReadonlyMapStore,
   HttpRequest,
   HttpResponse,
   Remote,
@@ -99,4 +105,27 @@ export type HttpHandler = {
 /** An app socket: whoever serves a handler there answers its requests. */
 export type Ingress = {
   serve(handler: Remote<HttpHandler>): void;
+};
+
+/** A fetch device: whoever holds it can fetch anything its network reaches. */
+export type FetchDevice = {
+  fetch(url: string, init?: FetchInit): Promise<FetchAnswer>;
+};
+
+/** A web site, narrowed to a URL, with the headers each send carries. */
+export type WebApp = {
+  /** Narrowed to a path within this one. */
+  pathjoin(ref: string): WebApp;
+  query(params: Record<string, string | number>): WebApp;
+  withHeaders(more: Record<string, string>): WebApp;
+  /** Also each entry of `map`, as of each send. */
+  withHeaderMap(map: Remote<ReadonlyMapStore<string, string>>): WebApp;
+  /** The response's body; throws unless its status is OK. */
+  get(): Promise<string>;
+  post(body: string): Promise<string>;
+};
+
+/** The WebApp vat's root: it makes WebApps whose egress is its own. */
+export type WebApps = {
+  makeWebApp(url: string, headers?: Record<string, string>): WebApp;
 };

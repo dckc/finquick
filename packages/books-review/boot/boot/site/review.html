@@ -3,6 +3,10 @@
 <link rel="stylesheet" href="/style.css" />
 <h1>Review</h1>
 <p id="status" role="status"></p>
+<p>
+  <button id="ask">Ask the model</button> for up to
+  <input id="limit" type="number" value="10" min="1" size="4" /> proposals
+</p>
 <table>
   <thead>
     <tr>
@@ -10,9 +14,10 @@
       <th>Description</th>
       <th>From</th>
       <th>Amount</th>
+      <th>Proposed account</th>
     </tr>
   </thead>
-  <tbody id="uncategorized"></tbody>
+  <tbody id="pending"></tbody>
 </table>
 <script src="/prelude.js"></script>
 <script src="/review.js"></script>

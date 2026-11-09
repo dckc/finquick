@@ -21,5 +21,20 @@
 </form>
 <h2>Reviews</h2>
 <ul id="books"></ul>
+<h2>Model</h2>
+<form id="model">
+  <p>
+    <label
+      >API base URL
+      <input name="url" size="40" placeholder="http://host:port/v1/"
+    /></label>
+    <label>model <input name="name" size="20" /></label>
+    <label
+      >API key
+      <input name="key" type="password" size="20" placeholder="(unchanged)"
+    /></label>
+    <button>Save</button>
+  </p>
+</form>
 <script src="/prelude.js"></script>
 <script src="/boot.js"></script>

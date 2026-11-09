@@ -227,8 +227,8 @@ export const buildRootObject = (
     'SELECT account_guid FROM splits WHERE tx_guid = ? AND guid != ?',
   );
   /**
-   * A split as the view describes it. `against` is where the money came
-   * from or went: the transaction's other accounts, by name and
+   * A split as a reviewer or categorizer sees it. `against` is where the
+   * money came from or went: the transaction's other accounts, by name and
    * GnuCash type (`BANK`, `CREDIT`, ...).
    *
    * @param {Map<string, AccountRow>} byGuid

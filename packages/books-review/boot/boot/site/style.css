@@ -29,3 +29,26 @@ td.amount {
 td.date {
   white-space: nowrap;
 }
+.why {
+  font-size: 0.85em;
+  color: #555;
+  margin-top: 0.2rem;
+}
+.bar {
+  height: 4px;
+  margin-top: 2px;
+  background: #eee;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+}
+.bar.model > span {
+  background: #4a7bd0;
+}
+.bar.precedent > span {
+  background: #3a9a5a;
+}
+.bar.against > span {
+  background: #c33;
+}

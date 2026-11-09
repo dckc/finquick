@@ -10,20 +10,16 @@ const { freeze } = Object;
 const HELP = `usage: scripts/boot-dir.js DEST
 
 Fills DEST (replacing what's there) with the boot directory a toybox runs
-the books from: this package's boot/, and, vendored beside it, any toybox
-vats it makes, from the toybox this package depends on.
+the books from: this package's boot/, and, vendored beside it, the toybox
+vats it makes (the WebApp maker, examples/webapp.js), from the toybox this
+package depends on.
 `;
 
 /** This package's directory. */
 export const here = new URL('..', import.meta.url).pathname;
 
-/**
- * The toybox vats the books use, by their names in the boot directory:
- * none yet.
- *
- * @type {Readonly<Record<string, string>>}
- */
-export const VENDORED = freeze({});
+/** The toybox vats the books use, by their names in the boot directory. */
+export const VENDORED = freeze({ 'webapp.js': 'examples/webapp.js' });
 
 /**
  * @param {object} io

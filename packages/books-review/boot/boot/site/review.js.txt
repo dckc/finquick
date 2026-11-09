@@ -1,33 +1,104 @@
 'use strict';
-/** A book's review page: its uncategorized splits. */
+/** A book's review page: ask the model for proposals, and see each, with how far to trust it. */
 const tree = new URLSearchParams(location.search).get('tree');
 const api = apiWith(keyFor('books:review:' + tree));
 const show = async () => {
-  const [splits, summary] = await Promise.all([
-    api('uncategorized'),
+  const [pending, summary] = await Promise.all([
+    api('pending'),
     api('summary'),
   ]);
-  const { count, first, last } = summary;
+  const { count, first, last } = summary.uncategorized;
   say(
-    count +
+    pending.length +
+      ' proposals to review; ' +
+      count +
       ' splits uncategorized' +
       (count ? ', ' + first + ' to ' + last : ''),
   );
-  $('uncategorized').replaceChildren(
-    ...splits.map(s => {
+  /** How much to trust a proposal: the model's say-so and the book's precedents, averaged; unknown counts as a half. */
+  const share = p =>
+    p.support && p.support.of ? p.support.count / p.support.of : 0.5;
+  const score = p => ((p.confidence ?? 0.5) + share(p)) / 2;
+  /** A thin bar, filled to fraction, with a tooltip. */
+  const bar = (kind, fraction, title) => {
+    const b = el('div');
+    b.className = 'bar ' + kind;
+    b.title = title;
+    const fill = el('span');
+    fill.style.width = Math.round(fraction * 100) + '%';
+    b.append(fill);
+    return b;
+  };
+  // most trusted first
+  pending.sort((a, b) => score(b) - score(a));
+  $('pending').replaceChildren(
+    ...pending.map(p => {
       const tr = el('tr');
-      const amount = el('td', s.amount.toFixed(2));
+      const amount = el('td', p.amount.toFixed(2));
       amount.className = 'amount';
-      const date = el('td', s.date);
+      // the proposer's reason sits under the account
+      const pick = el('td');
+      pick.className = 'pick';
+      const why = el('div', p.reason);
+      why.className = 'why';
+      pick.append(p.account, why);
+      if (p.confidence !== undefined)
+        pick.append(
+          bar(
+            'model',
+            p.confidence,
+            'the model says ' + Math.round(p.confidence * 100) + '% sure',
+          ),
+        );
+      if (p.support && p.support.of) {
+        const { count, of } = p.support;
+        // the book's precedents went elsewhere: a red sliver
+        pick.append(
+          count
+            ? bar(
+                'precedent',
+                count / of,
+                count + ' of ' + of + ' with this description went here',
+              )
+            : bar(
+                'against',
+                0.15,
+                'none of ' + of + ' with this description went here',
+              ),
+        );
+      }
+      const date = el('td', p.date);
       date.className = 'date';
       tr.append(
         date,
-        el('td', s.description),
-        el('td', s.against.map(a => a.name).join(', ')),
+        el('td', p.description),
+        el('td', p.against.map(a => a.name).join(', ')),
         amount,
+        pick,
       );
       return tr;
     }),
   );
 };
+$('ask').addEventListener('click', async () => {
+  say('asking the model…');
+  try {
+    const { proposed, refused } = await api(
+      'categorize',
+      Number($('limit').value),
+    );
+    await show();
+    // each refusal says why: the model named no such split or account, say
+    for (const r of refused) console.warn('refused', r);
+    say(
+      proposed.length +
+        ' proposed, ' +
+        refused.length +
+        ' refused' +
+        (refused.length ? ': ' + refused.map(r => r.error).join('; ') : ''),
+    );
+  } catch (err) {
+    fail(err);
+  }
+});
 show().catch(fail);
