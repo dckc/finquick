@@ -1,0 +1,39 @@
+{
+  "name": "@finquick/books-review",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "an AI proposes where a GnuCash book's uncategorized splits go, and a person reviews: vats on a toybox kernel",
+  "scripts": {
+    "test": "node --import ./test/lockdown.js --test test/*.test.js",
+    "typecheck": "tsc -p . --noEmit",
+    "service": "scripts/service.sh",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@endo/far": "^1.1.14",
+    "@endo/init": "^1.1.13",
+    "@vattr/toybox": "git+https://github.com/dckc/vattr97.git#workspace=@vattr/toybox&commit=217296eb69758c4418a317c8b1d65bd4463ac1b6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261006.1",
+    "@types/node": "22",
+    "@types/ws": "8",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.0"
+  },
+  "prettier": {
+    "trailingComma": "all",
+    "arrowParens": "avoid",
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.js.txt",
+        "options": {
+          "parser": "babel"
+        }
+      }
+    ]
+  },
+  "packageManager": "yarn@4.18.1"
+}
