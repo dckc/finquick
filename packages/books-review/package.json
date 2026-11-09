@@ -8,6 +8,7 @@
     "test": "node --import ./test/lockdown.js --test test/*.test.js",
     "typecheck": "tsc -p . --noEmit",
     "service": "scripts/service.sh",
+    "apply": "node scripts/apply-changelog.js",
     "format": "prettier --write ."
   },
   "dependencies": {

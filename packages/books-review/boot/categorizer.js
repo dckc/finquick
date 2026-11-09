@@ -1,6 +1,8 @@
 /**
  * What an AI holds to categorize a book: it reads the book through a view,
- * and proposes through a reviewer's proposal box, and that's all.
+ * reads the lessons reviewers taught (across books), and proposes through a
+ * reviewer's proposal box. It can't move a split, decide a proposal, or
+ * record a lesson.
  *
  * `categorize(limit, model, name)` asks a model, through the WebApp it's
  * handed for that call, to propose accounts for up to `limit` splits.
@@ -9,18 +11,20 @@
  * @import { BuildRootObject, Remote } from '@vattr/toybox/src/types.ts';
  * @import { WebApp } from '../devices.ts';
  * @import { View } from './books.js';
+ * @import { Reader } from './lessons.js';
  * @import { ProposalBox } from './reviewer.js';
  * @import { Account, Guid, Todo } from '../types.ts';
  */
 
-/** How many precedents come with each uncategorized split. */
+/** How many precedents and lessons come with each uncategorized split. */
 const CONTEXT = 5;
 
 const SYSTEM = `You categorize transactions in a GnuCash book. For each split
 you are given, call propose once with the split's id, the full name of the
 income or expense account it belongs in (from the accounts listed), a
 short reason, and how confident you are, from 0 to 1. Precedents say where transactions with the same description
-went before. Skip a split if you have no good guess.`;
+went before; lessons say what a person decided about such proposals. Skip a
+split if you have no good guess.`;
 
 /** The propose tool, as an OpenAI-style chat completions API takes it. */
 const PROPOSE = harden({
@@ -71,7 +75,7 @@ export const toolCalls = completion =>
 
 /**
  * What the model sees of the work: the accounts, and each split with its
- * precedents, without guids it doesn't need.
+ * precedents and lessons, without guids it doesn't need.
  *
  * @param {Account[]} categories
  * @param {Todo[]} todo
@@ -86,6 +90,12 @@ export const prompt = (categories, todo) =>
       amount: t.amount,
       from: t.against.map(a => `${a.name} (${a.type})`),
       precedents: t.precedents,
+      lessons: t.lessons.map(l => ({
+        proposed: l.proposed,
+        final: l.final,
+        status: l.status,
+        ...(l.note ? { why: l.note } : {}),
+      })),
     })),
   });
 
@@ -93,26 +103,30 @@ export const prompt = (categories, todo) =>
  * @typedef {object} Params
  * @property {Remote<View>} view the book's
  * @property {Remote<ProposalBox>} box the reviewer's proposal box
+ * @property {Remote<Reader>} lessons the lessons' reader
  */
 
 /** @satisfies {BuildRootObject<Params>} */
-export const buildRootObject = ({ E, Far }, { view, box }) => {
+export const buildRootObject = ({ E, Far }, { view, box, lessons }) => {
   const categories = async () =>
     (await E(view).accounts()).filter(a => a.category);
 
   /**
-   * The first `limit` uncategorized splits no proposal awaits, with their
-   * context.
+   * The first `limit` uncategorized splits no proposal awaits and none was
+   * rejected for in this book, with their context. A rejected split waits
+   * for a person: it isn't proposed again until someone categorizes it or
+   * takes it up in a later snapshot, where its lesson comes along.
    *
    * @param {number} [limit]
    * @returns {Promise<Todo[]>}
    */
   const uncategorized = async (limit = Infinity) => {
-    const [splits, proposed] = await Promise.all([
+    const [splits, proposed, rejected] = await Promise.all([
       E(view).uncategorized(),
       E(box).proposed(),
+      E(box).rejected(),
     ]);
-    const skip = new Set(proposed);
+    const skip = new Set([...proposed, ...rejected]);
     return harden(
       await Promise.all(
         // context only for those asked for: precedents cost a query each
@@ -120,8 +134,15 @@ export const buildRootObject = ({ E, Far }, { view, box }) => {
           .filter(s => !skip.has(s.split))
           .slice(0, limit)
           .map(async s => {
-            const precedents = await E(view).precedents(s.description);
-            return { ...s, precedents: precedents.slice(0, CONTEXT) };
+            const [precedents, taught] = await Promise.all([
+              E(view).precedents(s.description),
+              E(lessons).lessons(s.description),
+            ]);
+            return {
+              ...s,
+              precedents: precedents.slice(0, CONTEXT),
+              lessons: taught.slice(0, CONTEXT),
+            };
           }),
       ),
     );
@@ -135,9 +156,10 @@ export const buildRootObject = ({ E, Far }, { view, box }) => {
       );
     },
     /**
-     * The uncategorized splits no proposal awaits review for, oldest first,
-     * each with context: `precedents`, where splits with the same
-     * description went before in this book.
+     * The uncategorized splits no proposal awaits review for, and none was
+     * rejected for, oldest first, each with context: `precedents`, where
+     * splits with the same description went before in this book, and
+     * `lessons`, what reviewers decided about that description.
      *
      * @param {number} [limit]
      */
@@ -152,6 +174,8 @@ export const buildRootObject = ({ E, Far }, { view, box }) => {
       ),
     /** @param {string} description */
     precedents: description => E(view).precedents(description),
+    /** What reviewers decided, newest first; about `description` only, if given. @param {string} [description] */
+    history: description => E(lessons).lessons(description),
     /**
      * Ask the model behind `model`, an OpenAI-style API's WebApp (its
      * `/v1/`), to propose accounts for up to `limit` of the splits no

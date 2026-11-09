@@ -29,6 +29,11 @@ td.amount {
 td.date {
   white-space: nowrap;
 }
+td.pick select,
+td.verdict input {
+  width: 100%;
+  box-sizing: border-box;
+}
 .why {
   font-size: 0.85em;
   color: #555;
@@ -51,4 +56,7 @@ td.date {
 }
 .bar.against > span {
   background: #c33;
+}
+td.verdict button {
+  margin-top: 0.2rem;
 }

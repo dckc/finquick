@@ -12,10 +12,10 @@
  * interface guards (`ReviewPage`), aren't `any`: a test/types.ts that
  * `yarn typecheck` checks, with a `// @ts-expect-error` on each misuse it
  * should refuse, such as `E(entropy).swis()`, a string from `swiss()` taken
- * as a number, and `getTree(3, listing)`; and, for types.ts's ids, a tree
- * id where a webkey or guid goes, a bare string as a webkey, and `'May 9'`
- * as an `IsoDate`. Were one `any`, its line would compile, and its
- * `@ts-expect-error` would fail.
+ * as a number, `getTree(3, listing)`, and `review(n, 'maybe')`; and, for
+ * types.ts's ids, a tree id where a webkey or guid goes, a bare string as a
+ * webkey, and `'May 9'` as an `IsoDate`. Were one `any`, its line would
+ * compile, and its `@ts-expect-error` would fail.
  */
 import type {
   FetchAnswer,

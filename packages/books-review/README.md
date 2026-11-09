@@ -1,6 +1,6 @@
 # books-review
 
-An AI proposes where a GnuCash book's uncategorized transactions go, and a review page shows each proposal, with how far to trust it. The AI can read the book and propose, nothing more.
+An AI proposes where a GnuCash book's uncategorized transactions go, and you review each proposal before anything moves. The AI can read the book and propose, nothing more; only your verdicts move a split, and every move goes in a changelog you replay on the real book when you're ready.
 
 ## Getting started
 
@@ -21,7 +21,11 @@ That runs the books as a systemd user service, `books-review`, reading snapshots
    ```
    The files are read from the worktree and must match what's listed, so list a commit whose dump you haven't edited since.
 2. Set up the model: an OpenAI-style API's base URL (its `/v1/`), the model's name, and its key.
-3. Open the book's review page, and ask the model for proposals. Each shows the model's reason, how sure it says it is, and how often the book's precedents agree.
+3. Open the book's review page, ask the model for proposals, and accept, correct, or reject each, saying why if you like. Your reasons go into the lessons, which the model sees next time.
+4. Download the changelog, close GnuCash, and replay it on the book:
+   ```sh
+   yarn apply BOOK.gnucash changelog.json
+   ```
 
 `systemctl --user stop books-review` stops it; its state stays in `~/.local/state/books-review`.
 
@@ -29,8 +33,10 @@ That runs the books as a systemd user service, `books-review`, reading snapshots
 
 Each snapshot gets three vats, and each holds only its part:
 
-- **books** loads the snapshot, all of it or none, and hands out a view of the book.
-- **reviewer** holds the proposals.
+- **books** loads the snapshot, all of it or none, and hands out a view of the book and a mover. The mover can move a split only out of an Imbalance account (by account code, `9001`) and only into an income or expense account, and logs each move.
+- **reviewer** holds proposals and your verdicts. Only it holds the mover.
 - **categorizer** is the AI's: it reads the book, and proposes through the reviewer's proposal box. It reaches the model only through a WebApp narrowed to the model's URL, handed to it for each run.
+
+A **lessons** vat keeps your verdicts across snapshots, so what you taught about a description carries over to the next one.
 
 Design, layout, and tests: [CONTRIBUTING.md](CONTRIBUTING.md).

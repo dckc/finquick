@@ -22,6 +22,7 @@ import { prepareWeb } from './web.exo.js';
  * @property {typeof import('../books.js').buildRootObject} books
  * @property {typeof import('../reviewer.js').buildRootObject} reviewer
  * @property {typeof import('../categorizer.js').buildRootObject} categorizer
+ * @property {typeof import('../lessons.js').buildRootObject} lessons
  * @property {(powers: Powers, params: { egress: Remote<FetchDevice> }) => WebApps} webApps the toybox's, which types its root only as `object`
  */
 
@@ -31,11 +32,12 @@ const CODE = /** @type {{ [R in keyof Builders]: Code<Builders[R]> }} */ (
     books: 'books.js',
     reviewer: 'reviewer.js',
     categorizer: 'categorizer.js',
+    lessons: 'lessons.js',
     webApps: 'webapp.js',
   })
 );
 
-/** @typedef {'webApps'} SharedRole */
+/** @typedef {'lessons' | 'webApps'} SharedRole */
 /** @typedef {{ [R in SharedRole]: Kept<RootOf<(typeof CODE)[R]>> | null }} SharedVats `null` until first asked for */
 /** @typedef {Partial<{ [R in 'books' | 'reviewer' | 'categorizer']: Kept<RootOf<(typeof CODE)[R]>> }>} KeptReview one review's vats, filled in as they're made */
 /** @template {keyof typeof CODE} R @typedef {ParamsOf<(typeof CODE)[R]>} ParamsFor */
@@ -63,12 +65,15 @@ const CODE = /** @type {{ [R in keyof Builders]: Code<Builders[R]> }} */ (
  * The vats reviews are made of, a durable kind, made once. Each review has
  * its own:
  * - books vat, which reads only the snapshot's tree;
- * - reviewer, which holds the proposals;
- * - categorizer, which reads the book, and has the agent propose; it sends
- *   to the agent's API, but can't read the key.
+ * - reviewer, which moves a split from an uncategorized account to a
+ *   category, only on a verdict, which it records as a lesson;
+ * - categorizer, which reads the book and the lessons, and has the agent
+ *   propose; it sends to the agent's API, but can't read the key, nor move
+ *   a split.
  *
- * The reviews share one WebApp maker, through which the agent is reached,
- * and which reaches only the LAN.
+ * The reviews share one lessons vat, so what a reviewer teaches carries
+ * over to the next snapshot, and one WebApp maker, through which the agent
+ * is reached, and which reaches only the LAN.
  *
  * It holds what can upgrade or restart a vat, the upgrader and each vat's
  * admin node, and hands out only roots. A shared vat is made the first
@@ -113,6 +118,7 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
   return zone.exoClass(
     'ReviewVats',
     M.interface('ReviewVats', {
+      lessons: M.call().returns(M.promise()),
       webApps: M.call().returns(M.promise()),
       createBooks: M.call(M.string(), M.record()).returns(M.promise()),
       createReviewer: M.call(M.string(), M.record()).returns(M.promise()),
@@ -122,10 +128,14 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
     }),
     /** @returns {SharedVats & { reviews: MapStore<TreeId, KeptReview> }} */
     () => ({
+      lessons: null,
       webApps: null,
       reviews: zone.detached().mapStore('review vats'),
     }),
     {
+      lessons() {
+        return provideShared(this.state, 'lessons');
+      },
       webApps() {
         return provideShared(this.state, 'webApps');
       },
@@ -164,6 +174,8 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
       /** Each vat whose code in the boot directory changed, upgraded. */
       async upgrade() {
         const { state } = this;
+        if (state.lessons)
+          state.lessons = await upgrader.upgrade('lessons', state.lessons);
         if (state.webApps)
           state.webApps = await upgrader.upgrade('webApps', state.webApps);
         for (const [tree, kept] of state.reviews.entries())
@@ -179,9 +191,9 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
 
 /**
  * The boot vat: it makes the vats in which an agent proposes where a
- * book's uncategorized splits go, and serves their pages through its
- * ingress. It holds the vatAdmin and every device, and gives each part
- * only what it needs.
+ * book's uncategorized splits go, and a person decides, and serves their
+ * pages through its ingress. It holds the vatAdmin and every device, and
+ * gives each part only what it needs.
  *
  * Who can do what, by the key or reference they hold:
  * - the root, which the kernel and the serve script hold: start the vats,
@@ -190,8 +202,8 @@ const prepareReviewVats = (zone, { M, upgrader, shared }) => {
  * - the owner, by the boot key: load a snapshot of the book, set up the
  *   agent (its chat API's URL, the model's name there, and the key), and
  *   get each review's key; not read the API key back;
- * - a reviewer, by one review's key: read its proposals, and ask the agent
- *   for more; not propose, nor reach another review.
+ * - a reviewer, by one review's key: read its proposals, decide them, and
+ *   ask the agent for more; not propose, nor reach another review.
  *
  * @see prepareReviewPage for what a review is
  * @see prepareReviewVats for the vats a review is made of
@@ -208,6 +220,7 @@ export const buildRootObject = (
 
   /** @type {{ [R in SharedRole]: ParamsFor<R> }} */
   const SHARED = harden({
+    lessons: {},
     webApps: { egress: lan },
   });
   const makeVats = prepareReviewVats(zone, { M, upgrader, shared: SHARED });
@@ -232,14 +245,26 @@ export const buildRootObject = (
    * @returns {Promise<Review>}
    */
   const makeReview = async (tree, listing, dir) => {
+    const lessons = await vats.lessons();
     const snapshot = await E(gitTrees).getTree(tree, listing);
     const books = await vats.createBooks(tree, { tree: snapshot });
     await E(books).load(dir);
-    const view = await E(books).getView();
-    const reviewer = await vats.createReviewer(tree, { view });
+    const [view, mover, recorder, reader] = await Promise.all([
+      E(books).getView(),
+      E(books).getMover(),
+      E(lessons).getRecorder(),
+      E(lessons).getReader(),
+    ]);
+    const reviewer = await vats.createReviewer(tree, {
+      view,
+      mover,
+      lessons: recorder,
+      book: tree,
+    });
     const categorizer = await vats.createCategorizer(tree, {
       view,
       box: await E(reviewer).getProposalBox(),
+      lessons: reader,
     });
     const page = makeReviewPage({ reviewer, categorizer });
     const review = harden({ tree, dir, page });
@@ -290,6 +315,7 @@ export const buildRootObject = (
   return Far('booksBoot', {
     /** On each start of the kernel: the vats upgraded to the code in the boot directory. */
     async start() {
+      await vats.lessons();
       await vats.upgrade();
     },
     /** Each review: its tree, its dump's directory, and its vats. */

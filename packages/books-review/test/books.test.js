@@ -21,6 +21,7 @@ import { makeWorkerd } from '@vattr/toybox/src/workerd-process.js';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
 import { here, makeBootDir, toyboxDir } from '../scripts/boot-dir.js';
+import { CHANGELOG } from './books/changelog.js';
 
 /** @import { Remote } from '@vattr/toybox/src/types.ts' */
 
@@ -177,7 +178,7 @@ test("a books vat loads a sqlite-diffable dump from a git tree once, refusing ta
   solo.close();
 });
 
-test('the boot vat makes vats per snapshot and serves pages; the categorizer proposes, and a review page lists the proposals with their support', async () => {
+test('the boot vat makes vats per snapshot and serves pages; the categorizer proposes, the reviewer decides, the book logs the moves, and lessons carry over', async () => {
   const boot = await bootRoot();
   const owner = apiWith((await E(boot).ownerLink()).slice(1));
   for (const path of [
@@ -245,11 +246,11 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
       ['2026-09-16', 'PAYMENT THANK YOU', -300, ['Liabilities:Visa CREDIT']],
     ],
   );
-  // context: where this description went before in the book
+  // context: where this description went before in the book; nothing taught yet
   assert.deepEqual(todo[0].precedents, [
     { account: 'Expenses:Groceries', count: 1, last: '2026-09-03' },
   ]);
-  assert.deepEqual(todo[1].precedents, []);
+  assert.deepEqual([todo[0].lessons, todo[1].precedents], [[], []]);
   const [grocery, water, visaPayment, thanks] = todo.map(t => t.split);
   const p1 = await E(ai).propose(
     grocery,
@@ -299,19 +300,43 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
       [p2, 'Expenses:Groceries', { count: 0, of: 0 }],
     ],
   );
+  await me('review', p1, 'accept');
+  await me(
+    'review',
+    p2,
+    { account: guid['Expenses:Utilities'] },
+    'the water bill is a utility',
+  );
+  await assert.rejects(me('review', p1, 'reject'), /already accepted/);
+  const p3 = await E(ai).propose(
+    thanks,
+    guid['Income:Salary'],
+    'money came in',
+  );
+  await me(
+    'review',
+    p3,
+    'reject',
+    'a card payment: confirm from the statement first',
+  );
   assert.deepEqual(await me('summary'), {
-    pending: 2,
-    uncategorized: { count: 4, first: '2026-09-10', last: '2026-09-16' },
+    pending: 0,
+    rejected: 1,
+    uncategorized: { count: 2, first: '2026-09-15', last: '2026-09-16' },
   });
-  // a split with a proposal awaiting review isn't asked about again
+  // the rejected split waits for a person: the model isn't asked about it again
   assert.deepEqual(
     (await E(ai).uncategorized()).map(
       (/** @type {{ split: string }} */ t) => t.split,
     ),
-    [visaPayment, thanks],
+    [visaPayment],
   );
-  // proposing moves nothing
-  assert.deepEqual(await E(review.vats.books.root).balances(), BALANCES);
+  assert.deepEqual(await E(review.vats.books.root).balances(), {
+    ...BALANCES,
+    Groceries: 8412 + 6130,
+    Utilities: 4000,
+    'Imbalance-USD': 0,
+  });
 
   // a crash of the whole toybox: everything is still there
   k.close();
@@ -321,21 +346,61 @@ test('the boot vat makes vats per snapshot and serves pages; the categorizer pro
     boot: join(dir, 'bootdir'),
   });
   k = await connectKernel(new WebSocket(`ws+unix:${box.sock}:/kernel/main`));
+  // the old session's references went with it: find the categorizer again
+  const [again] = await E(await bootRoot()).reviews();
   assert.deepEqual(
-    (await me('pending')).map((/** @type {{ n: number }} */ p) => p.n),
-    [p1, p2],
+    (await E(again.vats.categorizer.root).history()).map(
+      (/** @type {import('../types.ts').Lesson} */ l) => [
+        l.status,
+        l.proposed,
+        l.final,
+        l.reason,
+        l.note,
+        l.book,
+      ],
+    ),
+    [
+      [
+        'rejected',
+        'Income:Salary',
+        undefined,
+        'money came in',
+        'a card payment: confirm from the statement first',
+        tree,
+      ],
+      [
+        'corrected',
+        'Expenses:Groceries',
+        'Expenses:Utilities',
+        'a guess',
+        'the water bill is a utility',
+        tree,
+      ],
+      [
+        'accepted',
+        'Expenses:Groceries',
+        'Expenses:Groceries',
+        'CORNER GROCERY went to Groceries on 2026-09-03',
+        undefined,
+        tree,
+      ],
+    ],
   );
+  assert.deepEqual(await me('changelog'), CHANGELOG);
 
-  // a later snapshot gets vats of its own, and proposals of its own
+  // a later snapshot gets vats of its own, but what the reviewer taught carries over
   const later = await booksListing({ 'later.txt': 'a later snapshot' });
   const next = await owner('load', later.listing, 'dm93finance');
   assert.notEqual(next.tree, tree);
   const nextReview = (await E(await bootRoot()).reviews()).find(
     (/** @type {{ tree: string }} */ i) => i.tree === next.tree,
   );
-  assert.equal(
-    (await E(nextReview.vats.categorizer.root).uncategorized()).length,
-    4,
+  const [water2] = /** @type {import('../types.ts').Todo[]} */ (
+    await E(nextReview.vats.categorizer.root).uncategorized()
+  ).filter(t => t.description === 'CITY WATER');
+  assert.deepEqual(
+    water2.lessons.map(({ status, final, note }) => [status, final, note]),
+    [['corrected', 'Expenses:Utilities', 'the water bill is a utility']],
   );
   assert.equal((await owner('reviews')).length, 2);
 });

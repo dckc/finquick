@@ -27,6 +27,10 @@
         cp ${vattr97}/packages/toybox/examples/webapp.js $out/webapp.js
       '';
 
+      apply-changelog = pkgs.writeShellScriptBin "apply-changelog" ''
+        exec ${pkgs.nodejs_22}/bin/node ${./scripts/apply-changelog.js} "$@"
+      '';
+
       # toybox-serve on the books' boot directory; the caller hands in the
       # sockets (-S http=3 -S admin=4 -S app=5), -d state=, and
       # -d git-checkout=
@@ -37,15 +41,15 @@
     {
       packages.${system} = {
         default = serve;
-        inherit boot serve;
+        inherit boot apply-changelog serve;
       };
 
       checks.${system} = {
-        inherit serve;
+        inherit apply-changelog serve;
         # the kernel boots from boot/, and finds every vat it makes beside it
         boot =
           pkgs.runCommand "books-review-boot-check" { } ''
-            for f in boot/boot.js boot/worker.json books.js reviewer.js categorizer.js webapp.js; do
+            for f in boot/boot.js boot/worker.json books.js reviewer.js categorizer.js lessons.js webapp.js; do
               test -f ${boot}/$f || { echo "no $f in the boot directory" >&2; exit 1; }
             done
             touch $out

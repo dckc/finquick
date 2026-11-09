@@ -9,10 +9,11 @@
  * (`_cf_`), and a table that already exists is refused, as
  * `sqlite-diffable load` refuses it.
  *
- * Once loaded, the vat hands out a view of the book, for other vats: it
- * reads the accounts, and the splits in uncategorized accounts (by account
- * code: Imbalance, typically `9001`), with where splits like them went
- * before.
+ * Once loaded, the vat hands out two facets of the book, for other vats:
+ * a view, which reads it, and a mover, which can move a split out of an
+ * uncategorized account (by account code: Imbalance, typically `9001`) into
+ * an income or expense account, and nothing else. Each move goes in the
+ * changelog, which an apply tool replays on the book the dump came from.
  */
 /**
  * @import { CastedPattern, TypeFromInterfaceGuard, TypeFromPattern } from '@endo/patterns';
@@ -50,7 +51,7 @@ const isCell = v =>
 /** @typedef {{ split: Guid, tx_guid: Guid, account_guid: Guid, date: IsoDate, description: string, amount: number }} SplitRow */
 /** @typedef {{ name: string, columns: string[], schema: string, data: string | undefined }} DumpTable */
 
-/** Whether a split may go to the account `a`: income or expense, neither a placeholder nor hidden. @param {AccountRow | undefined} a */
+/** Whether a split may be moved to the account `a`: income or expense, neither a placeholder nor hidden. @param {AccountRow | undefined} a */
 const isCategory = a =>
   !!a && ['INCOME', 'EXPENSE'].includes(a.type) && !a.placeholder && !a.hidden;
 
@@ -85,8 +86,8 @@ export const checkMetadata = (path, meta) => {
 };
 
 /**
- * The shapes of the book's records, and the view's guard, made from the
- * `M` a vat is given. The records' types are inferred from them, below,
+ * The shapes of the book's records, and the view's and the mover's
+ * guards, made from the `M` a vat is given. The records' types are inferred from them, below,
  * so the guard checks what the types say; types.ts exports them.
  *
  * Brands are claims a pattern can't check: a guid is a string, which a
@@ -156,6 +157,17 @@ export const makeShapes = M => {
     first: M.or(IsoDateShape, null),
     last: M.or(IsoDateShape, null),
   });
+  /** One change to the book, as an apply tool replays it: a split moved. */
+  const ChangeShape = harden(
+    // const: the literals' types, not string
+    /** @type {const} */ ({
+      table: 'splits',
+      guid: GuidShape,
+      column: 'account_guid',
+      from: GuidShape,
+      to: GuidShape,
+    }),
+  );
   const ViewI = M.interface('View', {
     accounts: M.call().returns(M.arrayOf(AccountShape)),
     uncategorized: M.call().returns(M.arrayOf(SplitShape)),
@@ -165,6 +177,10 @@ export const makeShapes = M => {
     ),
     summary: M.call().returns(SummaryShape),
   });
+  const MoverI = M.interface('Mover', {
+    move: M.call(GuidShape, GuidShape).returns(ChangeShape),
+    changelog: M.call().returns(M.arrayOf(ChangeShape)),
+  });
   return harden({
     GuidShape,
     AccountTypeShape,
@@ -173,7 +189,9 @@ export const makeShapes = M => {
     SplitShape,
     PrecedentShape,
     SummaryShape,
+    ChangeShape,
     ViewI,
+    MoverI,
   });
 };
 /** @typedef {ReturnType<typeof makeShapes>} Shapes */
@@ -183,7 +201,9 @@ export const makeShapes = M => {
 /** @typedef {TypeFromPattern<Shapes['SplitShape']>} Split */
 /** @typedef {TypeFromPattern<Shapes['PrecedentShape']>} Precedent */
 /** @typedef {TypeFromPattern<Shapes['SummaryShape']>} Summary */
+/** @typedef {TypeFromPattern<Shapes['ChangeShape']>} Change */
 /** @typedef {TypeFromInterfaceGuard<Shapes['ViewI']>} View the book, to read */
+/** @typedef {TypeFromInterfaceGuard<Shapes['MoverI']>} Mover the book, to move uncategorized splits in */
 
 /**
  * @typedef {object} Params
@@ -198,6 +218,8 @@ export const buildRootObject = (
 ) => {
   /** @type {MapStore<'tables', string[]>} what the vat keeps about its book: its tables */
   const book = zone.mapStore('book');
+  /** @type {MapStore<number, Change>} numbered from 1, none ever deleted */
+  const changes = zone.mapStore('changes');
   const loaded = () => {
     if (!book.has('tables')) throw Error('no book is loaded yet');
   };
@@ -288,10 +310,10 @@ export const buildRootObject = (
     return row;
   };
 
-  const { ViewI } = makeShapes(M);
+  const { ViewI, MoverI } = makeShapes(M);
   /** @type {View} the guard's types, so the methods agree with what it checks */
   const viewMethods = {
-    /** Every account; `category` if a split may go to it. */
+    /** Every account; `category` if a split may be moved to it. */
     accounts() {
       loaded();
       return harden(
@@ -354,6 +376,51 @@ export const buildRootObject = (
   };
   const makeView = zone.exoClass('View', ViewI, () => ({}), viewMethods);
   const view = zone.makeOnce('view', () => makeView());
+
+  /** @type {Mover} the guard's types, so the methods agree with what it checks */
+  const moverMethods = {
+    /**
+     * Move the uncategorized split `split` to the income or expense
+     * account `to`, and log the move in the changelog. The answer is the
+     * logged change.
+     */
+    move(split, to) {
+      loaded();
+      const byGuid = accounts();
+      const row = splitRow.get(split);
+      if (!row || !uncategorizedAccounts(byGuid).includes(row.account_guid))
+        throw Error(`${JSON.stringify(split)} is not an uncategorized split`);
+      const account = byGuid.get(to);
+      if (!account || !isCategory(account))
+        throw Error(
+          `${JSON.stringify(to)} is not an income or expense account`,
+        );
+      /** @type {Change} */
+      const change = harden({
+        table: 'splits',
+        guid: row.split,
+        column: 'account_guid',
+        from: row.account_guid,
+        to: account.guid,
+      });
+      db.transaction(() => {
+        db.prepare('UPDATE splits SET account_guid = ? WHERE guid = ?').run(
+          to,
+          split,
+        );
+        changes.init(changes.getSize() + 1, change);
+      });
+      return change;
+    },
+    /** Every move made, in order, for an apply tool. */
+    changelog() {
+      return harden(
+        [...changes.entries()].sort(([a], [b]) => a - b).map(([, c]) => c),
+      );
+    },
+  };
+  const makeMover = zone.exoClass('Mover', MoverI, () => ({}), moverMethods);
+  const mover = zone.makeOnce('mover', () => makeMover());
 
   /** The lines of the file at `path`, read a chunk at a time. @param {string} path */
   async function* lines(path) {
@@ -493,6 +560,7 @@ export const buildRootObject = (
       );
     },
     getView: () => view,
+    getMover: () => mover,
     /** Each account's balance, in hundredths, by name. */
     balances() {
       /** @type {import('@vattr/toybox/src/types.ts').SqlStatement<[], { name: string, balance: number }>} */
