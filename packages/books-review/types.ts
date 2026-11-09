@@ -68,3 +68,6 @@ export type Proposal = {
 
 /** An uncategorized split, with what a categorizer should know about it. */
 export type Todo = Split & { precedents: Precedent[]; lessons: Lesson[] };
+
+/** A visit from a Google Maps Timeline export, as the whereabouts vat's guard checks it. */
+export type { Visit } from './boot/whereabouts.js';

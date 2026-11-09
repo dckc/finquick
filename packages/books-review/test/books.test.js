@@ -22,6 +22,7 @@ import workerdPackage from 'workerd';
 import WebSocket from 'ws';
 import { here, makeBootDir, toyboxDir } from '../scripts/boot-dir.js';
 import { CHANGELOG } from './books/changelog.js';
+import { checkVisits, visitsAround } from '../boot/whereabouts.js';
 
 /** @import { Remote } from '@vattr/toybox/src/types.ts' */
 
@@ -514,4 +515,44 @@ test('the categorizer asks a model for proposals, through a WebApp over the LAN 
   } finally {
     model.close();
   }
+});
+
+/** Made-up visits, as a phone sends them. */
+const VISITS = [
+  {
+    startTime: '2026-05-09T18:41:00.000-05:00',
+    placeId: 'ChIJgrocer',
+    latLng: '40.0001°, -95.0002°',
+  },
+  {
+    startTime: '2026-05-09T12:24:00.000-05:00',
+    placeId: 'ChIJcafe',
+    latLng: '40.0003°, -95.0004°',
+  },
+  {
+    startTime: '2026-05-14T10:19:00.000-05:00',
+    placeId: 'ChIJpost',
+    latLng: '40.0005°, -95.0006°',
+  },
+];
+
+test('visits are checked, kept in time order, and found by the days before a posting date', () => {
+  const visits = checkVisits(VISITS);
+  assert.deepEqual(
+    visits.map(v => v.placeId),
+    ['ChIJcafe', 'ChIJgrocer', 'ChIJpost'],
+  );
+  // a card posts a day or two after the purchase
+  assert.deepEqual(
+    visitsAround(visits, '2026-05-10', 2).map(v => v.placeId),
+    ['ChIJcafe', 'ChIJgrocer'],
+  );
+  assert.deepEqual(
+    visitsAround(visits, '2026-05-14', 0).map(v => v.placeId),
+    ['ChIJpost'],
+  );
+  assert.throws(
+    () => checkVisits([{ ...VISITS[0], startTime: 'noon' }]),
+    /isn't one/,
+  );
 });
