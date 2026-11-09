@@ -4,6 +4,22 @@
  * these say what this package relies on.
  */
 
+declare module '@vattr/toybox/src/kernel-client.js' {
+  import type { WebSocket } from 'ws';
+  /** A presence: a reference to an object in a vat, for E(). */
+  type Remote = any;
+  export type KernelClient = {
+    createVat: (
+      src: string,
+      params?: Record<string, unknown>,
+    ) => Promise<{ root: Remote; adminNode: Remote }>;
+    vats: () => Promise<{ root: Remote; adminNode: Remote }[]>;
+    makeDevice: (name: string) => Promise<Remote>;
+    close: () => void;
+  };
+  export const connectKernel: (ws: WebSocket) => Promise<KernelClient>;
+}
+
 declare module '@vattr/toybox/src/workerd-process.js' {
   export const here: string;
   export const makeWorkerd: (io: {
@@ -42,5 +58,19 @@ declare module '@vattr/toybox/test/toybox.js' {
       port: number;
       appPort: number;
     }>;
+  };
+}
+
+declare module '@vattr/toybox/test/git.js' {
+  export const makeGit: (io: {
+    run: (file: string, args: string[]) => Promise<{ stdout: string }>;
+    cp: typeof import('node:fs/promises').cp;
+    makeScratchDir: () => Promise<string>;
+  }) => {
+    makeRepo: (
+      dir: string,
+      under?: string,
+      repo?: string,
+    ) => Promise<{ repo: string; tree: string; listing: string }>;
   };
 }

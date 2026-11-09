@@ -1,0 +1,33 @@
+'use strict';
+/** A book's review page: its uncategorized splits. */
+const tree = new URLSearchParams(location.search).get('tree');
+const api = apiWith(keyFor('books:review:' + tree));
+const show = async () => {
+  const [splits, summary] = await Promise.all([
+    api('uncategorized'),
+    api('summary'),
+  ]);
+  const { count, first, last } = summary;
+  say(
+    count +
+      ' splits uncategorized' +
+      (count ? ', ' + first + ' to ' + last : ''),
+  );
+  $('uncategorized').replaceChildren(
+    ...splits.map(s => {
+      const tr = el('tr');
+      const amount = el('td', s.amount.toFixed(2));
+      amount.className = 'amount';
+      const date = el('td', s.date);
+      date.className = 'date';
+      tr.append(
+        date,
+        el('td', s.description),
+        el('td', s.against.map(a => a.name).join(', ')),
+        amount,
+      );
+      return tr;
+    }),
+  );
+};
+show().catch(fail);

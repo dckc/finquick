@@ -2,7 +2,24 @@
 <meta name="viewport" content="width=device-width" />
 <link rel="stylesheet" href="/style.css" />
 <h1>Books</h1>
-<p>
-  Here an AI will propose where a GnuCash book's uncategorized transactions go,
-  and you'll review each proposal. Nothing to review yet.
-</p>
+<p id="status" role="status"></p>
+<form id="load">
+  <p>
+    <label
+      >What <code>git ls-tree -r &lt;tree&gt;</code> lists<br /><textarea
+        name="listing"
+        required
+      ></textarea>
+    </label>
+  </p>
+  <p>
+    <label
+      >Directory of the dump in the tree <input name="dir" value="dm93finance"
+    /></label>
+    <button>Load</button>
+  </p>
+</form>
+<h2>Reviews</h2>
+<ul id="books"></ul>
+<script src="/prelude.js"></script>
+<script src="/boot.js"></script>

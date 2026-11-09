@@ -9,6 +9,14 @@
 export const ok = (type, body) =>
   harden({ status: 200, headers: { 'content-type': type }, body });
 
+/** @param {number} status @param {unknown} value @returns {HttpResponse} */
+export const json = (status, value) =>
+  harden({
+    status,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(value ?? null),
+  });
+
 /** @type {HttpResponse} */
 const NOT_FOUND = harden({
   status: 404,
@@ -17,16 +25,18 @@ const NOT_FOUND = harden({
 });
 
 /**
- * The app socket's handler: a GET of one of `files` answers it, and
- * anything else is not found.
+ * The app socket's handler: a GET of one of `files` answers it, a POST to
+ * `/api` goes to `api`, and anything else is not found.
  *
  * @param {object} site
  * @param {Record<string, HttpResponse>} site.files by path
- * @returns {(request: HttpRequest) => HttpResponse}
+ * @param {(body: string) => Promise<HttpResponse>} site.api
+ * @returns {(request: HttpRequest) => HttpResponse | Promise<HttpResponse>}
  */
 export const respond =
-  ({ files }) =>
-  ({ method, path }) => {
+  ({ files, api }) =>
+  ({ method, path, body }) => {
     if (method === 'GET' && Object.hasOwn(files, path)) return files[path];
+    if (method === 'POST' && path === '/api') return api(body ?? '');
     return NOT_FOUND;
   };

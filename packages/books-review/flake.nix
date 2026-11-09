@@ -41,7 +41,7 @@
         # the kernel boots from boot/, and finds every vat it makes beside it
         boot =
           pkgs.runCommand "books-review-boot-check" { } ''
-            for f in boot/boot.js boot/worker.json; do
+            for f in boot/boot.js boot/worker.json books.js; do
               test -f ${boot}/$f || { echo "no $f in the boot directory" >&2; exit 1; }
             done
             touch $out
