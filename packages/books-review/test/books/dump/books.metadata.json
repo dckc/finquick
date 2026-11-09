@@ -1,0 +1,5 @@
+{
+  "name": "books",
+  "columns": ["guid", "root_account_guid", "root_template_guid"],
+  "schema": "CREATE TABLE books(guid text(32) PRIMARY KEY NOT NULL, root_account_guid text(32) NOT NULL, root_template_guid text(32) NOT NULL)"
+}

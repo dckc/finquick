@@ -1,0 +1,5 @@
+{
+  "name": "lots",
+  "columns": ["guid", "account_guid", "is_closed"],
+  "schema": "CREATE TABLE lots(guid text(32) PRIMARY KEY NOT NULL, account_guid text(32), is_closed integer NOT NULL)"
+}

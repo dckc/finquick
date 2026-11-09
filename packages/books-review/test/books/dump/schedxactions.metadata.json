@@ -1,0 +1,20 @@
+{
+  "name": "schedxactions",
+  "columns": [
+    "guid",
+    "name",
+    "enabled",
+    "start_date",
+    "end_date",
+    "last_occur",
+    "num_occur",
+    "rem_occur",
+    "auto_create",
+    "auto_notify",
+    "adv_creation",
+    "adv_notify",
+    "instance_count",
+    "template_act_guid"
+  ],
+  "schema": "CREATE TABLE schedxactions(guid text(32) PRIMARY KEY NOT NULL, name text(2048), enabled integer NOT NULL, start_date text(8), end_date text(8), last_occur text(8), num_occur integer NOT NULL, rem_occur integer NOT NULL, auto_create integer NOT NULL, auto_notify integer NOT NULL, adv_creation integer NOT NULL, adv_notify integer NOT NULL, instance_count integer NOT NULL, template_act_guid text(32) NOT NULL)"
+}

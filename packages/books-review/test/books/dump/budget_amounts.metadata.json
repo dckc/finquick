@@ -1,0 +1,12 @@
+{
+  "name": "budget_amounts",
+  "columns": [
+    "id",
+    "budget_guid",
+    "account_guid",
+    "period_num",
+    "amount_num",
+    "amount_denom"
+  ],
+  "schema": "CREATE TABLE budget_amounts(id integer PRIMARY KEY AUTOINCREMENT NOT NULL, budget_guid text(32) NOT NULL, account_guid text(32) NOT NULL, period_num integer NOT NULL, amount_num bigint NOT NULL, amount_denom bigint NOT NULL)"
+}

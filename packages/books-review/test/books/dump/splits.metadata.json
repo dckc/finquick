@@ -1,0 +1,18 @@
+{
+  "name": "splits",
+  "columns": [
+    "guid",
+    "tx_guid",
+    "account_guid",
+    "memo",
+    "action",
+    "reconcile_state",
+    "reconcile_date",
+    "value_num",
+    "value_denom",
+    "quantity_num",
+    "quantity_denom",
+    "lot_guid"
+  ],
+  "schema": "CREATE TABLE splits(guid text(32) PRIMARY KEY NOT NULL, tx_guid text(32) NOT NULL, account_guid text(32) NOT NULL, memo text(2048) NOT NULL, action text(2048) NOT NULL, reconcile_state text(1) NOT NULL, reconcile_date text(19), value_num bigint NOT NULL, value_denom bigint NOT NULL, quantity_num bigint NOT NULL, quantity_denom bigint NOT NULL, lot_guid text(32))"
+}

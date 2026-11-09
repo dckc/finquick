@@ -1,0 +1,15 @@
+{
+  "name": "commodities",
+  "columns": [
+    "guid",
+    "namespace",
+    "mnemonic",
+    "fullname",
+    "cusip",
+    "fraction",
+    "quote_flag",
+    "quote_source",
+    "quote_tz"
+  ],
+  "schema": "CREATE TABLE commodities(guid text(32) PRIMARY KEY NOT NULL, namespace text(2048) NOT NULL, mnemonic text(2048) NOT NULL, fullname text(2048), cusip text(2048), fraction integer NOT NULL, quote_flag integer NOT NULL, quote_source text(2048), quote_tz text(2048))"
+}
