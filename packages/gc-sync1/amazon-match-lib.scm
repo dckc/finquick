@@ -16,6 +16,7 @@
 (use-modules ((srfi srfi-1) #:select (any append-map delete-duplicates filter-map list-index)))
 (use-modules ((srfi srfi-9) #:select (define-record-type)))
 (use-modules ((srfi srfi-11) #:select (let-values)))
+(use-modules ((ice-9 regex) #:select (string-match match:substring)))
 
 (export make-order order-id order-date order-total order-items
         make-charge charge-key charge-date charge-amount charge-description charge-handle
@@ -24,7 +25,7 @@
         outcome-matched outcome-ambiguous outcome-unmatched
         money parse-orders uncategorized-amazon? earliest-order-date
         candidates eliminate unique-per-charge outcome-of disagreements
-        compare memos order-url links report)
+        compare memos order-url links memo-order-id missing-links report)
 
 (define-record-type <order>
   (make-order id date total items)
@@ -298,6 +299,32 @@ order's memo"
 transaction's document link"
   (map (lambda (pr) (cons (car pr) (order-url (cdr pr))))
        (outcome-matched outcome)))
+
+;; Link Amazon Orders: transactions matched before we set links
+
+(define (memo-order-id memo)
+  "the order id in a memo as memos (or amazon-matching.sql) wrote it, or #f"
+  (let ((m (string-match "\"orderId\":\"([^\"]+)\"" memo)))
+    (and m (match:substring m 1))))
+
+(define (missing-links entries)
+  "entries: ((txn memo link) ...), one per split. Returns two values:
+((txn . url) ...) for each unlinked transaction whose memos name one
+order, and the unlinked transactions whose memos name more than one"
+  (let* ((named (filter-map (lambda (e)
+                              (let-values (((txn memo link) (apply values e)))
+                                (let ((id (memo-order-id memo)))
+                                  (and id (string-null? link) (cons txn id)))))
+                            entries))
+         (ids-of (lambda (txn)
+                   (delete-duplicates (filter-map (lambda (pr) (and (equal? (car pr) txn) (cdr pr)))
+                                                  named))))
+         (txns (delete-duplicates (map car named))))
+    (values (filter-map (lambda (txn)
+                          (let ((ids (ids-of txn)))
+                            (and (null? (cdr ids)) (cons txn (order-url (car ids))))))
+                        txns)
+            (filter (lambda (txn) (pair? (cdr (ids-of txn)))) txns))))
 
 (define (dollars x) (format #f "~,2f" (exact->inexact x)))
 

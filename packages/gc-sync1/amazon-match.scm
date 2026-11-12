@@ -5,6 +5,9 @@
 ;; orders' pages, matching by process of elimination
 ;; (amazon-match-lib.scm). Shows the report and asks first.
 ;;
+;; Reports > Finquick > Link Amazon Orders: link transactions matched
+;; earlier (whose memos name an order) to their orders' pages.
+;;
 ;; Authority: this file holds it. The library gets each split as an
 ;; opaque handle and returns which matched; only match-amazon-orders
 ;; sets a memo or link, and only after the person says yes.
@@ -17,7 +20,7 @@
 (load (gnc-build-userdata-path "finquick-menu.scm"))
 (load (gnc-build-userdata-path "amazon-match-lib.scm"))
 (use-modules (amazon-match-lib))
-(use-modules ((srfi srfi-1) #:select (filter-map take)))
+(use-modules ((srfi srfi-1) #:select (append-map filter-map take)))
 (use-modules ((srfi srfi-11) #:select (let-values)))
 (use-modules ((ice-9 rdelim) #:select (read-line)))
 (use-modules ((ice-9 popen) #:select (open-pipe* close-pipe))) ; OPEN_READ is core
@@ -77,25 +80,33 @@ each with its split as handle"
      (xaccAccountGetSplitList acct))))
 
 ;; A transaction that already has a document link keeps it.
+(define (amazon-set-link! txn url)
+  (when (string-null? (xaccTransGetDocLink txn))
+    (xaccTransBeginEdit txn)
+    (xaccTransSetDocLink txn url)
+    (xaccTransCommitEdit txn)))
+
 (define (amazon-annotate! split memo url)
   (unless (string-null? (xaccSplitGetMemo split))
     (error "memo set meanwhile on split" (gncSplitGetGUID split)))
   (let ((txn (xaccSplitGetParent split)))
     (xaccTransBeginEdit txn)
     (xaccSplitSetMemo split memo)
-    (when (string-null? (xaccTransGetDocLink txn))
-      (xaccTransSetDocLink txn url))
+    (amazon-set-link! txn url)
     (xaccTransCommitEdit txn)))
 
 ;; the dialogs take a printf format
 (define (amazon-printf-safe s) (string-join (string-split s #\%) "%%"))
 
-(define (amazon-preview path lines to-set)
-  (let ((shown (if (> (length lines) amazon-report-lines-shown)
+(define (amazon-shown lines)
+  (string-join (if (> (length lines) amazon-report-lines-shown)
                    (append (take lines amazon-report-lines-shown) '("..."))
-                   lines)))
-    (string-append path "\n\n" (string-join shown "\n")
-                   (format #f "\n\nSet ~a memos and links? Each is saved as it's made." (length to-set)))))
+                   lines)
+               "\n"))
+
+(define (amazon-preview path lines to-set)
+  (string-append path "\n\n" (amazon-shown lines)
+                 (format #f "\n\nSet ~a memos and links? Each is saved as it's made." (length to-set))))
 
 (define (run-match-amazon window)
   (let ((path (amazon-choose-orders-file)))
@@ -121,9 +132,50 @@ each with its split as handle"
                     to-set urls)
           (gnc-info-dialog '() (format #f "Set ~a memos and links." (length to-set)))))))))
 
-(define (amazon-match-failed key . args)
-  (format (current-error-port) "amazon-match failed: ~a ~s~%" key args)
-  (gnc-error-dialog '() (amazon-printf-safe (format #f "Match Amazon Orders failed: ~a ~s" key args))))
+(define (amazon-memo-entries root)
+  "the book's splits whose memos name an order, as missing-links
+entries keyed by transaction guid, and a table from guid to transaction"
+  (let ((txns (make-hash-table)))
+    (values
+     (append-map
+      (lambda (acct)
+        (filter-map
+         (lambda (split)
+           (let ((memo (xaccSplitGetMemo split)))
+             (and (memo-order-id memo)
+                  (let* ((txn (xaccSplitGetParent split))
+                         (key (gncTransGetGUID txn)))
+                    (hash-set! txns key txn)
+                    (list key memo (xaccTransGetDocLink txn))))))
+         (xaccAccountGetSplitList acct)))
+      (gnc-account-get-descendants root))
+     txns)))
+
+(define (amazon-txn-line txn)
+  (string-append (gnc-print-time64 (xaccTransGetDate txn) "%Y-%m-%d") " "
+                 (xaccTransGetDescription txn)))
+
+(define (link-amazon-orders)
+  (let-values (((entries txns) (amazon-memo-entries (gnc-get-current-root-account))))
+    (let-values (((to-link conflicts) (missing-links entries)))
+      (let* ((txn-of (lambda (key) (hash-ref txns key)))
+             (lines (append (sort (map (lambda (pr) (amazon-txn-line (txn-of (car pr)))) to-link) string<?)
+                            (map (lambda (key) (string-append "memos name more than one order: "
+                                                              (amazon-txn-line (txn-of key))))
+                                 conflicts)))
+             (text (amazon-printf-safe (amazon-shown lines))))
+        (cond
+         ((null? to-link)
+          (gnc-info-dialog '() (string-append "No transactions to link.\n\n" text)))
+         ((gnc-verify-dialog '() #f (string-append text (format #f "\n\nLink ~a transactions to their Amazon order pages?"
+                                                                (length to-link))))
+          (for-each (lambda (pr) (amazon-set-link! (txn-of (car pr)) (cdr pr))) to-link)
+          (gnc-info-dialog '() (format #f "Linked ~a transactions." (length to-link)))))))))
+
+(define (amazon-failed name)
+  (lambda (key . args)
+    (format (current-error-port) "~a failed: ~a ~s~%" name key args)
+    (gnc-error-dialog '() (amazon-printf-safe (format #f "~a failed: ~a ~s" name key args)))))
 
 (gnc-add-scm-extension
  (gnc:make-menu-item
@@ -132,4 +184,13 @@ each with its split as handle"
   (N_ "Set memos and links of uncategorized Amazon charges from amazon_order_history.csv")
   finquick-menu-path
   (lambda (window)
-    (catch #t (lambda () (run-match-amazon window)) amazon-match-failed))))
+    (catch #t (lambda () (run-match-amazon window)) (amazon-failed "Match Amazon Orders")))))
+
+(gnc-add-scm-extension
+ (gnc:make-menu-item
+  (N_ "Link Amazon Orders")
+  "2f4daa4e-75af-4dab-a223-75bc38be7c91"
+  (N_ "Link transactions whose memos name an Amazon order to the order's page")
+  finquick-menu-path
+  (lambda (window)
+    (catch #t link-amazon-orders (amazon-failed "Link Amazon Orders")))))

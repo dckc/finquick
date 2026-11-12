@@ -20,8 +20,14 @@ extension under Reports; see `finquick-menu.scm`):
    the azad extension) that you pick with `zenity`'s file chooser
    (without zenity: `~/Downloads/amazon_order_history.csv`),
    matching by process of elimination; shows the report and asks
-   first. A port of qtrx `tools/amazon_match.py`; `make test` runs
-   its story with plain guile.
+   first. It also sets each matched transaction's document link to
+   its order's page. A port of qtrx `tools/amazon_match.py`; `make
+   test` runs its story with plain guile.
+ - Link Amazon Orders - set the document link of each transaction
+   matched earlier (a memo naming an `orderId`) to its order's page,
+   `https://www.amazon.com/your-orders/order-details?orderID=…`;
+   leaves alone a transaction that already has a link or whose memos
+   name more than one order; shows them and asks first.
 
 ## Load GnuCash Menu Handlers
 

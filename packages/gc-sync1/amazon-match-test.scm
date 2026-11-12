@@ -135,6 +135,38 @@
   (let-values (((by-window by-elimination) (compare story-orders story-charges)))
     (report story-orders story-charges by-window by-elimination)))
 
+;; Later, Link Amazon Orders reads memos back, from transactions matched
+;; before we set links. Say x's and a's are as memos wrote them (a's
+;; transaction has its card split too), old's is from amazon-matching.sql,
+;; n's names no order, y's transaction has a link already, and someone
+;; split a "mix" transaction between two orders.
+(define story-memo
+  (let-values (((by-window by-elimination) (compare story-orders story-charges)))
+    (let ((written (memos story-orders by-elimination)))
+      (lambda (key) (cdr (assoc key written))))))
+
+(test-equal "memo-order-id"
+  '("bidet" "111-OLD" #f #f)
+  (map memo-order-id (list (story-memo "a") "[\"Gum; \",{\"orderId\":\"111-OLD\"}]" "[\"Towels\"]" "")))
+
+(test-equal "missing-links: one per transaction; two orders is a conflict"
+  '((("x" . "https://www.amazon.com/your-orders/order-details?orderID=primer1")
+     ("a" . "https://www.amazon.com/your-orders/order-details?orderID=bidet")
+     ("old" . "https://www.amazon.com/your-orders/order-details?orderID=111-OLD"))
+    ("mix"))
+  (let-values (((to-link conflicts)
+                (missing-links
+                 ;; txn    memo                  link
+                 (list (list "x"   (story-memo "x") "")
+                       (list "a"   (story-memo "a") "")
+                       (list "a"   ""               "")
+                       (list "y"   (story-memo "y") "https://example.com/receipt")
+                       (list "old" "[\"Gum; \",{\"orderId\":\"111-OLD\"}]" "")
+                       (list "n"   "[\"Towels\"]"   "")
+                       (list "mix" (story-memo "x") "")
+                       (list "mix" (story-memo "c") "")))))
+    (list to-link conflicts)))
+
 (define failures (test-runner-fail-count (test-runner-current)))
 (test-end "amazon-match")
 (exit (zero? failures))
