@@ -15,6 +15,12 @@ extension under Reports; see `finquick-menu.scm`):
    transactions, so sorting by description groups by merchant. It
    shows what would change and asks first. The prefixes are a list
    in `clean-desc-lib.scm`; `make test` checks it with plain guile.
+ - Match Amazon Orders - set the memos of uncategorized Amazon charges
+   to their orders' items and ids, from
+   `~/Downloads/amazon_order_history.csv` (from the azad extension),
+   matching by process of elimination; shows the report and asks
+   first. A port of qtrx `tools/amazon_match.py`; `make test` runs
+   its story with plain guile.
 
 ## Load GnuCash Menu Handlers
 
@@ -24,6 +30,7 @@ put something like this in `~/.config/gnucash/config-user.scm`:
 
 ```scm
 (load (gnc-build-userdata-path "clean-desc.scm"))
+(load (gnc-build-userdata-path "amazon-match.scm"))
 (load (gnc-build-userdata-path "sync-uncat.scm"))
 ```
 

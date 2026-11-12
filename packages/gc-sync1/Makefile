@@ -37,11 +37,12 @@ check: sync-uncat-lib.scm
 # per https://wiki.gnucash.org/wiki/Custom_Reports#Debugging_your_report
 
 
-# the pure part of Reports > Finquick > Clean Descriptions; any guile 3 will do
-test: clean-desc-lib.scm clean-desc-test.scm
+# the pure parts of the Reports > Finquick items; any guile 3 will do
+test: clean-desc-lib.scm clean-desc-test.scm amazon-match-lib.scm amazon-match-test.scm
 	$(GUILE) --no-auto-compile clean-desc-test.scm
+	$(GUILE) --no-auto-compile amazon-match-test.scm
 
 # symlink the menu handlers where config-user.scm loads them from
 install:
-	for f in finquick-menu.scm sync-uncat.scm sync-uncat-lib.scm clean-desc.scm clean-desc-lib.scm; do \
+	for f in finquick-menu.scm sync-uncat.scm sync-uncat-lib.scm clean-desc.scm clean-desc-lib.scm amazon-match.scm amazon-match-lib.scm; do \
 	  ln -sf $(CURDIR)/$$f $(USERDATA)$$f; done
