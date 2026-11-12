@@ -36,3 +36,12 @@ check: sync-uncat-lib.scm
 # gnucash --debug --log gnc.scm=debug
 # per https://wiki.gnucash.org/wiki/Custom_Reports#Debugging_your_report
 
+
+# the pure part of Reports > Clean Descriptions; any guile 3 will do
+test: clean-desc-lib.scm clean-desc-test.scm
+	$(GUILE) --no-auto-compile clean-desc-test.scm
+
+# symlink the menu handlers where config-user.scm loads them from
+install:
+	for f in sync-uncat.scm sync-uncat-lib.scm clean-desc.scm clean-desc-lib.scm; do \
+	  ln -sf $(CURDIR)/$$f $(USERDATA)$$f; done

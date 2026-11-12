@@ -3,11 +3,17 @@
 **STATUS: WIP**. see [finquick issue
 #51](https://github.com/dckc/finquick/issues/51).
 
-Provided GnuCash is configured as below, we add these menu items:
+Provided GnuCash is configured as below, we add these items to the
+**Reports** menu (GnuCash 5 puts every Scheme menu extension there):
 
  - Push Uncat Txs - select uncategorized transactions and POST to a
    Google Sheet for categorization (_working_).
  - Pull Categories - GET categories and apply them (_not working_).
+ - Clean Descriptions - strip payment-processor prefixes (`TST*`,
+   `SQ *`, `DDA PUR `, ...) from uncategorized (Imbalance-USD)
+   transactions, so sorting by description groups by merchant. It
+   shows what would change and asks first. The prefixes are a list
+   in `clean-desc-lib.scm`; `make test` checks it with plain guile.
 
 ## Load GnuCash Menu Handlers
 
@@ -16,11 +22,12 @@ report](https://wiki.gnucash.org/wiki/Custom_Reports#Loading_Your_Report),
 put something like this in `~/.config/gnucash/config-user.scm`:
 
 ```scm
+(load (gnc-build-userdata-path "clean-desc.scm"))
 (load (gnc-build-userdata-path "sync-uncat.scm"))
 ```
 
-Then symlink `~/.local/share/gnucash/sync-uncat.scm` and
-`~/.local/share/gnucash/sync-uncat-lib.scm` to the code in this dir.
+Then `make install` symlinks the `.scm` files in this dir into
+`~/.local/share/gnucash/`, and restart GnuCash.
 
 ## Deploy Google Sheet web service
 
