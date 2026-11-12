@@ -16,7 +16,7 @@
   (N_ "Push Uncat Txs")          ; Name that appears in the menu
   "0d9fe0a6-de1b-4de5-a27c-1919cd9fe484"
   (N_ "Push uncategorized splits to SheetSync") ; Tooltip/Description
-  (list (N_ "Tools"))             ; Path: "Tools" menu
+  (list "Reports/StandardReports")  ; GnuCash 5 shows it in Reports
   (lambda (window)
     (catch #t (lambda () (run-push-tx-ids window)) handle-exn))
   ))
@@ -26,7 +26,7 @@
   (N_ "Pull Categories")
   "c397d0f6-7876-4efd-a2b2-8eabd51ab63a"
   (N_ "Pull categories from SheetSync")
-  (list (N_ "Tools"))
+  (list "Reports/StandardReports")
     (lambda (window)
     (catch #t (lambda () (run-pull-categories window)) handle-exn))
   ))
