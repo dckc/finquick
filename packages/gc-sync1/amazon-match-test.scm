@@ -104,12 +104,22 @@
   (let-values (((by-window by-elimination) (compare story-orders story-charges)))
     (list (shown by-window) (disagreements by-window by-elimination))))
 
+;; Amazon titles run long; a memo keeps each product's name
+(test-equal "short-title: up to the first cut, then a word at a time"
+  '("Acme Widget" "Acme Widget" "Acme Stainless Steel Kitchen Utensil Holder Organizer for Countertop…")
+  (map short-title '("Acme Widget, 3 Pack (Blue)" "Acme Widget - Blue | Gift; "
+                     "Acme Stainless Steel Kitchen Utensil Holder Organizer for Countertop Drawer Storage")))
+
+(test-equal "short-items: counted when there's more than one"
+  '("3: Bidet seat | CD | Toner" "Face primer" "")
+  (map short-items (list (order-items (list-ref story-orders 4)) "Face primer; " "")))
+
 (test-equal "memos: each piece of a shipment gets its order's"
-  '(("a" . "[\"Bidet seat; CD, boxed; Toner; \",{\"orderId\":\"bidet\"}]")
-    ("b" . "[\"Bidet seat; CD, boxed; Toner; \",{\"orderId\":\"bidet\"}]")
-    ("c" . "[\"Breast forms; \",{\"orderId\":\"forms\"}]")
-    ("x" . "[\"Face primer; \",{\"orderId\":\"primer1\"}]")
-    ("y" . "[\"Face primer; \",{\"orderId\":\"primer2\"}]"))
+  '(("a" . "[\"3: Bidet seat | CD | Toner\",{\"orderId\":\"bidet\"}]")
+    ("b" . "[\"3: Bidet seat | CD | Toner\",{\"orderId\":\"bidet\"}]")
+    ("c" . "[\"Breast forms\",{\"orderId\":\"forms\"}]")
+    ("x" . "[\"Face primer\",{\"orderId\":\"primer1\"}]")
+    ("y" . "[\"Face primer\",{\"orderId\":\"primer2\"}]"))
   (let-values (((by-window by-elimination) (compare story-orders story-charges)))
     (memos story-orders by-elimination)))
 
@@ -166,6 +176,19 @@
                        (list "mix" (story-memo "x") "")
                        (list "mix" (story-memo "c") "")))))
     (list to-link conflicts)))
+
+;; memos used to keep azad's items whole; Shorten Amazon Memos rewrites
+;; those, and nothing else: not a short memo, nor one with more typed after
+(test-equal "shorter-memo"
+  (list "[\"3: Bidet seat | CD | Toner\",{\"orderId\":\"bidet\"}]"
+        "[\"Joy-Con\",{\"orderId\":\"jc\"}]"
+        #f #f #f)
+  (map shorter-memo
+       (list "[\"Bidet seat; CD, boxed; Toner; \",{\"orderId\":\"bidet\"}]"
+             "[\"Joy-Con (L/R) - Neon;\",{\"orderId\":\"jc\"}]"
+             (story-memo "a")
+             "[\"Joy-Con;\",{\"orderId\":\"jc\"}] for B"
+             "[\"Towels\"]")))
 
 (define failures (test-runner-fail-count (test-runner-current)))
 (test-end "amazon-match")

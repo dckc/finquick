@@ -16,7 +16,9 @@ extension under Reports; see `finquick-menu.scm`):
    shows what would change and asks first. The prefixes are a list
    in `clean-desc-lib.scm`; `make test` checks it with plain guile.
  - Match Amazon Orders - set the memos of uncategorized Amazon charges
-   to their orders' items and ids, from an order-history CSV (from
+   to their orders' items and ids (`["3: name1 | name2 | name3",{"orderId":…}]`,
+   each name an item's title up to its first `,`, ` - `, `(`, … and
+   at most 70 characters), from an order-history CSV (from
    the azad extension) that you pick with `zenity`'s file chooser
    (without zenity: `~/Downloads/amazon_order_history.csv`),
    matching by process of elimination; shows the report and asks
@@ -28,6 +30,9 @@ extension under Reports; see `finquick-menu.scm`):
    `https://www.amazon.com/your-orders/order-details?orderID=…`;
    leaves alone a transaction that already has a link or whose memos
    name more than one order; shows them and asks first.
+ - Shorten Amazon Memos - rewrite memos in Imbalance that still have
+   azad's full item titles to the short form above. Memos edited by
+   hand (more fields, or more typed after) are left alone.
 
 ## Load GnuCash Menu Handlers
 

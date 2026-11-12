@@ -8,6 +8,9 @@
 ;; Reports > Finquick > Link Amazon Orders: link transactions matched
 ;; earlier (whose memos name an order) to their orders' pages.
 ;;
+;; Reports > Finquick > Shorten Amazon Memos: in uncategorized splits
+;; matched earlier, cut azad's long item titles down to names.
+;;
 ;; Authority: this file holds it. The library gets each split as an
 ;; opaque handle and returns which matched; only match-amazon-orders
 ;; sets a memo or link, and only after the person says yes.
@@ -64,12 +67,16 @@ amazon_order_history.csv in ~/Downloads"
               (reverse lines)
               (loop (cons (string-trim-right line #\return) lines))))))))
 
-(define (amazon-uncategorized-charges root start)
-  "the Imbalance account's uncategorized Amazon charges since start,
-each with its split as handle"
+(define (amazon-imbalance root)
   (let ((acct (gnc-account-lookup-by-code root amazon-imbalance-code)))
     (when (or (not acct) (null? acct))
       (error "no account with code" amazon-imbalance-code))
+    acct))
+
+(define (amazon-uncategorized-charges root start)
+  "the Imbalance account's uncategorized Amazon charges since start,
+each with its split as handle"
+  (let ((acct (amazon-imbalance root)))
     (filter-map
      (lambda (split)
        (let* ((txn (xaccSplitGetParent split))
@@ -172,6 +179,34 @@ entries keyed by transaction guid, and a table from guid to transaction"
           (for-each (lambda (pr) (amazon-set-link! (txn-of (car pr)) (cdr pr))) to-link)
           (gnc-info-dialog '() (format #f "Linked ~a transactions." (length to-link)))))))))
 
+(define (shorten-amazon-memos)
+  (let* ((splits (xaccAccountGetSplitList (amazon-imbalance (gnc-get-current-root-account))))
+         (to-set (filter-map (lambda (split)
+                               (let* ((memo (xaccSplitGetMemo split))
+                                      (short (shorter-memo memo)))
+                                 (and short (list split memo short))))
+                             splits))
+         (text (amazon-printf-safe
+                (amazon-shown
+                 (sort (map (lambda (e) (string-append (gnc-print-time64 (xaccTransGetDate (xaccSplitGetParent (car e)))
+                                                                         "%Y-%m-%d")
+                                                       " " (caddr e)))
+                            to-set)
+                       string<?)))))
+    (cond
+     ((null? to-set)
+      (gnc-info-dialog '() "No memos to shorten."))
+     ((gnc-verify-dialog '() #f (string-append text (format #f "\n\nShorten ~a memos?" (length to-set))))
+      (for-each (lambda (e)
+                  (let ((split (car e)) (txn (xaccSplitGetParent (car e))))
+                    (unless (string=? (xaccSplitGetMemo split) (cadr e))
+                      (error "memo changed meanwhile on split" (gncSplitGetGUID split)))
+                    (xaccTransBeginEdit txn)
+                    (xaccSplitSetMemo split (caddr e))
+                    (xaccTransCommitEdit txn)))
+                to-set)
+      (gnc-info-dialog '() (format #f "Shortened ~a memos." (length to-set)))))))
+
 (define (amazon-failed name)
   (lambda (key . args)
     (format (current-error-port) "~a failed: ~a ~s~%" name key args)
@@ -194,3 +229,12 @@ entries keyed by transaction guid, and a table from guid to transaction"
   finquick-menu-path
   (lambda (window)
     (catch #t link-amazon-orders (amazon-failed "Link Amazon Orders")))))
+
+(gnc-add-scm-extension
+ (gnc:make-menu-item
+  (N_ "Shorten Amazon Memos")
+  "507a9355-a740-454f-9718-f983d29e6e08"
+  (N_ "In uncategorized splits matched earlier, cut Amazon item titles down to names")
+  finquick-menu-path
+  (lambda (window)
+    (catch #t shorten-amazon-memos (amazon-failed "Shorten Amazon Memos")))))

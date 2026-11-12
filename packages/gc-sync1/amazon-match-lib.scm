@@ -25,7 +25,8 @@
         outcome-matched outcome-ambiguous outcome-unmatched
         money parse-orders uncategorized-amazon? earliest-order-date
         candidates eliminate unique-per-charge outcome-of disagreements
-        compare memos order-url links memo-order-id missing-links report)
+        compare short-title short-items memos shorter-memo
+        order-url links memo-order-id missing-links report)
 
 (define-record-type <order>
   (make-order id date total items)
@@ -280,16 +281,80 @@ current-error-port."
          (string->list s)))
    "\""))
 
+(define (json-string-prefix text)
+  "the string that the JSON string literal starting text stands for,
+paired with the rest of text; or #f"
+  (define end (string-length text))
+  (and (string-prefix? "\"" text)
+       (let loop ((i 1) (chars '()))
+         (and (< i end)
+              (let ((c (string-ref text i)))
+                (cond
+                 ((char=? c #\") (cons (list->string (reverse chars)) (substring text (1+ i))))
+                 ((not (char=? c #\\)) (loop (1+ i) (cons c chars)))
+                 ((>= (1+ i) end) #f)
+                 (else
+                  (let ((e (string-ref text (1+ i))))
+                    (case e
+                      ((#\n) (loop (+ i 2) (cons #\newline chars)))
+                      ((#\r) (loop (+ i 2) (cons #\return chars)))
+                      ((#\t) (loop (+ i 2) (cons #\tab chars)))
+                      (else (loop (+ i 2) (cons e chars))))))))))))
+
+(define (substrings s sep)
+  (let loop ((start 0) (parts '()))
+    (let ((i (string-contains s sep start)))
+      (if i
+          (loop (+ i (string-length sep)) (cons (substring s start i) parts))
+          (reverse (cons (substring s start) parts))))))
+
+;; Amazon titles lead with the product's name, then pile on keywords.
+(define title-cuts '("," " | " " - " " – " "- " " ("))
+(define short-title-max 70)
+
+(define (short-title title)
+  "the product's name: title up to its first cut, at most short-title-max
+characters, cut back to a word"
+  (let* ((trimmed (string-trim-both title (char-set #\; #\space)))
+         (cut (apply min (string-length trimmed)
+                     (filter-map (lambda (sep) (string-contains trimmed sep)) title-cuts)))
+         (name (if (zero? cut) trimmed (string-trim-right (substring trimmed 0 cut)))))
+    (if (<= (string-length name) short-title-max)
+        name
+        (let* ((head (substring name 0 short-title-max))
+               (space (string-rindex head #\space)))
+          (string-append (if space (substring head 0 space) head) "…")))))
+
+(define (short-items items)
+  "azad's \"; \"-separated titles as names, counted when there's more
+than one: \"3: name1 | name2 | name3\""
+  (let ((names (map short-title
+                    (filter (lambda (t) (not (string-null? (string-trim-both t (char-set #\; #\space)))))
+                            (substrings items "; ")))))
+    (if (and (pair? names) (pair? (cdr names)))
+        (format #f "~a: ~a" (length names) (string-join names " | "))
+        (string-join names " | "))))
+
+(define (items-memo items id)
+  (string-append "[" (json-string items) ",{\"orderId\":" (json-string id) "}]"))
+
 (define (memos orders outcome)
-  "((key . memo) ...): each matched charge's order's items and id, as
-amazon-matching.sql wrote them; each piece of a shipment gets its
-order's memo"
+  "((key . memo) ...): each matched charge's order's items, short, and
+id; each piece of a shipment gets its order's memo"
   (map (lambda (pr)
          (let ((order (car (filter-map (lambda (o) (and (string=? (order-id o) (cdr pr)) o)) orders))))
-           (cons (car pr)
-                 (string-append "[" (json-string (order-items order))
-                                ",{\"orderId\":" (json-string (order-id order)) "}]"))))
+           (cons (car pr) (items-memo (short-items (order-items order)) (order-id order)))))
        (outcome-matched outcome)))
+
+(define (shorter-memo memo)
+  "memo with its items short, if it's exactly as memos (or
+amazon-matching.sql) used to write it, with azad's items; else #f"
+  (let ((items+rest (and (string-prefix? "[" memo) (json-string-prefix (substring memo 1))))
+        (id (memo-order-id memo)))
+    (and items+rest id
+         (string=? memo (items-memo (car items+rest) id))
+         (string-suffix? ";" (string-trim-right (car items+rest)))
+         (items-memo (short-items (car items+rest)) id))))
 
 (define (order-url id)
   (string-append "https://www.amazon.com/your-orders/order-details?orderID=" id))
