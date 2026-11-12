@@ -1,5 +1,5 @@
 ;; clean-desc.scm
-;; Reports > Clean Descriptions: strip TST*, SQ *, ... from the descriptions
+;; Reports > Finquick > Clean Descriptions: strip TST*, SQ *, ... from the descriptions
 ;; of uncategorized (Imbalance-USD) transactions, so sorting by
 ;; description groups by merchant. Shows what would change and asks
 ;; first: on a SQLite book each change is saved as it's made.
@@ -9,6 +9,7 @@
 ;; Copyright (C) 2026 by Dan Connolly
 ;; SPDX-License-Identifier: Apache-2.0
 
+(load (gnc-build-userdata-path "finquick-menu.scm"))
 (load (gnc-build-userdata-path "clean-desc-lib.scm"))
 (use-modules (clean-desc-lib))
 (use-modules ((srfi srfi-1) #:select (filter-map take)))
@@ -76,8 +77,6 @@
   (N_ "Clean Descriptions")
   "9f767ba7-8ba6-4a0f-bd7e-406605e3d915"
   (N_ "Strip TST*, SQ * etc. from uncategorized transaction descriptions")
-  ;; GnuCash 5 puts every Scheme extension in the Reports menu, whatever
-  ;; the path says (gnc-plugin-menu-additions.c); so say so.
-  (list "Reports/StandardReports")
+  finquick-menu-path
   (lambda (window)
     (catch #t (lambda () (run-clean-descriptions window)) clean-desc-failed))))

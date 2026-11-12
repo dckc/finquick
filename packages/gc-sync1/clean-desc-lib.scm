@@ -3,7 +3,7 @@
 ;; so that sorting a register by description groups by merchant.
 ;;
 ;; Pure: no GnuCash, so `make test` runs it with plain guile.
-;; The Reports menu item that applies it is in clean-desc.scm.
+;; The menu item that applies it is in clean-desc.scm.
 ;;
 ;; Copyright (C) 2026 by Dan Connolly
 ;; SPDX-License-Identifier: Apache-2.0

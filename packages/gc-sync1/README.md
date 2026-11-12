@@ -3,8 +3,9 @@
 **STATUS: WIP**. see [finquick issue
 #51](https://github.com/dckc/finquick/issues/51).
 
-Provided GnuCash is configured as below, we add these items to the
-**Reports** menu (GnuCash 5 puts every Scheme menu extension there):
+Provided GnuCash is configured as below, we add these items to a
+**Reports > Finquick** submenu (GnuCash 5 puts every Scheme menu
+extension under Reports; see `finquick-menu.scm`):
 
  - Push Uncat Txs - select uncategorized transactions and POST to a
    Google Sheet for categorization (_working_).
