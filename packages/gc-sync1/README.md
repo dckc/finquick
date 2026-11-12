@@ -16,8 +16,9 @@ extension under Reports; see `finquick-menu.scm`):
    shows what would change and asks first. The prefixes are a list
    in `clean-desc-lib.scm`; `make test` checks it with plain guile.
  - Match Amazon Orders - set the memos of uncategorized Amazon charges
-   to their orders' items and ids, from
-   `~/Downloads/amazon_order_history.csv` (from the azad extension),
+   to their orders' items and ids, from an order-history CSV (from
+   the azad extension) that you pick with `zenity`'s file chooser
+   (without zenity: `~/Downloads/amazon_order_history.csv`),
    matching by process of elimination; shows the report and asks
    first. A port of qtrx `tools/amazon_match.py`; `make test` runs
    its story with plain guile.

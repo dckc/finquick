@@ -19,6 +19,7 @@
 (use-modules ((srfi srfi-1) #:select (filter-map take)))
 (use-modules ((srfi srfi-11) #:select (let-values)))
 (use-modules ((ice-9 rdelim) #:select (read-line)))
+(use-modules ((ice-9 popen) #:select (open-pipe* close-pipe))) ; OPEN_READ is core
 (use-modules ((gnucash core-utils) #:select (N_)))
 (use-modules (gnucash engine))
 (use-modules (gnucash app-utils))   ; gnc-get-current-root-account
@@ -27,9 +28,28 @@
 (define amazon-imbalance-code "9001")
 (define amazon-report-lines-shown 20)
 
-;; GnuCash's Scheme has no file chooser, so: a known place.
-(define (amazon-orders-path)
-  (string-append (getenv "HOME") "/Downloads/amazon_order_history.csv"))
+(define (amazon-downloads) (string-append (getenv "HOME") "/Downloads/"))
+
+;; GnuCash's Scheme has no file chooser (gnc_file_dialog isn't bound),
+;; so we ask zenity: the person designates the one file to read.
+(define (amazon-choose-orders-file)
+  "the CSV the person picks, or #f if they cancel; without zenity,
+amazon_order_history.csv in ~/Downloads"
+  (define fallback (string-append (amazon-downloads) "amazon_order_history.csv"))
+  (catch 'system-error
+    (lambda ()
+      (let* ((port (open-pipe* OPEN_READ "zenity" "--file-selection"
+                               "--title=Amazon order history (from azad)"
+                               (string-append "--filename=" (amazon-downloads))
+                               "--file-filter=azad CSV | amazon_order_history*.csv"
+                               "--file-filter=All files | *"))
+             (path (read-line port))
+             (code (status:exit-val (close-pipe port))))
+        (cond
+         ((and (eqv? code 0) (string? path) (not (string-null? path))) path)
+         ((eqv? code 127) fallback)  ; no zenity, by way of a shell
+         (else #f))))                ; cancelled, or zenity failed
+    (lambda args fallback)))         ; no zenity
 
 (define (amazon-file-lines path)
   (call-with-input-file path
@@ -74,8 +94,12 @@ each with its split as handle"
                    (format #f "\n\nSet ~a memos? Each is saved as it's made." (length to-set)))))
 
 (define (run-match-amazon window)
-  (let* ((path (amazon-orders-path))
-         (orders (parse-orders (amazon-file-lines path)))
+  (let ((path (amazon-choose-orders-file)))
+    (when path
+      (match-amazon-orders path))))
+
+(define (match-amazon-orders path)
+  (let* ((orders (parse-orders (amazon-file-lines path)))
          (charges (amazon-uncategorized-charges (gnc-get-current-root-account)
                                                 (earliest-order-date orders)))
          (handle (lambda (key)
