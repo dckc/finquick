@@ -24,7 +24,7 @@
         outcome-matched outcome-ambiguous outcome-unmatched
         money parse-orders uncategorized-amazon? earliest-order-date
         candidates eliminate unique-per-charge outcome-of disagreements
-        compare memos report)
+        compare memos order-url links report)
 
 (define-record-type <order>
   (make-order id date total items)
@@ -264,7 +264,7 @@ current-error-port."
       (values (outcome-of charges (unique-per-charge window-pool) window-pool)
               (outcome-of charges matched left)))))
 
-;;; memos and report
+;;; memos, links, and report
 
 (define (json-string s)
   (string-append
@@ -288,6 +288,15 @@ order's memo"
            (cons (car pr)
                  (string-append "[" (json-string (order-items order))
                                 ",{\"orderId\":" (json-string (order-id order)) "}]"))))
+       (outcome-matched outcome)))
+
+(define (order-url id)
+  (string-append "https://www.amazon.com/your-orders/order-details?orderID=" id))
+
+(define (links outcome)
+  "((key . url) ...): each matched charge's order's page, for its
+transaction's document link"
+  (map (lambda (pr) (cons (car pr) (order-url (cdr pr))))
        (outcome-matched outcome)))
 
 (define (dollars x) (format #f "~,2f" (exact->inexact x)))

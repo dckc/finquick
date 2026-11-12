@@ -113,6 +113,15 @@
   (let-values (((by-window by-elimination) (compare story-orders story-charges)))
     (memos story-orders by-elimination)))
 
+(test-equal "links: each piece of a shipment gets its order's page"
+  '(("a" . "https://www.amazon.com/your-orders/order-details?orderID=bidet")
+    ("b" . "https://www.amazon.com/your-orders/order-details?orderID=bidet")
+    ("c" . "https://www.amazon.com/your-orders/order-details?orderID=forms")
+    ("x" . "https://www.amazon.com/your-orders/order-details?orderID=primer1")
+    ("y" . "https://www.amazon.com/your-orders/order-details?orderID=primer2"))
+  (let-values (((by-window by-elimination) (compare story-orders story-charges)))
+    (links by-elimination)))
+
 (test-equal "the report"
   '("0-7 day window: 2 of 8 matched, 2 ambiguous, 4 no candidate"
     "elimination   : 5 of 8 matched, 2 ambiguous, 1 no candidate"

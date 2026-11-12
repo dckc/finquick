@@ -1,12 +1,13 @@
 ;; amazon-match.scm
 ;; Reports > Finquick > Match Amazon Orders: set the memos of
 ;; uncategorized Amazon charges (Imbalance splits) to their orders'
-;; items and ids, matching by process of elimination
+;; items and ids, and their transactions' document links to the
+;; orders' pages, matching by process of elimination
 ;; (amazon-match-lib.scm). Shows the report and asks first.
 ;;
 ;; Authority: this file holds it. The library gets each split as an
-;; opaque handle and returns which matched; only run-match-amazon
-;; sets a memo, and only after the person says yes.
+;; opaque handle and returns which matched; only match-amazon-orders
+;; sets a memo or link, and only after the person says yes.
 ;;
 ;; Load from ~/.config/gnucash/config-user.scm; see README.md.
 ;;
@@ -75,12 +76,15 @@ each with its split as handle"
               (make-charge (gncSplitGetGUID split) date (xaccSplitGetAmount split) description split))))
      (xaccAccountGetSplitList acct))))
 
-(define (amazon-set-memo! split memo)
+;; A transaction that already has a document link keeps it.
+(define (amazon-annotate! split memo url)
   (unless (string-null? (xaccSplitGetMemo split))
     (error "memo set meanwhile on split" (gncSplitGetGUID split)))
   (let ((txn (xaccSplitGetParent split)))
     (xaccTransBeginEdit txn)
     (xaccSplitSetMemo split memo)
+    (when (string-null? (xaccTransGetDocLink txn))
+      (xaccTransSetDocLink txn url))
     (xaccTransCommitEdit txn)))
 
 ;; the dialogs take a printf format
@@ -91,7 +95,7 @@ each with its split as handle"
                    (append (take lines amazon-report-lines-shown) '("..."))
                    lines)))
     (string-append path "\n\n" (string-join shown "\n")
-                   (format #f "\n\nSet ~a memos? Each is saved as it's made." (length to-set)))))
+                   (format #f "\n\nSet ~a memos and links? Each is saved as it's made." (length to-set)))))
 
 (define (run-match-amazon window)
   (let ((path (amazon-choose-orders-file)))
@@ -107,13 +111,15 @@ each with its split as handle"
                                                    charges))))))
     (let-values (((by-window by-elimination) (compare orders charges)))
       (let ((lines (report orders charges by-window by-elimination))
-            (to-set (memos orders by-elimination)))
+            (to-set (memos orders by-elimination))
+            (urls (links by-elimination)))
         (cond
          ((null? to-set)
           (gnc-info-dialog '() (amazon-printf-safe (string-join (cons path lines) "\n"))))
          ((gnc-verify-dialog '() #f (amazon-printf-safe (amazon-preview path lines to-set)))
-          (for-each (lambda (pr) (amazon-set-memo! (handle (car pr)) (cdr pr))) to-set)
-          (gnc-info-dialog '() (format #f "Set ~a memos." (length to-set)))))))))
+          (for-each (lambda (pr url) (amazon-annotate! (handle (car pr)) (cdr pr) (cdr url)))
+                    to-set urls)
+          (gnc-info-dialog '() (format #f "Set ~a memos and links." (length to-set)))))))))
 
 (define (amazon-match-failed key . args)
   (format (current-error-port) "amazon-match failed: ~a ~s~%" key args)
@@ -123,7 +129,7 @@ each with its split as handle"
  (gnc:make-menu-item
   (N_ "Match Amazon Orders")
   "caa6e750-447e-4dae-8971-95deb7600626"
-  (N_ "Set memos of uncategorized Amazon charges from amazon_order_history.csv")
+  (N_ "Set memos and links of uncategorized Amazon charges from amazon_order_history.csv")
   finquick-menu-path
   (lambda (window)
     (catch #t (lambda () (run-match-amazon window)) amazon-match-failed))))
