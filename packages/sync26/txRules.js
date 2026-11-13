@@ -60,10 +60,11 @@ function testApplyrules(row = 129) {
   applyRulesToRange(doc, range)
 }
 
-function ApplyRules() {
-  console.warn('AMBIENT: SpreadsheetApp');
-  const doc = SpreadsheetApp.getActive();
-  const sel = doc.getSelection().getActiveRange();
+function ApplyRules(_nonce, io = {}) {
+  const {
+    doc = SpreadsheetApp.getActive(),
+    sel = doc.getSelection().getActiveRange(),
+  } = io;
   if (!sel) return;
   applyRulesToRange(doc, sel);
 }

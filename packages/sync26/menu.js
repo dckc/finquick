@@ -31,15 +31,16 @@ function onOpen() {
     .addToUi();
 }
 
-function TxLookup() {
+function TxLookup(_nonce, io = {}) {
+  const {
+    active = SpreadsheetApp.getActive(),
+    sel = active.getSelection(),
+    range = sel.getActiveRange(),
+    sheet = range.getSheet(),
+  } = io;
+
   const { values } = Object;
 
-  console.warn('AMBIENT: SpreadsheetApp');
-  const active = SpreadsheetApp.getActive();
-
-  const sel = active.getSelection();
-  const range = sel.getActiveRange();
-  const sheet = range.getSheet();
   const cols = sheet.getLastColumn();
   const [hd] = sheet.getRange(1, 1, 1, cols).getValues();
   const rowNum = range.getRow();
