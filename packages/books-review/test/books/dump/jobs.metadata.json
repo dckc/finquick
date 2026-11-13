@@ -1,0 +1,13 @@
+{
+  "name": "jobs",
+  "columns": [
+    "guid",
+    "id",
+    "name",
+    "reference",
+    "active",
+    "owner_type",
+    "owner_guid"
+  ],
+  "schema": "CREATE TABLE jobs(guid text(32) PRIMARY KEY NOT NULL, id text(2048) NOT NULL, name text(2048) NOT NULL, reference text(2048) NOT NULL, active integer NOT NULL, owner_type integer, owner_guid text(32))"
+}

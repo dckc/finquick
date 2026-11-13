@@ -1,0 +1,26 @@
+{
+  "name": "employees",
+  "columns": [
+    "guid",
+    "username",
+    "id",
+    "language",
+    "acl",
+    "active",
+    "currency",
+    "ccard_guid",
+    "workday_num",
+    "workday_denom",
+    "rate_num",
+    "rate_denom",
+    "addr_name",
+    "addr_addr1",
+    "addr_addr2",
+    "addr_addr3",
+    "addr_addr4",
+    "addr_phone",
+    "addr_fax",
+    "addr_email"
+  ],
+  "schema": "CREATE TABLE employees(guid text(32) PRIMARY KEY NOT NULL, username text(2048) NOT NULL, id text(2048) NOT NULL, language text(2048) NOT NULL, acl text(2048) NOT NULL, active integer NOT NULL, currency text(32) NOT NULL, ccard_guid text(32), workday_num bigint NOT NULL, workday_denom bigint NOT NULL, rate_num bigint NOT NULL, rate_denom bigint NOT NULL, addr_name text(1024), addr_addr1 text(1024), addr_addr2 text(1024), addr_addr3 text(1024), addr_addr4 text(1024), addr_phone text(128), addr_fax text(128), addr_email text(256))"
+}

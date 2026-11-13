@@ -1,0 +1,62 @@
+body {
+  font:
+    16px/1.4 system-ui,
+    sans-serif;
+  max-width: 64rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+textarea {
+  width: 100%;
+  height: 10rem;
+  font: 12px monospace;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+td,
+th {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid #ccc;
+  text-align: left;
+  vertical-align: top;
+}
+td.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+td.date {
+  white-space: nowrap;
+}
+td.pick select,
+td.verdict input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.why {
+  font-size: 0.85em;
+  color: #555;
+  margin-top: 0.2rem;
+}
+.bar {
+  height: 4px;
+  margin-top: 2px;
+  background: #eee;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+}
+.bar.model > span {
+  background: #4a7bd0;
+}
+.bar.precedent > span {
+  background: #3a9a5a;
+}
+.bar.against > span {
+  background: #c33;
+}
+td.verdict button {
+  margin-top: 0.2rem;
+}

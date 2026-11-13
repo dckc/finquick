@@ -1,0 +1,47 @@
+'use strict';
+/** The boot page: load a snapshot, and set up the model. */
+const api = apiWith(keyFor('books:key'));
+const show = async () => {
+  const reviews = await api('reviews');
+  $('books').replaceChildren(
+    ...reviews.map(i => {
+      localStorage.setItem('books:review:' + i.tree, i.reviewerKey);
+      const a = el('a', i.tree.slice(0, 12) + ' (' + i.dir + ')');
+      a.href = '/review?tree=' + i.tree;
+      const li = el('li');
+      li.append(a);
+      return li;
+    }),
+  );
+  const model = await api('model');
+  $('model').url.value = model.url ?? '';
+  $('model').name.value = model.name ?? '';
+};
+$('load').addEventListener('submit', async e => {
+  e.preventDefault();
+  say('loading…');
+  try {
+    const i = await api('load', e.target.listing.value, e.target.dir.value);
+    say('loaded tree ' + i.tree);
+    await show();
+  } catch (err) {
+    fail(err);
+  }
+});
+$('model').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api(
+      'setModel',
+      f.url.value,
+      f.name.value,
+      ...(f.key.value ? [f.key.value] : []),
+    );
+    f.key.value = '';
+    say('model saved');
+  } catch (err) {
+    fail(err);
+  }
+});
+show().catch(fail);

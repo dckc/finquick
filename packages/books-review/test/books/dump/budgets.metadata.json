@@ -1,0 +1,5 @@
+{
+  "name": "budgets",
+  "columns": ["guid", "name", "description", "num_periods"],
+  "schema": "CREATE TABLE budgets(guid text(32) PRIMARY KEY NOT NULL, name text(2048) NOT NULL, description text(2048), num_periods integer NOT NULL)"
+}

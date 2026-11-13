@@ -1,0 +1,5 @@
+{
+  "name": "taxtables",
+  "columns": ["guid", "name", "refcount", "invisible", "parent"],
+  "schema": "CREATE TABLE taxtables(guid text(32) PRIMARY KEY NOT NULL, name text(50) NOT NULL, refcount bigint NOT NULL, invisible integer NOT NULL, parent text(32))"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "orders",
+  "columns": [
+    "guid",
+    "id",
+    "notes",
+    "reference",
+    "active",
+    "date_opened",
+    "date_closed",
+    "owner_type",
+    "owner_guid"
+  ],
+  "schema": "CREATE TABLE orders(guid text(32) PRIMARY KEY NOT NULL, id text(2048) NOT NULL, notes text(2048) NOT NULL, reference text(2048) NOT NULL, active integer NOT NULL, date_opened text(19) NOT NULL, date_closed text(19) NOT NULL, owner_type integer NOT NULL, owner_guid text(32) NOT NULL)"
+}

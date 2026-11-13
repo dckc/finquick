@@ -1,0 +1,25 @@
+<!doctype html><title>Review</title><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<link rel="stylesheet" href="/style.css" />
+<h1>Review</h1>
+<p id="status" role="status"></p>
+<p>
+  <button id="ask">Ask the model</button> for up to
+  <input id="limit" type="number" value="10" min="1" size="4" /> proposals
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Description</th>
+      <th>From</th>
+      <th>Amount</th>
+      <th>Proposed account</th>
+      <th>Your verdict</th>
+    </tr>
+  </thead>
+  <tbody id="pending"></tbody>
+</table>
+<p><button id="changelog">Download changelog</button></p>
+<script src="/prelude.js"></script>
+<script src="/review.js"></script>

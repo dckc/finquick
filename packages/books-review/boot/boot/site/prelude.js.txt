@@ -1,0 +1,38 @@
+'use strict';
+/**
+ * What every page's script shares: `apiWith(key)(op, ...args)` POSTs to /api
+ * with the page's webkey, which `keyFor` keeps in localStorage after taking
+ * it from the link's fragment and out of the address bar.
+ */
+const $ = id => document.getElementById(id);
+const el = (tag, text) =>
+  Object.assign(
+    document.createElement(tag),
+    text === undefined ? {} : { textContent: text },
+  );
+const say = text => ($('status').textContent = text);
+/** A failure: on the page, and in the console, where its stack is. */
+const fail = err => {
+  console.error(err);
+  say(err.message);
+};
+/** The key in localStorage under name, after taking any from the fragment. */
+const keyFor = name => {
+  const fragment = location.hash.slice(1);
+  if (fragment) {
+    localStorage.setItem(name, fragment);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  return localStorage.getItem(name);
+};
+const apiWith =
+  key =>
+  async (op, ...args) => {
+    const r = await fetch('/api', {
+      method: 'POST',
+      body: JSON.stringify({ key, op, args }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw Error(j.error);
+    return j;
+  };

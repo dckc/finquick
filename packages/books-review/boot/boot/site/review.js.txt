@@ -1,0 +1,159 @@
+'use strict';
+/** A book's review page: ask the model for proposals, and accept, correct, or reject each. */
+const tree = new URLSearchParams(location.search).get('tree');
+const api = apiWith(keyFor('books:review:' + tree));
+const show = async () => {
+  const [accounts, pending, summary] = await Promise.all([
+    api('accounts'),
+    api('pending'),
+    api('summary'),
+  ]);
+  const { count, first, last } = summary.uncategorized;
+  say(
+    pending.length +
+      ' proposals to review; ' +
+      count +
+      ' splits uncategorized' +
+      (count ? ', ' + first + ' to ' + last : '') +
+      (summary.rejected
+        ? '; ' + summary.rejected + ' rejected here, which the model skips'
+        : ''),
+  );
+  /** How much to trust a proposal: the model's say-so and the book's precedents, averaged; unknown counts as a half. */
+  const share = p =>
+    p.support && p.support.of ? p.support.count / p.support.of : 0.5;
+  const score = p => ((p.confidence ?? 0.5) + share(p)) / 2;
+  /** A thin bar, filled to fraction, with a tooltip. */
+  const bar = (kind, fraction, title) => {
+    const b = el('div');
+    b.className = 'bar ' + kind;
+    b.title = title;
+    const fill = el('span');
+    fill.style.width = Math.round(fraction * 100) + '%';
+    b.append(fill);
+    return b;
+  };
+  // most trusted first
+  pending.sort((a, b) => score(b) - score(a));
+  $('pending').replaceChildren(
+    ...pending.map(p => {
+      const tr = el('tr');
+      const amount = el('td', p.amount.toFixed(2));
+      amount.className = 'amount';
+      const select = el('select');
+      select.setAttribute('aria-label', 'account for ' + p.description);
+      for (const a of accounts)
+        select.append(
+          Object.assign(el('option', a.name), {
+            value: a.guid,
+            selected: a.name === p.account,
+          }),
+        );
+      const decide = el('button', 'Accept');
+      select.addEventListener(
+        'change',
+        () =>
+          (decide.textContent =
+            select.selectedOptions[0].text === p.account
+              ? 'Accept'
+              : 'Correct'),
+      );
+      const reject = el('button', 'Reject');
+      const note = el('input');
+      note.placeholder = 'why (optional)';
+      note.setAttribute('aria-label', 'why, for ' + p.description);
+      const review = async verdict => {
+        try {
+          await api('review', p.n, verdict, note.value);
+          await show();
+        } catch (err) {
+          fail(err);
+        }
+      };
+      decide.addEventListener('click', () =>
+        review(
+          select.selectedOptions[0].text === p.account
+            ? 'accept'
+            : { account: select.value },
+        ),
+      );
+      reject.addEventListener('click', () => review('reject'));
+      // the dropdown starts at the proposed account; the proposer's reason sits under it
+      const pick = el('td');
+      pick.className = 'pick';
+      const why = el('div', p.reason);
+      why.className = 'why';
+      pick.append(select, why);
+      if (p.confidence !== undefined)
+        pick.append(
+          bar(
+            'model',
+            p.confidence,
+            'the model says ' + Math.round(p.confidence * 100) + '% sure',
+          ),
+        );
+      if (p.support && p.support.of) {
+        const { count, of } = p.support;
+        // the book's precedents went elsewhere: a red sliver
+        pick.append(
+          count
+            ? bar(
+                'precedent',
+                count / of,
+                count + ' of ' + of + ' with this description went here',
+              )
+            : bar(
+                'against',
+                0.15,
+                'none of ' + of + ' with this description went here',
+              ),
+        );
+      }
+      const actions = el('td');
+      actions.className = 'verdict';
+      actions.append(note, el('br'), decide, ' ', reject);
+      const date = el('td', p.date);
+      date.className = 'date';
+      tr.append(
+        date,
+        el('td', p.description),
+        el('td', p.against.map(a => a.name).join(', ')),
+        amount,
+        pick,
+        actions,
+      );
+      return tr;
+    }),
+  );
+};
+$('ask').addEventListener('click', async () => {
+  say('asking the model…');
+  try {
+    const { proposed, refused } = await api(
+      'categorize',
+      Number($('limit').value),
+    );
+    await show();
+    // each refusal says why: the model named no such split or account, say
+    for (const r of refused) console.warn('refused', r);
+    say(
+      proposed.length +
+        ' proposed, ' +
+        refused.length +
+        ' refused' +
+        (refused.length ? ': ' + refused.map(r => r.error).join('; ') : ''),
+    );
+  } catch (err) {
+    fail(err);
+  }
+});
+$('changelog').addEventListener('click', async () => {
+  const changes = await api('changelog');
+  const a = el('a');
+  a.href = URL.createObjectURL(
+    new Blob([JSON.stringify(changes, null, 2)], { type: 'application/json' }),
+  );
+  a.download = 'changelog.json';
+  a.click();
+});
+show().catch(fail);
