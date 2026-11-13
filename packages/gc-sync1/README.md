@@ -34,6 +34,9 @@ extension under Reports; see `finquick-menu.scm`):
    azad's full item titles to the short form above. Memos edited by
    hand (more fields, or more typed after) are left alone.
 
+For testing, including trying a menu item on a copy of the book, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Load GnuCash Menu Handlers
 
 Following conventions for [loading a custom
