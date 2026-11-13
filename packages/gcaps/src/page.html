@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; }
+      table { border-collapse: collapse; }
+      td, th { padding: 2px 8px; text-align: left; vertical-align: top; }
+      tbody.thread { border-top: 1px solid #ccc; }
+      .err { color: #b00; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Loading…</p>
+    <table hidden id="list">
+      <thead><tr><th>date</th><th>from</th><th>subject</th><th></th></tr></thead>
+    </table>
+    <script>
+      // The webkey is the fragment, #s=...; the server never sees it in a URL.
+      const status = document.getElementById('status');
+      const list = document.getElementById('list');
+      const fail = err => {
+        status.textContent = String(err && err.message ? err.message : err);
+        status.className = 'err';
+      };
+      // E(s).method(...args): call a method of what webkey s designates.
+      // ('then' is left undefined, so a proxy isn't mistaken for a promise.)
+      const E = s =>
+        new Proxy({}, {
+          get: (_target, method) =>
+            method === 'then'
+              ? undefined
+              : (...args) =>
+                  new Promise((resolve, reject) =>
+                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+                      .invoke(s, method, args)),
+        });
+      /** RFC 822 in base64 (or base64url) as a Blob to save */
+      const rawToBlob = raw => {
+        const text = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
+        return new Blob([Uint8Array.from(text, c => c.charCodeAt(0))], { type: 'message/rfc822' });
+      };
+      const cell = (tr, text) => {
+        const td = tr.insertCell();
+        td.textContent = text || '';
+        return td;
+      };
+      const save = async (mail, m) => {
+        const { raw } = await mail.raw(m.id);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(rawToBlob(raw));
+        a.download = `${m.id}.eml`;
+        a.click();
+      };
+      google.script.url.getLocation(async loc => {
+        try {
+          const s = new URLSearchParams(loc.hash).get('s');
+          if (!s) throw Error('no webkey: expected #s=...');
+          const mail = E(s);
+          const { query, threads, more } = await mail.threads();
+          status.textContent = `${query}: ${threads.length} threads${more ? ' (more not shown)' : ''}`;
+          for (const t of threads) {
+            const body = list.createTBody();
+            body.className = 'thread';
+            for (const m of t.messages) {
+              const tr = body.insertRow();
+              cell(tr, m.date);
+              cell(tr, m.from);
+              cell(tr, m.subject);
+              const button = document.createElement('button');
+              button.textContent = '.eml';
+              button.onclick = () => save(mail, m).catch(fail);
+              cell(tr).append(button);
+            }
+          }
+          list.hidden = false;
+        } catch (err) {
+          fail(err);
+        }
+      });
+    </script>
+  </body>
+</html>

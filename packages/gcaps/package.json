@@ -1,0 +1,12 @@
+{
+  "name": "gcaps",
+  "version": "0.1.0",
+  "description": "webkeys for narrow views of Google data, from Apps Script",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "author": "Dan Connolly",
+  "license": "Apache-2.0"
+}
