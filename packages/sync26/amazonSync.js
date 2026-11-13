@@ -29,7 +29,7 @@ function AmazonLookup(tx) {
   const sameAmount = orders.filter(o => o.total === -tx.Amount);
   const ok = sameAmount.filter(o => {
     const delta = daysBetween(o.date, tx.Date);
-    return delta >= 0 && delta <= 3;
+    return delta >= -1 && delta <= 4;
   });
   // console.log('amount and date', ok)
   if (ok.length < 1) {
